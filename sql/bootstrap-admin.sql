@@ -1,0 +1,3 @@
+-- The connected Mayer Insurance Group project has already been bootstrapped.
+-- Do NOT run an admin bootstrap again on the connected project.
+-- This file is kept only as a reminder for future fresh projects.
