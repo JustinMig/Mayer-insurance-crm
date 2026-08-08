@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import ClientsResults from './ClientsResults'
 
-type SearchParams = Promise<{ q?: string; product?: string; turn65?: string; agent?: string }>
+type SearchParams = Promise<{ q?: string; product?: string; turn65?: string; agent?: string; deleted?: string; cleanup_warning?: string }>
 
 type AgentProfile = {
   id: string
@@ -94,6 +94,9 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
           <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
         </div>
       </div>
+
+      {params.deleted === '1' ? <div className="notice notice-success" style={{ marginTop: 18 }}>Client deleted successfully.</div> : null}
+      {params.cleanup_warning === '1' ? <div className="notice" style={{ marginTop: 10 }}>The client was deleted, but one or more stored file objects could not be cleaned up automatically.</div> : null}
 
       <form className="toolbar" action="/clients" method="get">
         <input className="input search" name="q" defaultValue={q} placeholder="Search name, phone or email" />

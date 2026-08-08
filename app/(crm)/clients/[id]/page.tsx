@@ -14,6 +14,7 @@ import HealthPlanDocuments from './HealthPlanDocuments'
 import HospitalIndemnityFields from '../HospitalIndemnityFields'
 import HospitalIndemnityDocuments from './HospitalIndemnityDocuments'
 import OtherCoverageDocuments from './OtherCoverageDocuments'
+import DeleteClientButton from './DeleteClientButton'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -100,7 +101,10 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <h1>{client.first_name} {client.last_name}</h1>
           <p className="subtle">Open a section to view or edit the client information.</p>
         </div>
-        <Link href="/clients" className="btn btn-secondary">Back to search</Link>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link href="/clients" className="btn btn-secondary">Back to search</Link>
+          {canAssignAgents ? <DeleteClientButton clientId={client.id} clientName={`${client.first_name} ${client.last_name}`.trim()} /> : null}
+        </div>
       </div>
 
       {query.created === '1' ? <div className="notice notice-success" style={{ marginTop: 18 }}>Client saved successfully.</div> : null}

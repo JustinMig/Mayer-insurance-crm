@@ -74,6 +74,21 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const requestedName = String(form.get('file_name') || file.name || 'document')
     const fileName = safeFileName(requestedName)
     const documentType = String(form.get('document_type') || 'medicare_document').slice(0, 80)
+
+    const { data: existingDocument } = await supabase
+      .from('documents')
+      .select('id, file_name, mime_type, document_type, created_at')
+      .eq('client_id', clientId)
+      .eq('document_type', documentType)
+      .eq('file_name', fileName)
+      .maybeSingle()
+
+    if (existingDocument) {
+      return NextResponse.json({ document: existingDocument, duplicate: true }, {
+        headers: { 'Cache-Control': 'private, no-store' }
+      })
+    }
+
     const storageName = `${crypto.randomUUID()}-${fileName}`
     const storagePath = `${profile.agency_id}/${clientId}/${storageName}`
 

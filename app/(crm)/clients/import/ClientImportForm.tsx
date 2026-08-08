@@ -23,11 +23,13 @@ type Summary = ReturnType<typeof importRowSummary> & { rowIndex: number; source_
 type ResultRow = {
   source_id: string | null
   name: string
-  status: 'imported' | 'duplicate' | 'failed'
+  status: 'imported' | 'merged' | 'failed'
   reason?: string
   client_id?: string
   skipped_sensitive_fields?: string[]
+  fields_added?: string[]
   documents_uploaded?: number
+  documents_skipped?: number
   document_errors?: string[]
 }
 type FileReport = {
@@ -97,6 +99,7 @@ function classify(headers: string[]): FileReport['kind'] {
 
 async function uploadMatchedDocuments(clientId: string, matches: ImportAttachmentMatch[]) {
   let uploaded = 0
+  let skipped = 0
   const errors: string[] = []
 
   for (const match of matches) {
@@ -109,13 +112,14 @@ async function uploadMatchedDocuments(clientId: string, matches: ImportAttachmen
       const response = await fetch(`/api/clients/${clientId}/documents`, { method: 'POST', body: form })
       const payload = await response.json().catch(() => null)
       if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`)
-      uploaded += 1
+      if (payload?.duplicate) skipped += 1
+      else uploaded += 1
     } catch (error) {
       errors.push(`${match.meta.name}: ${error instanceof Error ? error.message : 'Upload failed.'}`)
     }
   }
 
-  return { uploaded, errors }
+  return { uploaded, skipped, errors }
 }
 
 export default function ClientImportForm({ agents }: { agents: Agent[] }) {
@@ -320,7 +324,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       return
     }
     if (!agentId) {
-      setError('Choose the agent these clients should be assigned to.')
+      setError('Choose the agent that should receive any newly created clients.')
       return
     }
 
@@ -352,11 +356,12 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
 
         const batchResults: ResultRow[] = Array.isArray(payload?.results) ? payload.results : []
         for (const result of batchResults) {
-          if (result.status !== 'imported' || !result.client_id || !result.source_id) continue
+          if (!['imported', 'merged'].includes(result.status) || !result.client_id || !result.source_id) continue
           const clientMatches = attachmentMatches.filter((item) => item.status === 'matched' && item.meta.source_id === result.source_id)
           if (!clientMatches.length) continue
           const upload = await uploadMatchedDocuments(result.client_id, clientMatches)
           result.documents_uploaded = upload.uploaded
+          result.documents_skipped = upload.skipped
           result.document_errors = upload.errors
           documentsDone += clientMatches.length
           setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: selectedDocumentMatches.length })
@@ -374,9 +379,10 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   }
 
   const importedCount = results.filter((item) => item.status === 'imported').length
-  const duplicateCount = results.filter((item) => item.status === 'duplicate').length
+  const mergedCount = results.filter((item) => item.status === 'merged').length
   const failedCount = results.filter((item) => item.status === 'failed').length
   const uploadedDocumentCount = results.reduce((total, item) => total + (item.documents_uploaded || 0), 0)
+  const skippedDocumentCount = results.reduce((total, item) => total + (item.documents_skipped || 0), 0)
   const documentErrorCount = results.reduce((total, item) => total + (item.document_errors?.length || 0), 0)
 
   return (
@@ -454,10 +460,10 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         <div className="import-step-number">2</div>
         <h2>Assign Agent</h2>
         <select className="select" value={agentId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setAgentId(event.target.value)} disabled={importing}>
-          <option value="">Choose agent…</option>
+          <option value="">Agent for new clients…</option>
           {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}
         </select>
-        <p className="subtle import-small-note">Managers are intentionally excluded from client assignment.</p>
+        <p className="subtle import-small-note">This assignment is used only when the importer creates a new client. Existing clients keep their current assigned agent.</p>
 
         <div className="import-security-box">
           <strong>Import protections</strong>
@@ -466,7 +472,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           <span>Actual client files are uploaded only when their attachment CSV record and client ID match.</span>
           <span>SSN, Medicare/Medicaid numbers, health member ID, routing/account/card numbers are encrypted before storage.</span>
           <span>CVV and Medicare.gov credentials are never stored or imported.</span>
-          <span>Possible duplicates are skipped using email, phone, or name + DOB.</span>
+          <span>Existing clients are matched by email, phone, or name + DOB. Blank CRM fields are filled, existing values are never overwritten.</span>
+          <span>Matching files are added to existing clients too; files already present with the same name and section are skipped.</span>
         </div>
 
         {error ? <div className="notice notice-error">{error}</div> : null}
@@ -504,7 +511,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         </div>
 
         {!summaries.length ? (
-          <div className="empty">Drop in the CSV export files and any actual client documents to preview the clients that will be created.</div>
+          <div className="empty">Drop in the CSV export files and any actual client documents to preview clients that will be created or matched to existing CRM records.</div>
         ) : (
           <>
             <div className="import-summary-strip">
@@ -566,19 +573,24 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           <div className="import-result-counts">
             <span><strong>{importedCount}</strong> imported</span>
             <span><strong>{uploadedDocumentCount}</strong> files uploaded</span>
-            <span><strong>{duplicateCount}</strong> duplicates skipped</span>
+            <span><strong>{skippedDocumentCount}</strong> duplicate files skipped</span>
+            <span><strong>{mergedCount}</strong> existing clients updated</span>
             <span><strong>{failedCount}</strong> client failures</span>
             <span><strong>{documentErrorCount}</strong> file failures</span>
           </div>
-          {results.some((item) => item.status !== 'imported' || (item.document_errors?.length || 0) > 0) ? (
+          {results.some((item) => item.status === 'merged' || item.status === 'failed' || (item.documents_skipped || 0) > 0 || (item.document_errors?.length || 0) > 0) ? (
             <div className="import-result-list">
-              {results.filter((item) => item.status !== 'imported' || (item.document_errors?.length || 0) > 0).slice(0, 100).map((item, index) => (
+              {results.filter((item) => item.status === 'merged' || item.status === 'failed' || (item.documents_skipped || 0) > 0 || (item.document_errors?.length || 0) > 0).slice(0, 100).map((item, index) => (
                 <div key={`${item.source_id || item.name}-${index}`}>
-                  <strong>{item.name}</strong> — {item.status !== 'imported' ? (item.reason || item.status) : `${item.documents_uploaded || 0} files uploaded${item.document_errors?.length ? `; ${item.document_errors.join(' | ')}` : ''}`}
+                  <strong>{item.name}</strong> — {item.status === 'failed'
+                    ? (item.reason || 'Import failed')
+                    : item.status === 'merged'
+                      ? `${item.reason || 'Existing client updated.'}${item.documents_uploaded ? ` ${item.documents_uploaded} files uploaded.` : ''}${item.documents_skipped ? ` ${item.documents_skipped} existing files skipped.` : ''}${item.document_errors?.length ? ` File errors: ${item.document_errors.join(' | ')}` : ''}`
+                      : `${item.documents_uploaded || 0} files uploaded${item.documents_skipped ? `; ${item.documents_skipped} existing files skipped` : ''}${item.document_errors?.length ? `; ${item.document_errors.join(' | ')}` : ''}`}
                 </div>
               ))}
             </div>
-          ) : <div className="notice">All selected clients and matched files imported successfully.</div>}
+          ) : <div className="notice">All selected clients were created or matched successfully, and all available missing files were handled.</div>}
         </section>
       ) : null}
     </div>
