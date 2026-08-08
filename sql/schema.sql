@@ -27,6 +27,8 @@ create table if not exists public.clients (
   first_name text not null,
   last_name text not null,
   date_of_birth date,
+  height_inches smallint,
+  weight_lbs smallint,
   gender text,
   email text,
   phone text,

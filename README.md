@@ -149,3 +149,6 @@ The Add Client and client profile pages include Life Insurance fields for compan
 ## Add Client visual redesign
 
 The Add Client page now starts every major section collapsed. Client Information, Medicare Information, Doctors & Medications, Life Insurance, and Notes each use a different colored header. Inside each section, related fields are separated into smaller cards for easier scanning on desktop, tablet, and phone.
+
+## Height & Weight underwriting lookup
+The dashboard includes a life build-chart lookup for Mutual of Omaha (MOO) and American Amicable (AMAM). The lookup uses only the requested carrier guide pages. Client Information also stores height and weight. See `BUILD-CHART-HEIGHT-WEIGHT-UPDATE.md`.

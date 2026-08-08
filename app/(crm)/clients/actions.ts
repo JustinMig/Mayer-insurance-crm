@@ -32,6 +32,27 @@ function optionalMoney(form: FormData, key: string) {
   return number
 }
 
+function clientHeightInches(form: FormData) {
+  const feetRaw = value(form, 'height_feet')
+  const inchesRaw = value(form, 'height_in')
+  if (!feetRaw && !inchesRaw) return null
+  if (!feetRaw) throw new Error('Enter the feet portion of the client height.')
+
+  const feet = Number(feetRaw)
+  const inches = inchesRaw ? Number(inchesRaw) : 0
+  if (!Number.isInteger(feet) || feet < 1 || feet > 8) throw new Error('Enter a valid height in feet.')
+  if (!Number.isInteger(inches) || inches < 0 || inches > 11) throw new Error('Height inches must be between 0 and 11.')
+  return feet * 12 + inches
+}
+
+function clientWeightLbs(form: FormData) {
+  const raw = value(form, 'weight_lbs')
+  if (!raw) return null
+  const weight = Number(raw)
+  if (!Number.isInteger(weight) || weight < 1 || weight > 999) throw new Error('Enter a valid weight in pounds.')
+  return weight
+}
+
 function resolvedLifeCompany(form: FormData) {
   const choice = value(form, 'life_company_choice')
   if (choice === '__other__') return nullable(form, 'life_company_custom')
@@ -307,6 +328,8 @@ async function createClientRecord(form: FormData) {
       first_name: firstName,
       last_name: lastName,
       date_of_birth: nullable(form, 'date_of_birth'),
+      height_inches: clientHeightInches(form),
+      weight_lbs: clientWeightLbs(form),
       gender: nullable(form, 'gender'),
       email: nullable(form, 'email'),
       phone: nullable(form, 'phone'),
@@ -409,6 +432,8 @@ export async function updateClient(form: FormData) {
     first_name: firstName,
     last_name: lastName,
     date_of_birth: nullable(form, 'date_of_birth'),
+    height_inches: clientHeightInches(form),
+    weight_lbs: clientWeightLbs(form),
     gender: nullable(form, 'gender'),
     email: nullable(form, 'email'),
     phone: nullable(form, 'phone'),

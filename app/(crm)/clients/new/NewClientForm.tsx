@@ -341,6 +341,9 @@ export default function NewClientForm(props: Props) {
               <label className="label">Last name<input className="input" name="last_name" required /></label>
               <label className="label">Date of birth<input className="input" type="date" name="date_of_birth" /></label>
               <label className="label">Gender<select className="select" name="gender" defaultValue=""><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></label>
+              <label className="label">Height - feet<input className="input" type="number" name="height_feet" inputMode="numeric" min={1} max={8} placeholder="5" /></label>
+              <label className="label">Height - inches<input className="input" type="number" name="height_in" inputMode="numeric" min={0} max={11} placeholder="10" /></label>
+              <label className="label">Weight (lb)<input className="input" type="number" name="weight_lbs" inputMode="numeric" min={1} max={999} placeholder="180" /></label>
             </div>
           </div>
 

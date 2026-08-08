@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CompanyDirectory from './CompanyDirectory'
+import BuildChartLookup from './BuildChartLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
 
 export const dynamic = 'force-dynamic'
@@ -241,6 +242,8 @@ export default async function DashboardPage() {
       </section>
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
+
+      <BuildChartLookup />
 
       <section className="card card-pad" style={{ marginTop: 20 }}>
         <h2>Quick actions</h2>
