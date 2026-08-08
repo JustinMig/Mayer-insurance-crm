@@ -1,0 +1,4 @@
+-- Applied to the connected Mayer Insurance Group Supabase project on 2026-08-08.
+-- Included for source control/reference; do not rerun against the same database.
+-- Adds client_care_info, client_specialists, and client_medications with RLS.
+-- See sql/schema.sql for the complete current schema.

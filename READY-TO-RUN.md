@@ -47,3 +47,8 @@ The Add Client > Medicare Information section now includes:
 - Sign Scope of Appointment
 
 Files and the signed SOA are staged until Save Client is pressed. After the client is created, the staged items are automatically uploaded to that client's private Supabase Storage folder. Card Information is also available from an existing client's Medicare Information section.
+
+
+## Doctors & Medications update
+
+The connected Supabase project has already been migrated for this feature. No additional SQL setup is required. Add Client and client profiles now include Primary Doctor, 5 Specialists, Pharmacy, an unlimited medication list, and Medications file/photo upload. Uploading this version to the existing GitHub repository will trigger Vercel to redeploy automatically.

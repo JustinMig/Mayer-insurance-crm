@@ -11,6 +11,7 @@ This is the first working foundation for the Mayer Insurance Group CRM: one clou
 - Add Client form
 - Client Information section
 - Medicare Information section
+- Doctors & Medications section with primary doctor, 5 specialists, pharmacy, unlimited medications, and medication photo/file uploads
 - Medicare / Life / Retirement product selection
 - Search clients by name, phone, or email
 - Filter by Medicare, Life, or Retirement
@@ -134,3 +135,8 @@ Admin and Manager users can assign new clients to an active agency sales owner (
 
 ### Intake document workflow
 New-client intake can stage a Medicare document, camera photo, Card Information file, and electronically signed Scope of Appointment before the client record exists. Saving the client creates the database record first and then uploads those staged items through the authenticated client-document API.
+
+
+## Doctors & Medications
+
+Both Add Client and existing client profiles include a **Doctors & Medications** section. It stores the primary doctor, up to five specialist doctors, the client's pharmacy, and an expandable medication list with medication name, dosage, times per day, quantity filled, and number of refills. Medication lists/photos are stored in the existing private `client-documents` bucket using the `medications` document type.

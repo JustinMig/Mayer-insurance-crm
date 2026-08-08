@@ -33,6 +33,86 @@ async function getProfile() {
   return { supabase, userId, profile }
 }
 
+
+async function saveDoctorsAndMedications(
+  supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
+  agencyId: string,
+  clientId: string,
+  form: FormData
+) {
+  const careInfo = {
+    agency_id: agencyId,
+    client_id: clientId,
+    primary_doctor_name: nullable(form, 'primary_doctor_name'),
+    primary_doctor_city: nullable(form, 'primary_doctor_city'),
+    primary_doctor_state: nullable(form, 'primary_doctor_state'),
+    pharmacy_name: nullable(form, 'pharmacy_name'),
+    pharmacy_city: nullable(form, 'pharmacy_city'),
+    pharmacy_state: nullable(form, 'pharmacy_state')
+  }
+
+  const hasCareInfo = Object.entries(careInfo).some(([key, item]) => !['agency_id', 'client_id'].includes(key) && Boolean(item))
+  if (hasCareInfo) {
+    const { error } = await supabase
+      .from('client_care_info')
+      .upsert(careInfo, { onConflict: 'client_id' })
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('client_care_info').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+  }
+
+  const specialists = []
+  for (let slot = 1; slot <= 5; slot += 1) {
+    const specialty = nullable(form, `specialist_${slot}_specialty`)
+    const doctorName = nullable(form, `specialist_${slot}_name`)
+    const city = nullable(form, `specialist_${slot}_city`)
+    const state = nullable(form, `specialist_${slot}_state`)
+    if (specialty || doctorName || city || state) {
+      specialists.push({
+        agency_id: agencyId,
+        client_id: clientId,
+        slot,
+        specialty,
+        doctor_name: doctorName,
+        city,
+        state
+      })
+    }
+  }
+
+  const { error: clearSpecialistsError } = await supabase.from('client_specialists').delete().eq('client_id', clientId)
+  if (clearSpecialistsError) throw new Error(clearSpecialistsError.message)
+  if (specialists.length) {
+    const { error } = await supabase.from('client_specialists').insert(specialists)
+    if (error) throw new Error(error.message)
+  }
+
+  const names = form.getAll('medication_name').map(item => String(item || '').trim())
+  const dosages = form.getAll('medication_dosage').map(item => String(item || '').trim())
+  const timesPerDay = form.getAll('medication_times_per_day').map(item => String(item || '').trim())
+  const quantities = form.getAll('medication_quantity_filled').map(item => String(item || '').trim())
+  const refills = form.getAll('medication_refill_count').map(item => String(item || '').trim())
+
+  const medications = names.map((name, index) => ({
+    agency_id: agencyId,
+    client_id: clientId,
+    medication_name: name,
+    dosage: dosages[index] || null,
+    times_per_day: timesPerDay[index] || null,
+    quantity_filled: quantities[index] || null,
+    refill_count: refills[index] || null,
+    sort_order: index
+  })).filter(item => item.medication_name)
+
+  const { error: clearMedicationsError } = await supabase.from('client_medications').delete().eq('client_id', clientId)
+  if (clearMedicationsError) throw new Error(clearMedicationsError.message)
+  if (medications.length) {
+    const { error } = await supabase.from('client_medications').insert(medications)
+    if (error) throw new Error(error.message)
+  }
+}
+
 async function createClientRecord(form: FormData) {
   const { supabase, userId, profile } = await getProfile()
 
@@ -103,6 +183,8 @@ async function createClientRecord(form: FormData) {
     })
     if (medicareError) throw new Error(medicareError.message)
   }
+
+  await saveDoctorsAndMedications(supabase, profile.agency_id, client.id, form)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
@@ -227,6 +309,8 @@ export async function updateClient(form: FormData) {
     })
     if (medicareError) throw new Error(medicareError.message)
   }
+
+  await saveDoctorsAndMedications(supabase, profile.agency_id, clientId, form)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,

@@ -60,6 +60,49 @@ create table if not exists public.medicare_info (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists public.client_care_info (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  client_id uuid not null unique references public.clients(id) on delete cascade,
+  primary_doctor_name text,
+  primary_doctor_city text,
+  primary_doctor_state text,
+  pharmacy_name text,
+  pharmacy_city text,
+  pharmacy_state text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.client_specialists (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  client_id uuid not null references public.clients(id) on delete cascade,
+  slot smallint not null check (slot between 1 and 5),
+  specialty text,
+  doctor_name text,
+  city text,
+  state text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (client_id, slot)
+);
+
+create table if not exists public.client_medications (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  client_id uuid not null references public.clients(id) on delete cascade,
+  medication_name text not null,
+  dosage text,
+  times_per_day text,
+  quantity_filled text,
+  refill_count text,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -90,6 +133,11 @@ create index if not exists clients_phone_idx on public.clients (agency_id, phone
 create index if not exists clients_email_idx on public.clients (agency_id, email);
 create index if not exists medicare_client_idx on public.medicare_info (client_id);
 create index if not exists medicare_agency_idx on public.medicare_info (agency_id);
+create index if not exists client_care_info_agency_idx on public.client_care_info (agency_id);
+create index if not exists client_specialists_client_idx on public.client_specialists (client_id, slot);
+create index if not exists client_specialists_agency_idx on public.client_specialists (agency_id);
+create index if not exists client_medications_client_idx on public.client_medications (client_id, sort_order, created_at);
+create index if not exists client_medications_agency_idx on public.client_medications (agency_id);
 create index if not exists documents_client_idx on public.documents (client_id);
 create index if not exists documents_agency_idx on public.documents (agency_id);
 create index if not exists documents_uploaded_by_idx on public.documents (uploaded_by);
@@ -114,6 +162,19 @@ for each row execute function public.set_updated_at();
 
 drop trigger if exists medicare_set_updated_at on public.medicare_info;
 create trigger medicare_set_updated_at before update on public.medicare_info
+for each row execute function public.set_updated_at();
+
+
+drop trigger if exists client_care_info_set_updated_at on public.client_care_info;
+create trigger client_care_info_set_updated_at before update on public.client_care_info
+for each row execute function public.set_updated_at();
+
+drop trigger if exists client_specialists_set_updated_at on public.client_specialists;
+create trigger client_specialists_set_updated_at before update on public.client_specialists
+for each row execute function public.set_updated_at();
+
+drop trigger if exists client_medications_set_updated_at on public.client_medications;
+create trigger client_medications_set_updated_at before update on public.client_medications
 for each row execute function public.set_updated_at();
 
 -- RLS helper functions live in an unexposed schema.
@@ -148,6 +209,9 @@ alter table public.agencies enable row level security;
 alter table public.profiles enable row level security;
 alter table public.clients enable row level security;
 alter table public.medicare_info enable row level security;
+alter table public.client_care_info enable row level security;
+alter table public.client_specialists enable row level security;
+alter table public.client_medications enable row level security;
 alter table public.documents enable row level security;
 alter table public.audit_log enable row level security;
 
@@ -229,6 +293,58 @@ create policy "admins delete medicare" on public.medicare_info
 for delete to authenticated
 using (agency_id = private.current_agency_id() and private.current_crm_role() in ('admin','manager'));
 
+
+create policy "authorized users view care info" on public.client_care_info
+for select to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users insert care info" on public.client_care_info
+for insert to authenticated
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users update care info" on public.client_care_info
+for update to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id))
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users delete care info" on public.client_care_info
+for delete to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users view specialists" on public.client_specialists
+for select to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users insert specialists" on public.client_specialists
+for insert to authenticated
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users update specialists" on public.client_specialists
+for update to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id))
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users delete specialists" on public.client_specialists
+for delete to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users view medications" on public.client_medications
+for select to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users insert medications" on public.client_medications
+for insert to authenticated
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users update medications" on public.client_medications
+for update to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id))
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users delete medications" on public.client_medications
+for delete to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
 create policy "authorized users view documents" on public.documents
 for select to authenticated
 using (
@@ -255,6 +371,9 @@ grant select on public.agencies to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.clients to authenticated;
 grant select, insert, update, delete on public.medicare_info to authenticated;
+grant select, insert, update, delete on public.client_care_info to authenticated;
+grant select, insert, update, delete on public.client_specialists to authenticated;
+grant select, insert, update, delete on public.client_medications to authenticated;
 grant select, insert, update, delete on public.documents to authenticated;
 grant select, insert on public.audit_log to authenticated;
 grant usage, select on sequence public.audit_log_id_seq to authenticated;

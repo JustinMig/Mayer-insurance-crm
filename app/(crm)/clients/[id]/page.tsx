@@ -5,6 +5,8 @@ import { decryptValue, last4 } from '@/lib/crypto'
 import { updateClient } from '../actions'
 import SensitiveReveal from './SensitiveReveal'
 import MedicareDocuments from './MedicareDocuments'
+import MedicationDocuments from './MedicationDocuments'
+import DoctorsMedicationsFields from '../DoctorsMedicationsFields'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -27,6 +29,9 @@ export default async function ClientProfilePage({ params, searchParams }: { para
   const { data: client } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
   if (!client) notFound()
   const { data: medicare } = await supabase.from('medicare_info').select('*').eq('client_id', id).maybeSingle()
+  const { data: careInfo } = await supabase.from('client_care_info').select('*').eq('client_id', id).maybeSingle()
+  const { data: specialists } = await supabase.from('client_specialists').select('*').eq('client_id', id).order('slot')
+  const { data: medications } = await supabase.from('client_medications').select('*').eq('client_id', id).order('sort_order').order('created_at')
   const { data: documents } = await supabase
     .from('documents')
     .select('id, file_name, mime_type, document_type, created_at')
@@ -70,7 +75,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
 
       {query.created === '1' ? <div className="notice notice-success" style={{ marginTop: 18 }}>Client saved successfully.</div> : null}
       {query.updated === '1' ? <div className="notice notice-success" style={{ marginTop: 18 }}>Client changes saved successfully.</div> : null}
-      {query.upload_warning === '1' ? <div className="notice" style={{ marginTop: 18 }}>Client saved, but one or more staged files did not upload. You can upload them again under Medicare Information.</div> : null}
+      {query.upload_warning === '1' ? <div className="notice" style={{ marginTop: 18 }}>Client saved, but one or more staged files did not upload. You can upload them again in the matching client file section.</div> : null}
 
       <form action={updateClient} className="grid" style={{ marginTop: 20 }}>
         <input type="hidden" name="client_id" value={client.id} />
@@ -156,7 +161,22 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               clientAddress={[client.address_line1, client.city, client.state, client.zip_code].filter(Boolean).join(', ')}
               agentName={currentAgent?.full_name || 'Mayer Insurance Group Agent'}
               agentEmail={agentEmail}
-              initialDocuments={documents || []}
+              initialDocuments={(documents || []).filter(doc => doc.document_type !== 'medications')}
+            />
+          </div>
+        </details>
+
+        <details className="section-details" open>
+          <summary>Doctors &amp; Medications</summary>
+          <div className="section-body">
+            <DoctorsMedicationsFields
+              careInfo={careInfo}
+              specialists={specialists || []}
+              medications={medications || []}
+            />
+            <MedicationDocuments
+              clientId={client.id}
+              initialDocuments={(documents || []).filter(doc => doc.document_type === 'medications')}
             />
           </div>
         </details>

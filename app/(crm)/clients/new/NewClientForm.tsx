@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientIntake } from '../actions'
+import DoctorsMedicationsFields from '../DoctorsMedicationsFields'
 
 type AgentOption = { id: string; full_name: string; role: string }
 
@@ -61,6 +62,8 @@ export default function NewClientForm(props: Props) {
   const [medicarePhoto, setMedicarePhoto] = useState<File | null>(null)
   const [cardFile, setCardFile] = useState<File | null>(null)
   const [soaFile, setSoaFile] = useState<File | null>(null)
+  const [medicationsFile, setMedicationsFile] = useState<File | null>(null)
+  const [medicationsPhoto, setMedicationsPhoto] = useState<File | null>(null)
 
   const [soaOpen, setSoaOpen] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState(localDate())
@@ -286,6 +289,8 @@ export default function NewClientForm(props: Props) {
       if (medicarePhoto) queued.push({ file: medicarePhoto, type: 'medicare_photo' })
       if (cardFile) queued.push({ file: cardFile, type: 'card_information' })
       if (soaFile) queued.push({ file: soaFile, type: 'scope_of_appointment' })
+      if (medicationsFile) queued.push({ file: medicationsFile, type: 'medications' })
+      if (medicationsPhoto) queued.push({ file: medicationsPhoto, type: 'medications' })
 
       let failed = 0
       for (const item of queued) {
@@ -383,6 +388,35 @@ export default function NewClientForm(props: Props) {
               {medicarePhoto ? <div className="document-row"><div><strong>Medicare Photo</strong><div className="field-help">{medicarePhoto.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicarePhoto(null)}>Remove</button></div> : null}
               {cardFile ? <div className="document-row"><div><strong>Card Information</strong><div className="field-help">{cardFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setCardFile(null)}>Remove</button></div> : null}
               {soaFile ? <div className="document-row"><div><strong>Signed Scope of Appointment</strong><div className="field-help">{soaFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setSoaFile(null)}>Remove</button></div> : null}
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details className="section-details" open>
+        <summary>Doctors &amp; Medications</summary>
+        <div className="section-body">
+          <DoctorsMedicationsFields />
+
+          <div className="medicare-documents-panel">
+            <div className="medicare-documents-heading">
+              <div>
+                <strong>Medications</strong>
+                <div className="field-help">Upload a medication list or take a picture of medication bottles. The file will save to the client&apos;s private folder when Save Client is pressed.</div>
+              </div>
+              <div className="document-action-row">
+                <label className="btn btn-secondary upload-button">Upload Medications
+                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicationsFile)} />
+                </label>
+                <label className="btn btn-secondary upload-button">Take Medication Photo
+                  <input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicationsPhoto)} />
+                </label>
+              </div>
+            </div>
+
+            <div className="intake-file-list">
+              {medicationsFile ? <div className="document-row"><div><strong>Medications</strong><div className="field-help">{medicationsFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsFile(null)}>Remove</button></div> : null}
+              {medicationsPhoto ? <div className="document-row"><div><strong>Medication Photo</strong><div className="field-help">{medicationsPhoto.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsPhoto(null)}>Remove</button></div> : null}
             </div>
           </div>
         </div>
