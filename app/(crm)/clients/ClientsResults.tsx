@@ -121,7 +121,7 @@ export default function ClientsResults({
                         />
                       </td>
                       <td>
-                        <Link className="client-name-link" href={`/clients/${client.id}`}>
+                        <Link prefetch={false} className="client-name-link" href={`/clients/${client.id}`}>
                           {client.first_name || ''} {client.last_name || ''}
                         </Link>
                       </td>

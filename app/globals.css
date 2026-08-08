@@ -1179,3 +1179,56 @@ tbody tr:hover { background: #f9fbfd; }
     margin-left: 0;
   }
 }
+
+/* Dashboard: annual personal total + current-month agent premiums */
+.monthly-agent-premium-card {
+  min-height: 150px;
+  border-color: rgba(35, 127, 112, 0.22);
+  background: linear-gradient(135deg, rgba(35, 127, 112, 0.08), rgba(255, 253, 247, 0.96));
+}
+
+.monthly-agent-premium-heading h2 {
+  margin: 4px 0 0;
+  font-size: 1.35rem;
+}
+
+.monthly-agent-premium-list {
+  display: grid;
+  gap: 0;
+  margin-top: 14px;
+  border-top: 1px solid rgba(23, 56, 86, .10);
+}
+
+.monthly-agent-premium-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(23, 56, 86, .10);
+}
+
+.monthly-agent-premium-row:last-child { border-bottom: 0; }
+.monthly-agent-premium-row span { color: var(--muted); font-weight: 750; }
+.monthly-agent-premium-row strong { color: #237f70; font-size: 1.05rem; white-space: nowrap; }
+
+.account-setup-card { max-width: 720px; margin: 28px auto; }
+.crm-loading-card { margin-top: 18px; overflow: hidden; }
+.crm-loading-bar {
+  width: 70%;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #edf2f6 20%, #f8fafc 50%, #edf2f6 80%);
+  background-size: 200% 100%;
+  animation: crm-loading-shimmer 1.1s linear infinite;
+}
+.crm-loading-bar-short { width: 42%; margin-top: 10px; height: 12px; }
+@keyframes crm-loading-shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-loading-bar { animation: none; }
+}
+
+@media (max-width: 800px) {
+  .monthly-agent-premium-row { align-items: flex-start; }
+}

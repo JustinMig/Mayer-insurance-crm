@@ -1,18 +1,8 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  if (!data?.claims) redirect('/login')
-
-  const userId = String(data.claims.sub)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, role')
-    .eq('id', userId)
-    .maybeSingle()
+  const { profile } = await getCrmSession()
 
   const isAgentPortal = profile?.role === 'agent'
   const portalBrand = isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
@@ -21,7 +11,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <div className="crm-shell">
       <aside className="sidebar">
         <div className="brand">
-          <Link className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard">
+          <Link prefetch={false} className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard">
             <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
           </Link>
           <div className="brand-text">
@@ -30,9 +20,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <nav className="nav">
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/clients/new">Add Client</Link>
-          <Link href="/clients">Clients</Link>
+          <Link prefetch={false} href="/dashboard">Dashboard</Link>
+          <Link prefetch={false} href="/clients/new">Add Client</Link>
+          <Link prefetch={false} href="/clients">Clients</Link>
           <a href="https://mayerig.com" target="_blank" rel="noopener noreferrer">MayerIG.com ↗</a>
           <form action="/auth/signout" method="post"><button type="submit">Sign out</button></form>
         </nav>
@@ -41,7 +31,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <div className="main">
         <header className="topbar">
           <div className="topbar-brand">
-            <Link className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard">
+            <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard">
               <img className="topbar-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
             </Link>
             <strong>{portalBrand}</strong>
@@ -52,9 +42,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       </div>
 
       <nav className="mobile-nav">
-        <Link href="/dashboard"><b>⌂</b><span>Home</span></Link>
-        <Link href="/clients/new"><b>＋</b><span>Add</span></Link>
-        <Link href="/clients"><b>⌕</b><span>Clients</span></Link>
+        <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
+        <Link prefetch={false} href="/clients/new"><b>＋</b><span>Add</span></Link>
+        <Link prefetch={false} href="/clients"><b>⌕</b><span>Clients</span></Link>
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>

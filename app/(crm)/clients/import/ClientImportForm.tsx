@@ -485,7 +485,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
               ? `Importing ${progress.done} of ${progress.total} clients${progress.documentsTotal ? ` · ${progress.documentsDone} of ${progress.documentsTotal} files` : ''}…`
               : `Import ${selectedCount.toLocaleString()} Selected Clients`}
           </button>
-          <Link className="btn btn-secondary" href="/clients">Back to Clients</Link>
+          <Link prefetch={false} className="btn btn-secondary" href="/clients">Back to Clients</Link>
         </div>
 
         {importing || progress.total > 0 ? (

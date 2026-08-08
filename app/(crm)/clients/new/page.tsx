@@ -1,22 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient as createSupabaseClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 import NewClientForm from './NewClientForm'
 
 type AgentOption = { id: string; full_name: string; role: string }
 
 export default async function NewClientPage() {
-  const supabase = await createSupabaseClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  if (!claimsData?.claims) redirect('/login')
-
-  const userId = String(claimsData.claims.sub)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('agency_id, role, full_name')
-    .eq('id', userId)
-    .single()
-
-  if (!profile?.agency_id) throw new Error('Your CRM profile is not connected to an agency.')
+  const { supabase, claims, userId, profile } = await getCrmSession()
+  if (!profile?.agency_id) redirect('/account-setup')
 
   const canAssignAgent = profile.role === 'admin' || profile.role === 'manager'
   let agents: AgentOption[] = []
@@ -41,7 +31,7 @@ export default async function NewClientPage() {
       <NewClientForm
         currentUserId={userId}
         currentUserName={profile.full_name || 'Mayer Insurance Group Agent'}
-        currentUserEmail={String(claimsData.claims.email || '')}
+        currentUserEmail={String(claims.email || '')}
         currentUserRole={profile.role}
         agents={agents}
       />

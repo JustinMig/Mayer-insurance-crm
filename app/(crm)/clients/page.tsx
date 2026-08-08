@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { getCrmSession } from '@/lib/crm-session'
 import ClientsResults from './ClientsResults'
 
 type SearchParams = Promise<{ q?: string; product?: string; turn65?: string; agent?: string; deleted?: string; cleanup_warning?: string }>
@@ -16,16 +17,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const product = params.product || ''
   const turn65 = params.turn65 === '1'
   const requestedAgent = (params.agent || '').trim()
-  const supabase = await createClient()
-
-  const { data: authData } = await supabase.auth.getClaims()
-  const userId = authData?.claims?.sub ? String(authData.claims.sub) : ''
-
-  const { data: currentProfile } = await supabase
-    .from('profiles')
-    .select('agency_id, role, full_name')
-    .eq('id', userId)
-    .maybeSingle()
+  const { supabase, userId, profile: currentProfile } = await getCrmSession()
+  if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const canFilterByAgent = currentProfile?.role === 'admin' || currentProfile?.role === 'manager'
 
@@ -90,8 +83,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div><h1>Clients</h1><p className="subtle">Search the database without loading every client onto the screen.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {canFilterByAgent ? <Link href="/clients/import" className="btn btn-secondary">Import Clients</Link> : null}
-          <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
+          {canFilterByAgent ? <Link prefetch={false} href="/clients/import" className="btn btn-secondary">Import Clients</Link> : null}
+          <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ Add Client</Link>
         </div>
       </div>
 
@@ -120,8 +113,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
           <option value="non_medicare">Non-Medicare</option>
         </select>
         <button className="btn btn-primary" type="submit">Search</button>
-        <Link className="btn btn-secondary" href={turn65Href}>Turn 65</Link>
-        <Link className="btn btn-secondary" href="/clients">Clear</Link>
+        <Link prefetch={false} className="btn btn-secondary" href={turn65Href}>Turn 65</Link>
+        <Link prefetch={false} className="btn btn-secondary" href="/clients">Clear</Link>
       </form>
 
       {canFilterByAgent ? (

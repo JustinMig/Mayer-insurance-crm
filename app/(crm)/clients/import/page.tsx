@@ -1,23 +1,14 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 import ClientImportForm from './ClientImportForm'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function ImportClientsPage() {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  if (!claimsData?.claims) redirect('/login')
-
-  const userId = String(claimsData.claims.sub)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('agency_id, role')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (!profile?.agency_id || !['admin', 'manager'].includes(profile.role)) redirect('/clients')
+  const { supabase, profile } = await getCrmSession()
+  if (!profile?.agency_id) redirect('/account-setup')
+  if (!['admin', 'manager'].includes(profile.role)) redirect('/clients')
 
   const { data: agents } = await supabase
     .from('profiles')

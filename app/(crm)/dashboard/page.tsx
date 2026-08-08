@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
@@ -16,16 +16,13 @@ type AgentProfile = {
 
 type PremiumRollupRow = {
   assigned_agent_id: string | null
-  effective_year: number | null
   effective_month: number | null
-  policy_count: number | string | null
   premium_total: number | string | null
 }
 
 type AgentPremiumStats = {
   agentId: string
   agentName: string
-  total: number
   currentMonth: number
   currentYear: number
 }
@@ -50,18 +47,8 @@ const monthNames = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  if (!claimsData?.claims) redirect('/login')
-
-  const userId = String(claimsData.claims.sub)
-  const { data: currentProfile } = await supabase
-    .from('profiles')
-    .select('agency_id, full_name, role')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (!currentProfile?.agency_id) throw new Error('Your CRM profile is not connected to an agency.')
+  const { supabase, userId, profile: currentProfile } = await getCrmSession()
+  if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const canSeeAllAgents = currentProfile.role === 'admin' || currentProfile.role === 'manager'
   const now = new Date()
@@ -76,7 +63,8 @@ export default async function DashboardPage() {
     supabase.from('clients').select('*', { count: 'exact', head: true }).gte('date_of_birth', `${turn65Year}-01-01`).lte('date_of_birth', `${turn65Year}-12-31`),
     supabase
       .from('life_premium_dashboard_rollup')
-      .select('assigned_agent_id,effective_year,effective_month,policy_count,premium_total'),
+      .select('assigned_agent_id,effective_month,premium_total')
+      .eq('effective_year', currentYear),
     canSeeAllAgents
       ? supabase
           .from('profiles')
@@ -93,95 +81,56 @@ export default async function DashboardPage() {
   }
 
   const premiumRows = (premiumRollupResult.data || []) as PremiumRollupRow[]
-  const agentProfiles = ((agentProfilesResult.data || []) as AgentProfile[])
+  const agentProfiles = (agentProfilesResult.data || []) as AgentProfile[]
   const agentNames = new Map(agentProfiles.map((agent) => [agent.id, agent.full_name || 'Agent']))
-
-  const monthlyPremiums = Array.from({ length: 12 }, () => 0)
   const agentTotals = new Map<string, AgentPremiumStats>()
-  let totalLifePremium = 0
-  let premiumsWithoutEffectiveDate = 0
 
   for (const agent of agentProfiles) {
     agentTotals.set(agent.id, {
       agentId: agent.id,
       agentName: agent.full_name || 'Agent',
-      total: 0,
       currentMonth: 0,
       currentYear: 0
     })
   }
 
   for (const row of premiumRows) {
-    const amount = numeric(row.premium_total)
-    totalLifePremium += amount
-
     const agentId = row.assigned_agent_id || 'unassigned'
     if (!agentTotals.has(agentId)) {
       agentTotals.set(agentId, {
         agentId,
         agentName: row.assigned_agent_id ? (agentNames.get(row.assigned_agent_id) || 'Agent') : 'Unassigned',
-        total: 0,
         currentMonth: 0,
         currentYear: 0
       })
     }
 
     const stats = agentTotals.get(agentId)!
-    stats.total += amount
-
-    if (!row.effective_year || !row.effective_month) {
-      premiumsWithoutEffectiveDate += amount
-      continue
-    }
+    const amount = numeric(row.premium_total)
+    stats.currentYear += amount
 
     const monthIndex = Number(row.effective_month) - 1
-    if (Number(row.effective_year) === currentYear && monthIndex >= 0 && monthIndex <= 11) {
-      monthlyPremiums[monthIndex] += amount
-      stats.currentYear += amount
-      if (monthIndex === currentMonth) stats.currentMonth += amount
-    }
+    if (monthIndex === currentMonth) stats.currentMonth += amount
   }
 
-  const currentMonthPremium = monthlyPremiums[currentMonth]
-  const currentYearPremium = monthlyPremiums.reduce((sum, amount) => sum + amount, 0)
-
   const allAgentPremiumCards = Array.from(agentTotals.values())
+    .filter((stats) => stats.agentId !== 'unassigned')
     .sort((a, b) => a.agentName.localeCompare(b.agentName))
 
   const myPremiumStats = agentTotals.get(userId) || {
     agentId: userId,
     agentName: currentProfile.full_name || 'Agent',
-    total: 0,
     currentMonth: 0,
     currentYear: 0
   }
 
-  const otherAgentYearPremiums = allAgentPremiumCards
-    .filter((stats) => stats.agentId !== userId && stats.agentId !== 'unassigned')
-
-  const visibleAgentPremiumCards = currentProfile.role === 'admin'
-    ? [myPremiumStats]
-    : currentProfile.role === 'manager'
-      ? allAgentPremiumCards.filter((stats) => stats.agentId !== 'unassigned')
-      : [myPremiumStats]
-
-  const myPremiumDisplayName = currentProfile.role === 'admin'
-    ? 'Mayer Insurance Group'
-    : (currentProfile.full_name || 'Agent')
-
-  const totalCardLabel = canSeeAllAgents
-    ? 'Total Life Insurance Premium — All Agents'
-    : 'Your Total Life Insurance Premium'
-
-  const monthlyHeading = canSeeAllAgents
-    ? `Life Premium by Month — All Agents — ${currentYear}`
-    : `Your Life Premium by Month — ${currentYear}`
+  const monthlyAgentPremiumCards = canSeeAllAgents ? allAgentPremiumCards : [myPremiumStats]
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div><h1>Dashboard</h1><p className="subtle">Your client database at a glance.</p></div>
-        <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
+        <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ Add Client</Link>
       </div>
 
       <section className="grid grid-4" style={{ marginTop: 22 }}>
@@ -193,98 +142,31 @@ export default async function DashboardPage() {
 
       <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
         <div className="card card-pad premium-total-card">
-          <span className="premium-card-label">{totalCardLabel}</span>
-          <strong className="premium-total-value">{money(totalLifePremium)}</strong>
+          <span className="premium-card-label">My Life Insurance Premium — {currentYear}</span>
+          <strong className="premium-total-value">{money(myPremiumStats.currentYear)}</strong>
           <p className="subtle" style={{ margin: '8px 0 0' }}>
-            {canSeeAllAgents ? 'Combined premium across every agent you are authorized to view.' : 'Premium from your assigned Life Insurance clients only.'}
-          </p>
-
-          {canSeeAllAgents && otherAgentYearPremiums.length > 0 ? (
-            <details className="premium-collapse premium-other-agents">
-              <summary>Other agents — {currentYear} premium</summary>
-              <div className="premium-collapse-body">
-                {otherAgentYearPremiums.map((agent) => (
-                  <div className="premium-agent-year-row" key={agent.agentId}>
-                    <span>{agent.agentName}</span>
-                    <strong>{money(agent.currentYear)}</strong>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
-        </div>
-
-        <div className="card card-pad premium-current-card">
-          <span className="premium-card-label">{monthNames[currentMonth]} {currentYear}</span>
-          <strong className="premium-current-value">{money(currentMonthPremium)}</strong>
-          <p className="subtle" style={{ margin: '8px 0 0' }}>
-            {canSeeAllAgents ? 'Premium for all visible policies effective this month.' : 'Premium for your policies effective this month.'}
+            Your total Life Insurance premium for policies effective in {currentYear}.
           </p>
         </div>
-      </section>
 
-      <section className="card card-pad" style={{ marginTop: 20 }}>
-        <div className="agent-premium-heading">
-          <div>
-            <h2 style={{ marginBottom: 4 }}>Life Insurance Premium by Agent</h2>
-            <p className="subtle" style={{ margin: 0 }}>
-              {currentProfile.role === 'admin'
-                ? 'Your Mayer Insurance Group premium is shown here. Other agents are kept in the collapsed Total section above.'
-                : currentProfile.role === 'manager'
-                  ? 'Each agent is totaled separately from their assigned clients.'
-                  : 'Only your assigned Life Insurance premium is shown here.'}
-            </p>
-          </div>
-        </div>
-
-        <div className={`agent-premium-grid${currentProfile.role === 'admin' ? ' agent-premium-grid-single' : ''}`}>
-          {visibleAgentPremiumCards.map((agent) => (
-            <div className="agent-premium-card" key={agent.agentId}>
-              <span className="agent-premium-name">
-                {currentProfile.role === 'admin' && agent.agentId === userId ? myPremiumDisplayName : agent.agentName}
-              </span>
-              <strong className="agent-premium-value">{money(agent.total)}</strong>
-              <div className="agent-premium-meta">
-                <span>{monthNames[currentMonth]}: <b>{money(agent.currentMonth)}</b></span>
-                <span>{currentYear}: <b>{money(agent.currentYear)}</b></span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <details className="card card-pad premium-collapse monthly-premium-collapse" style={{ marginTop: 20 }}>
-        <summary>
-          <span>{monthlyHeading}</span>
-          <span className="premium-summary-total">{money(currentYearPremium)}</span>
-        </summary>
-        <div className="premium-collapse-body monthly-premium-collapse-body">
-          <div className="monthly-premium-heading">
+        <div className="card card-pad monthly-agent-premium-card">
+          <div className="monthly-agent-premium-heading">
             <div>
-              <p className="subtle" style={{ margin: 0 }}>Totals are grouped by the Life Insurance policy effective date.</p>
-            </div>
-            <div className="year-premium-total">
-              <span>{canSeeAllAgents ? 'Year total' : 'Your year total'}</span>
-              <strong>{money(currentYearPremium)}</strong>
+              <span className="premium-card-label">Monthly Premium by Agent</span>
+              <h2>{monthNames[currentMonth]} {currentYear}</h2>
             </div>
           </div>
 
-          <div className="monthly-premium-grid">
-            {monthNames.map((month, index) => (
-              <div key={month} className={`monthly-premium-item${index === currentMonth ? ' current' : ''}`}>
-                <span>{month}</span>
-                <strong>{money(monthlyPremiums[index])}</strong>
+          <div className="monthly-agent-premium-list">
+            {monthlyAgentPremiumCards.map((agent) => (
+              <div className="monthly-agent-premium-row" key={agent.agentId}>
+                <span>{agent.agentId === userId ? `${agent.agentName} (Me)` : agent.agentName}</span>
+                <strong>{money(agent.currentMonth)}</strong>
               </div>
             ))}
           </div>
-
-          {premiumsWithoutEffectiveDate > 0 && (
-            <p className="subtle" style={{ margin: '14px 0 0' }}>
-              {money(premiumsWithoutEffectiveDate)} is included in the overall total but not a monthly total because those policies do not have an effective date yet.
-            </p>
-          )}
         </div>
-      </details>
+      </section>
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
 
@@ -293,9 +175,9 @@ export default async function DashboardPage() {
       <section className="card card-pad" style={{ marginTop: 20 }}>
         <h2>Quick actions</h2>
         <div className="toolbar" style={{ marginBottom: 0 }}>
-          <Link href="/clients/new" className="btn btn-primary">Add a client</Link>
-          <Link href="/clients" className="btn btn-secondary">Search clients</Link>
-          <Link href="/clients?turn65=1" className="btn btn-secondary">Turn 65 list</Link>
+          <Link prefetch={false} href="/clients/new" className="btn btn-primary">Add a client</Link>
+          <Link prefetch={false} href="/clients" className="btn btn-secondary">Search clients</Link>
+          <Link prefetch={false} href="/clients?turn65=1" className="btn btn-secondary">Turn 65 list</Link>
         </div>
       </section>
     </>

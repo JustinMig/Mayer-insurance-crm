@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 import { decryptValue, last4 } from '@/lib/crypto'
 import { updateClient } from '../actions'
 import SensitiveReveal from './SensitiveReveal'
@@ -36,19 +36,10 @@ function heightInchesPart(totalInches: number | null | undefined) {
 export default async function ClientProfilePage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   const { id } = await params
   const query = await searchParams
-  const supabase = await createClient()
+  const { supabase, claims, userId, profile } = await getCrmSession()
+  if (!profile?.agency_id) redirect('/account-setup')
 
-  const { data: claimsData } = await supabase.auth.getClaims()
-  if (!claimsData?.claims) redirect('/login')
-  const userId = String(claimsData.claims.sub)
-
-  const [
-    { data: profile },
-    { data: client }
-  ] = await Promise.all([
-    supabase.from('profiles').select('agency_id, role, full_name').eq('id', userId).single(),
-    supabase.from('clients').select('*').eq('id', id).maybeSingle()
-  ])
+  const { data: client } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
   if (!client) notFound()
 
   const canAssignAgents = profile?.role === 'admin' || profile?.role === 'manager'
@@ -78,7 +69,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
       : Promise.resolve({ data: null, error: null })
   ])
 
-  const agentEmail = String(claimsData.claims.email || '')
+  const agentEmail = String(claims.email || '')
   const agents = agentsResult.data
 
   let ssnMasked = 'Not saved'
@@ -110,7 +101,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <p className="subtle">Open a section to view or edit the client information.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link href="/clients" className="btn btn-secondary">Back to search</Link>
+          <Link prefetch={false} href="/clients" className="btn btn-secondary">Back to search</Link>
           {canAssignAgents ? <DeleteClientButton clientId={client.id} clientName={`${client.first_name} ${client.last_name}`.trim()} /> : null}
         </div>
       </div>
