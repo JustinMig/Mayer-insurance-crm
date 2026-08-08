@@ -175,8 +175,12 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null)
   const format = body?.format === 'pdf' ? 'pdf' : body?.format === 'csv' ? 'csv' : ''
-  const requestedFields = Array.isArray(body?.fields) ? body.fields.map(String) : []
-  const fields = requestedFields.filter((field: string): field is ExportFieldKey => field in FIELD_LABELS)
+  const requestedFields: string[] = Array.isArray(body?.fields)
+    ? body.fields.map((field: unknown) => String(field))
+    : []
+  const fields: ExportFieldKey[] = requestedFields.filter(
+    (field): field is ExportFieldKey => field in FIELD_LABELS
+  )
   const q = String(body?.q || '').trim()
   const product = String(body?.product || '')
   const turn65 = body?.turn65 === true
