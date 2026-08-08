@@ -1013,3 +1013,49 @@ tbody tr:hover { background: #f9fbfd; }
   .import-selection-controls .btn { flex: 1 1 100%; }
   .import-pagination { justify-content: space-between; }
 }
+
+/* Multi-file CSV import drop zone */
+.import-drop-zone {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 18px;
+  border: 2px dashed rgba(25,67,223,.28);
+  border-radius: 14px;
+  background: rgba(25,67,223,.035);
+  text-align: center;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.import-drop-zone.is-dragging {
+  border-color: var(--brand-blue);
+  background: rgba(25,67,223,.09);
+  transform: translateY(-1px);
+}
+.import-drop-zone > strong { color: #173856; font-size: 15px; }
+.import-drop-zone > span { color: var(--muted); font-size: 12px; }
+.import-drop-zone .input { margin-top: 5px; background: #fff; }
+.import-file-summary {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+}
+.import-file-summary strong { color: #173856; font-size: 13px; }
+.import-file-details {
+  margin-top: 9px;
+  color: #475569;
+  font-size: 12px;
+}
+.import-file-details summary { cursor: pointer; font-weight: 800; color: #173856; }
+.import-file-details > div {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.import-file-details span { word-break: break-word; }

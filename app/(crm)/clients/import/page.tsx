@@ -31,7 +31,7 @@ export default async function ImportClientsPage() {
     <>
       <div>
         <h1>Import Clients</h1>
-        <p className="subtle">Upload the Mayer Insurance Group CSV export. Review the recognized clients before anything is added.</p>
+        <p className="subtle">Drop in the full Mayer Insurance Group CSV export set. The CRM will identify the main client file, match related CSVs by client ID, and preview the new clients before anything is added.</p>
       </div>
       <ClientImportForm agents={agents || []} />
     </>

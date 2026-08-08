@@ -71,6 +71,70 @@ export type NormalizedImportClient = {
   skipped_sensitive_fields: string[]
 }
 
+function normalizeHeader(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+// Only columns that map to fields currently available on the Mayer CRM client intake form
+// are sent to the import API. Legacy-only fields are intentionally ignored rather than
+// being copied into Notes or another unrelated field.
+const ALLOWED_IMPORT_HEADERS = new Set([
+  'mayerinsurancegroupid',
+  'firstname', 'lastname', 'dateofbirthdob2', 'dateofbirth', 'dob', 'gender', 'smoking', 'smoker',
+  'phone2', 'phone', 'email', 'address2', 'address', 'mailingaddress', 'city', 'state', 'zipcode', 'zip', 'county2', 'county',
+  'notesappointmentstodos', 'notes',
+  'medicareclient', 'lifeinsuranceclient', 'retirementinformation',
+  'ssn2', 'ssn', 'driverslicensenumber2', 'driverslicensenumber', 'expirationdate2', 'driverslicenseexpiration', 'stateissued2', 'driverslicensestate',
+  'bankname', 'routing', 'accountnumber', 'debitcardnumber', 'debitcardexpdate',
+  'areyouaveteran', 'veteran',
+  'medicarenumberredwhitebluecard', 'medicarenumber', 'partaeffectivedate', 'partadate', 'partbeffectivedate', 'partbdate', 'medicaidnumber', 'level', 'medicaidlevel',
+  'medicareadvantageplan', 'neweffectivedate', 'planid2', 'memberid2',
+  'pcpdoctor', 'primarydoctorname', 'cityd', 'primarydoctorcity', 'stated', 'primarydoctorstate',
+  'specialistname', 'specialty', 'citys5', 'states4',
+  'specialistname1', 'specialty2', 'citys4', 'states3',
+  'specialistname2', 'specialty3', 'citys3', 'states2',
+  'specialistname3', 'specialty4', 'citys2', 'states',
+  'specialistname4', 'specialty5', 'citys', 'statess',
+  'pharmacy12', 'pharmacy1', 'city5', 'state5',
+  'medicationslist2', 'medicationslist',
+  'hipplancompany2', 'hipstartdate2', 'hipplanprice2',
+  'lifecompany', 'faceamount', 'effectivedate', 'premiumamount', 'policytype'
+])
+
+const BLOCKED_SENSITIVE_HEADERS = new Set([
+  'debitcardcvv',
+  'medicaregovlogininfo',
+  'registrationinfomedicaregov'
+])
+
+export function sanitizeImportRowForTransport(row: CsvRow): CsvRow {
+  return Object.fromEntries(
+    Object.entries(row).filter(([key]) => ALLOWED_IMPORT_HEADERS.has(normalizeHeader(key)))
+  )
+}
+
+export function restrictedImportFields(row: CsvRow): string[] {
+  const names: string[] = []
+  for (const [key, value] of Object.entries(row)) {
+    if (!String(value ?? '').trim()) continue
+    const normalized = normalizeHeader(key)
+    if (BLOCKED_SENSITIVE_HEADERS.has(normalized)) names.push(key)
+  }
+  return names
+}
+
+export function looksLikeClientDataHeaders(headers: string[]) {
+  const normalized = new Set(headers.map(normalizeHeader))
+  const hasFirst = normalized.has('firstname')
+  const hasLast = normalized.has('lastname')
+  return hasFirst && hasLast
+}
+
+export function looksLikeRelatedExportHeaders(headers: string[]) {
+  const normalized = new Set(headers.map(normalizeHeader))
+  return normalized.has('mayerinsurancegroupid') && !looksLikeClientDataHeaders(headers)
+}
+
 function clean(value: unknown): string | null {
   const text = String(value ?? '').trim()
   return text || null
@@ -80,7 +144,8 @@ function pick(row: CsvRow, ...keys: string[]): string | null {
   for (const key of keys) {
     const direct = clean(row[key])
     if (direct) return direct
-    const found = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase())
+    const keyNormalized = normalizeHeader(key)
+    const found = Object.keys(row).find((candidate) => normalizeHeader(candidate) === keyNormalized)
     const value = found ? clean(row[found]) : null
     if (value) return value
   }
@@ -127,11 +192,6 @@ function policyType(value: string | null): 'Term' | 'Whole Life' | 'IUL' | null 
   return null
 }
 
-function addNote(notes: string[], label: string, value: string | null) {
-  const item = clean(value)
-  if (item) notes.push(`${label}: ${item}`)
-}
-
 function hasAny(values: unknown[]) {
   return values.some((item) => item !== null && item !== '' && item !== false && item !== undefined)
 }
@@ -148,39 +208,14 @@ function splitMedications(value: string | null): Medication[] {
 }
 
 export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
-  const notes: string[] = []
+  const isLegacyMayerExport = Object.keys(row).some((key) => normalizeHeader(key) === 'mayerinsurancegroupid')
+  // Only the old general Notes field is mapped into the current Notes field. Legacy
+  // fields that do not have a matching current intake field are deliberately ignored.
   const originalNotes = pick(row, 'NotesAppointmentsToDos', 'Notes', 'notes')
-  if (originalNotes) notes.push(originalNotes)
 
-  addNote(notes, 'Do not contact', pick(row, 'DoNotContact2'))
-  addNote(notes, 'Legacy SOA signed', pick(row, 'SoASigned2'))
-  addNote(notes, 'Doctor notes', pick(row, 'DoctorNotes'))
-  addNote(notes, 'Gets prescriptions from VA', pick(row, 'DoYouGetPrescriptionsFromTheVA2'))
-  addNote(notes, 'PDP plan information', pick(row, 'PDPPlanInfo'))
-  addNote(notes, 'PDP carrier', pick(row, 'Carrier3'))
-  addNote(notes, 'Supplement carrier', pick(row, 'SupplementCarrier2'))
-  addNote(notes, 'Supplement information', pick(row, 'SupplementInformation2'))
-  addNote(notes, 'Dental information', pick(row, 'DentalInformation'))
-  addNote(notes, 'Vision information', pick(row, 'VisionInformation'))
-  addNote(notes, 'Hearing information', pick(row, 'HearingInformation'))
-  addNote(notes, 'ACA information', pick(row, 'ACAInformation2'))
-  addNote(notes, 'Life policy number', pick(row, 'PolicyNumber'))
-  addNote(notes, 'Life insurance notes', pick(row, 'LifeInsuranceNotes'))
-  addNote(notes, 'Retirement information', pick(row, 'RetirementInformation'))
-
-  const previousCarrier = pick(row, 'PreviousPlanCarrier')
-  const previousPlanId = pick(row, 'PlanId')
-  if (previousCarrier) addNote(notes, 'Previous plan carrier', previousCarrier)
-  if (previousPlanId) addNote(notes, 'Previous plan ID', previousPlanId)
-
-  const primaryPharmacy = pick(row, 'Pharmacy12', 'Pharmacy1') || pick(row, 'Pharmacy22', 'Pharmacy2')
-  const primaryPharmacyCity = pick(row, 'Pharmacy12', 'Pharmacy1') ? pick(row, 'City5') : pick(row, 'City3')
-  const primaryPharmacyState = pick(row, 'Pharmacy12', 'Pharmacy1') ? pick(row, 'State5') : pick(row, 'State3')
-  const secondPharmacy = pick(row, 'Pharmacy22', 'Pharmacy2')
-  if (secondPharmacy && secondPharmacy !== primaryPharmacy) {
-    const secondDetails = [secondPharmacy, pick(row, 'City3'), pick(row, 'State3')].filter(Boolean).join(', ')
-    addNote(notes, 'Secondary pharmacy', secondDetails)
-  }
+  const primaryPharmacy = pick(row, 'Pharmacy12', 'Pharmacy1')
+  const primaryPharmacyCity = primaryPharmacy ? pick(row, 'City5') : null
+  const primaryPharmacyState = primaryPharmacy ? pick(row, 'State5') : null
 
   const specialists: Specialist[] = [
     [1, 'SpecialistName', 'Specialty', 'Citys5', 'States4'],
@@ -222,9 +257,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
   const lifeCompany = pick(row, 'LifeCompany')
   const lifeFace = money(pick(row, 'FaceAmount'))
   const lifePremium = money(pick(row, 'PremiumAmount'))
-  const rawPolicyType = pick(row, 'PolicyType')
-  const lifePolicyType = policyType(rawPolicyType)
-  if (rawPolicyType && !lifePolicyType) addNote(notes, 'Legacy life policy type', rawPolicyType)
+  const lifePolicyType = policyType(pick(row, 'PolicyType'))
   const lifeEffective = parseImportDate(pick(row, 'EffectiveDate'))
   const life = hasAny([lifeCompany, lifeFace, lifePremium, lifePolicyType, lifeEffective]) ? {
     company_name: lifeCompany,
@@ -267,12 +300,6 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
     debit_card_expiration: debitCardExp
   } : null
 
-  const skippedSensitiveFields: string[] = []
-  if (pick(row, 'DebitCardCvv')) skippedSensitiveFields.push('DebitCardCvv')
-  if (pick(row, 'MedicaregovLoginInfo')) skippedSensitiveFields.push('MedicaregovLoginInfo')
-  if (pick(row, 'RegistrationInfoMedicaregov')) skippedSensitiveFields.push('RegistrationInfoMedicaregov')
-  if (pick(row, 'MemberId')) skippedSensitiveFields.push('Previous plan MemberId')
-
   const retirementInfo = pick(row, 'RetirementInformation')
   const lifeFlag = yesNo(pick(row, 'LifeInsuranceClient')) === true || Boolean(life)
   const medicareFlag = yesNo(pick(row, 'MedicareClient')) === true || Boolean(medicare || health)
@@ -290,7 +317,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
     city: pick(row, 'City', 'city'),
     state: pick(row, 'State', 'state'),
     zip_code: pick(row, 'ZipCode', 'Zip', 'ZIP', 'zip_code'),
-    county: pick(row, 'County2', 'County', 'county'),
+    county: isLegacyMayerExport ? pick(row, 'County2') : pick(row, 'County', 'county'),
     ssn: pick(row, 'SSN2', 'SSN'),
     drivers_license: pick(row, 'DriversLicenseNumber2', 'DriversLicenseNumber'),
     drivers_license_state: pick(row, 'StateIssued2', 'DriversLicenseState'),
@@ -300,7 +327,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
     is_retirement: retirementFlag,
     is_veteran: yesNo(pick(row, 'AreYouAVeteran', 'Veteran')),
     is_smoker: yesNo(pick(row, 'Smoking', 'Smoker')),
-    notes: notes.length ? notes.join('\n\n') : null,
+    notes: originalNotes,
     medicare,
     care,
     specialists,
@@ -309,7 +336,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
     health,
     hospital,
     banking,
-    skipped_sensitive_fields: skippedSensitiveFields
+    skipped_sensitive_fields: restrictedImportFields(row)
   }
 }
 

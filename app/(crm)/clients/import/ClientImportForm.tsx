@@ -1,30 +1,72 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState, type ChangeEvent, type DragEvent } from 'react'
 import { parseCsv, type CsvRow } from '@/lib/csv'
-import { importRowSummary } from '@/lib/client-import'
+import {
+  importRowSummary,
+  looksLikeClientDataHeaders,
+  looksLikeRelatedExportHeaders,
+  sanitizeImportRowForTransport,
+  restrictedImportFields
+} from '@/lib/client-import'
 
 type Agent = { id: string; full_name: string; role: string }
 type Summary = ReturnType<typeof importRowSummary> & { rowIndex: number }
 type ResultRow = { source_id: string | null; name: string; status: 'imported' | 'duplicate' | 'failed'; reason?: string; client_id?: string; skipped_sensitive_fields?: string[] }
+type FileReport = {
+  name: string
+  rowCount: number
+  kind: 'client' | 'related' | 'ignored'
+}
+
+type ParsedUpload = {
+  file: File
+  headers: string[]
+  rows: CsvRow[]
+  kind: FileReport['kind']
+}
 
 const PAGE_SIZE = 50
 const BATCH_SIZE = 20
 const MAX_ROWS = 10000
-
-const NEVER_UPLOAD_COLUMNS = new Set(['debitcardcvv', 'medicaregovlogininfo', 'registrationinfomedicaregov', 'memberid'])
-
-function sanitizeRowForImport(row: CsvRow): CsvRow {
-  return Object.fromEntries(Object.entries(row).filter(([key]) => !NEVER_UPLOAD_COLUMNS.has(key.trim().toLowerCase())))
-}
+const MAX_FILES = 30
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const MAX_TOTAL_SIZE = 30 * 1024 * 1024
 
 function fileLooksLikeCsv(file: File) {
   return file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel'
 }
 
+function sourceId(row: CsvRow) {
+  const entry = Object.entries(row).find(([key]) => key.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === 'mayerinsurancegroupid')
+  return String(entry?.[1] || '').trim()
+}
+
+function mergeNonEmpty(target: CsvRow, incoming: CsvRow) {
+  const next = { ...target }
+  for (const [key, value] of Object.entries(incoming)) {
+    const cleanValue = String(value ?? '').trim()
+    if (!cleanValue) continue
+    const existingKey = Object.keys(next).find((candidate) => candidate.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === key.trim().toLowerCase().replace(/[^a-z0-9]/g, ''))
+    if (existingKey) {
+      if (!String(next[existingKey] ?? '').trim()) next[existingKey] = value
+    } else {
+      next[key] = value
+    }
+  }
+  return next
+}
+
+function classify(headers: string[]): FileReport['kind'] {
+  if (looksLikeClientDataHeaders(headers)) return 'client'
+  if (looksLikeRelatedExportHeaders(headers)) return 'related'
+  return 'ignored'
+}
+
 export default function ClientImportForm({ agents }: { agents: Agent[] }) {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [fileReports, setFileReports] = useState<FileReport[]>([])
   const [rows, setRows] = useState<CsvRow[]>([])
   const [summaries, setSummaries] = useState<Summary[]>([])
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -33,6 +75,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [importing, setImporting] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [results, setResults] = useState<ResultRow[]>([])
 
@@ -42,9 +85,13 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const selectedCount = selected.size
   const pageValidIndexes = pageRows.filter((item) => item.valid).map((item) => item.rowIndex)
   const allPageSelected = pageValidIndexes.length > 0 && pageValidIndexes.every((index) => selected.has(index))
+  const clientFileCount = fileReports.filter((item) => item.kind === 'client').length
+  const relatedFileCount = fileReports.filter((item) => item.kind === 'related').length
+  const ignoredFileCount = fileReports.filter((item) => item.kind === 'ignored').length
 
-  async function handleFile(nextFile: File | null) {
-    setFile(null)
+  async function handleFiles(input: FileList | File[] | null) {
+    setFiles([])
+    setFileReports([])
     setRows([])
     setSummaries([])
     setSelected(new Set())
@@ -52,41 +99,111 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     setError('')
     setWarning('')
     setResults([])
+    setProgress({ done: 0, total: 0 })
 
-    if (!nextFile) return
-    if (!fileLooksLikeCsv(nextFile)) {
-      setError('Choose a CSV file. The Cognito/MayerInsuranceGroup CSV export is supported.')
+    if (!input) return
+    const chosen = Array.from(input)
+    if (chosen.length === 0) return
+    if (chosen.length > MAX_FILES) {
+      setError(`Choose no more than ${MAX_FILES} CSV files at one time.`)
       return
     }
-    if (nextFile.size > 10 * 1024 * 1024) {
-      setError('The CSV is larger than 10 MB. Split it into smaller CSV files before importing.')
+
+    const nonCsv = chosen.filter((file) => !fileLooksLikeCsv(file))
+    const csvFiles = chosen.filter(fileLooksLikeCsv)
+    if (csvFiles.length === 0) {
+      setError('No CSV files were found in the files you selected.')
+      return
+    }
+    if (csvFiles.some((file) => file.size > MAX_FILE_SIZE)) {
+      setError('One of the CSV files is larger than 10 MB. Split that export before importing.')
+      return
+    }
+    const totalSize = csvFiles.reduce((total, file) => total + file.size, 0)
+    if (totalSize > MAX_TOTAL_SIZE) {
+      setError('The selected CSV files are larger than 30 MB combined. Import them in smaller groups.')
       return
     }
 
     try {
-      const text = await nextFile.text()
-      const parsed = parseCsv(text)
-      if (parsed.rows.length === 0) throw new Error('No client rows were found in the CSV.')
-      if (parsed.rows.length > MAX_ROWS) throw new Error(`This importer supports up to ${MAX_ROWS.toLocaleString()} clients per CSV.`)
+      const parsedUploads: ParsedUpload[] = await Promise.all(csvFiles.map(async (file) => {
+        const parsed = parseCsv(await file.text())
+        return { file, headers: parsed.headers, rows: parsed.rows, kind: classify(parsed.headers) }
+      }))
 
-      const mapped = parsed.rows.map((row, rowIndex) => ({ ...importRowSummary(row), rowIndex }))
+      const clientUploads = parsedUploads.filter((item) => item.kind === 'client')
+      if (clientUploads.length === 0) {
+        throw new Error('I could not find the main client CSV. Include the CSV that has FirstName and LastName columns.')
+      }
+
+      const mergedBySource = new Map<string, CsvRow>()
+      const rowOrder: string[] = []
+      let fallbackCounter = 0
+
+      for (const upload of clientUploads) {
+        for (const row of upload.rows) {
+          const id = sourceId(row)
+          const key = id ? `id:${id}` : `row:${upload.file.name}:${fallbackCounter++}`
+          if (!mergedBySource.has(key)) rowOrder.push(key)
+          mergedBySource.set(key, mergeNonEmpty(mergedBySource.get(key) || {}, row))
+        }
+      }
+
+      // Match every related CSV to its client using the old MayerInsuranceGroup_Id.
+      // Current Cognito attachment tables only contain metadata (filename/content type/id),
+      // not the actual PDF/image bytes. Those files are accepted and recognized, but no
+      // metadata-only value is forced into an unrelated intake field.
+      const clientKeyBySourceId = new Map<string, string>()
+      for (const key of rowOrder) {
+        const id = sourceId(mergedBySource.get(key) || {})
+        if (id) clientKeyBySourceId.set(id, key)
+      }
+      for (const upload of parsedUploads.filter((item) => item.kind === 'related')) {
+        for (const row of upload.rows) {
+          const id = sourceId(row)
+          const key = id ? clientKeyBySourceId.get(id) : undefined
+          if (!key) continue
+          mergedBySource.set(key, mergeNonEmpty(mergedBySource.get(key) || {}, row))
+        }
+      }
+
+      const mergedRows = rowOrder.map((key) => mergedBySource.get(key) || {})
+      if (mergedRows.length === 0) throw new Error('No client rows were found in the selected CSV files.')
+      if (mergedRows.length > MAX_ROWS) throw new Error(`This importer supports up to ${MAX_ROWS.toLocaleString()} clients at one time.`)
+
+      const mapped = mergedRows.map((row, rowIndex) => ({ ...importRowSummary(row), rowIndex }))
       const recognized = mapped.filter((item) => item.first_name || item.last_name).length
-      if (recognized === 0) throw new Error('This CSV does not contain recognized FirstName / LastName columns.')
+      if (recognized === 0) throw new Error('The selected files did not contain recognizable client names.')
 
       const selectedRows = new Set(mapped.filter((item) => item.valid).map((item) => item.rowIndex))
-      const skippedSensitive = mapped.reduce((total, item) => total + item.skipped_sensitive_count, 0)
+      const restrictedCount = mergedRows.reduce((total, row) => total + restrictedImportFields(row).length, 0)
+      const sanitizedRows = mergedRows.map(sanitizeImportRowForTransport)
 
-      const sanitizedRows = parsed.rows.map(sanitizeRowForImport)
-      setFile(nextFile)
+      setFiles(csvFiles)
+      setFileReports(parsedUploads.map((item) => ({ name: item.file.name, rowCount: item.rows.length, kind: item.kind })))
       setRows(sanitizedRows)
       setSummaries(mapped)
       setSelected(selectedRows)
-      if (skippedSensitive > 0) {
-        setWarning('Security protection: CVV, Medicare.gov login/registration credentials, and unsupported previous-plan member IDs are intentionally not imported.')
+
+      const messages: string[] = []
+      if (nonCsv.length) messages.push(`${nonCsv.length} non-CSV file${nonCsv.length === 1 ? ' was' : 's were'} ignored.`)
+      if (restrictedCount) messages.push('CVV and Medicare.gov login/registration credentials were detected and excluded for security.')
+      if (parsedUploads.some((item) => item.kind === 'related' && item.rows.length > 0)) {
+        messages.push('Related attachment CSVs were matched by client ID, but document metadata is not imported because those CSVs do not contain the actual PDF/image files.')
       }
+      if (parsedUploads.some((item) => item.kind === 'ignored')) messages.push('CSV files with no current intake fields were accepted but ignored.')
+      messages.push('Only data that has a matching field on the current client intake form will be imported.')
+      setWarning(messages.join(' '))
     } catch (fileError) {
-      setError(fileError instanceof Error ? fileError.message : 'The CSV could not be read.')
+      setError(fileError instanceof Error ? fileError.message : 'The CSV files could not be read.')
     }
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragging(false)
+    if (importing) return
+    void handleFiles(event.dataTransfer.files)
   }
 
   function toggle(index: number) {
@@ -114,8 +231,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   async function startImport() {
     setError('')
     setResults([])
-    if (!file || rows.length === 0) {
-      setError('Choose a CSV file first.')
+    if (files.length === 0 || rows.length === 0) {
+      setError('Choose the CSV files first.')
       return
     }
     if (!agentId) {
@@ -164,16 +281,48 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     <div className="import-layout">
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
-        <h2>Choose CSV</h2>
-        <p className="subtle">Use the main <strong>MayerInsuranceGroup.csv</strong> client export.</p>
-        <input
-          className="input"
-          type="file"
-          accept=".csv,text/csv"
-          disabled={importing}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => handleFile(event.target.files?.[0] || null)}
-        />
-        {file ? <div className="import-file-name">{file.name} · {summaries.length.toLocaleString()} rows recognized</div> : null}
+        <h2>Drop CSV Files</h2>
+        <p className="subtle">Select or drag in the entire Mayer Insurance Group CSV export set. The CRM will identify the main client file automatically and match related CSVs by client ID.</p>
+
+        <div
+          className={`import-drop-zone${dragging ? ' is-dragging' : ''}`}
+          onDragEnter={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(true) }}
+          onDragOver={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(true) }}
+          onDragLeave={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false) }}
+          onDrop={onDrop}
+        >
+          <strong>Drop all CSV files here</strong>
+          <span>or choose all of them at once</span>
+          <input
+            className="input"
+            type="file"
+            accept=".csv,text/csv"
+            multiple
+            disabled={importing}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files)}
+          />
+        </div>
+
+        {files.length ? (
+          <div className="import-file-summary">
+            <strong>{files.length} CSV file{files.length === 1 ? '' : 's'} loaded</strong>
+            <span>{clientFileCount} client data · {relatedFileCount} related · {ignoredFileCount} ignored</span>
+            <span>{summaries.length.toLocaleString()} client row{summaries.length === 1 ? '' : 's'} recognized</span>
+          </div>
+        ) : null}
+
+        {fileReports.length ? (
+          <details className="import-file-details">
+            <summary>Show recognized files</summary>
+            <div>
+              {fileReports.map((item) => (
+                <span key={item.name}>
+                  <strong>{item.name}</strong> — {item.kind === 'client' ? 'Client data' : item.kind === 'related' ? 'Related export' : 'Ignored'} · {item.rowCount.toLocaleString()} row{item.rowCount === 1 ? '' : 's'}
+                </span>
+              ))}
+            </div>
+          </details>
+        ) : null}
 
         <div className="import-step-number">2</div>
         <h2>Assign Agent</h2>
@@ -185,8 +334,9 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
 
         <div className="import-security-box">
           <strong>Import protections</strong>
+          <span>Only fields that exist on the current client intake form are imported.</span>
           <span>SSN, Medicare/Medicaid numbers, health member ID, routing/account/card numbers are encrypted before storage.</span>
-          <span>CVV and Medicare.gov credentials are never imported.</span>
+          <span>CVV and Medicare.gov credentials are never stored or imported.</span>
           <span>Possible duplicates are skipped using email, phone, or name + DOB.</span>
         </div>
 
@@ -223,7 +373,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         </div>
 
         {!summaries.length ? (
-          <div className="empty">Choose a CSV to preview the clients that will be created.</div>
+          <div className="empty">Drop in the CSV export files to preview the clients that will be created.</div>
         ) : (
           <>
             <div className="import-summary-strip">
