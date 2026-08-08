@@ -145,9 +145,29 @@ export default async function DashboardPage() {
   const currentMonthPremium = monthlyPremiums[currentMonth]
   const currentYearPremium = monthlyPremiums.reduce((sum, amount) => sum + amount, 0)
 
-  const agentPremiumCards = Array.from(agentTotals.values())
-    .filter((stats) => canSeeAllAgents || stats.agentId === userId)
+  const allAgentPremiumCards = Array.from(agentTotals.values())
     .sort((a, b) => a.agentName.localeCompare(b.agentName))
+
+  const myPremiumStats = agentTotals.get(userId) || {
+    agentId: userId,
+    agentName: currentProfile.full_name || 'Agent',
+    total: 0,
+    currentMonth: 0,
+    currentYear: 0
+  }
+
+  const otherAgentYearPremiums = allAgentPremiumCards
+    .filter((stats) => stats.agentId !== userId && stats.agentId !== 'unassigned')
+
+  const visibleAgentPremiumCards = currentProfile.role === 'admin'
+    ? [myPremiumStats]
+    : currentProfile.role === 'manager'
+      ? allAgentPremiumCards.filter((stats) => stats.agentId !== 'unassigned')
+      : [myPremiumStats]
+
+  const myPremiumDisplayName = currentProfile.role === 'admin'
+    ? 'Mayer Insurance Group'
+    : (currentProfile.full_name || 'Agent')
 
   const totalCardLabel = canSeeAllAgents
     ? 'Total Life Insurance Premium — All Agents'
@@ -178,6 +198,20 @@ export default async function DashboardPage() {
           <p className="subtle" style={{ margin: '8px 0 0' }}>
             {canSeeAllAgents ? 'Combined premium across every agent you are authorized to view.' : 'Premium from your assigned Life Insurance clients only.'}
           </p>
+
+          {canSeeAllAgents && otherAgentYearPremiums.length > 0 ? (
+            <details className="premium-collapse premium-other-agents">
+              <summary>Other agents — {currentYear} premium</summary>
+              <div className="premium-collapse-body">
+                {otherAgentYearPremiums.map((agent) => (
+                  <div className="premium-agent-year-row" key={agent.agentId}>
+                    <span>{agent.agentName}</span>
+                    <strong>{money(agent.currentYear)}</strong>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
 
         <div className="card card-pad premium-current-card">
@@ -189,57 +223,68 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {canSeeAllAgents ? (
-        <section className="card card-pad" style={{ marginTop: 20 }}>
-          <div className="agent-premium-heading">
-            <div>
-              <h2 style={{ marginBottom: 4 }}>Life Insurance Premium by Agent</h2>
-              <p className="subtle" style={{ margin: 0 }}>Each agent is totaled separately from their assigned clients.</p>
-            </div>
-          </div>
-
-          <div className="agent-premium-grid">
-            {agentPremiumCards.map((agent) => (
-              <div className="agent-premium-card" key={agent.agentId}>
-                <span className="agent-premium-name">{agent.agentName}</span>
-                <strong className="agent-premium-value">{money(agent.total)}</strong>
-                <div className="agent-premium-meta">
-                  <span>{monthNames[currentMonth]}: <b>{money(agent.currentMonth)}</b></span>
-                  <span>{currentYear}: <b>{money(agent.currentYear)}</b></span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="card card-pad" style={{ marginTop: 20 }}>
-        <div className="monthly-premium-heading">
+        <div className="agent-premium-heading">
           <div>
-            <h2 style={{ marginBottom: 4 }}>{monthlyHeading}</h2>
-            <p className="subtle" style={{ margin: 0 }}>Totals are grouped by the Life Insurance policy effective date.</p>
-          </div>
-          <div className="year-premium-total">
-            <span>{canSeeAllAgents ? 'Year total' : 'Your year total'}</span>
-            <strong>{money(currentYearPremium)}</strong>
+            <h2 style={{ marginBottom: 4 }}>Life Insurance Premium by Agent</h2>
+            <p className="subtle" style={{ margin: 0 }}>
+              {currentProfile.role === 'admin'
+                ? 'Your Mayer Insurance Group premium is shown here. Other agents are kept in the collapsed Total section above.'
+                : currentProfile.role === 'manager'
+                  ? 'Each agent is totaled separately from their assigned clients.'
+                  : 'Only your assigned Life Insurance premium is shown here.'}
+            </p>
           </div>
         </div>
 
-        <div className="monthly-premium-grid">
-          {monthNames.map((month, index) => (
-            <div key={month} className={`monthly-premium-item${index === currentMonth ? ' current' : ''}`}>
-              <span>{month}</span>
-              <strong>{money(monthlyPremiums[index])}</strong>
+        <div className={`agent-premium-grid${currentProfile.role === 'admin' ? ' agent-premium-grid-single' : ''}`}>
+          {visibleAgentPremiumCards.map((agent) => (
+            <div className="agent-premium-card" key={agent.agentId}>
+              <span className="agent-premium-name">
+                {currentProfile.role === 'admin' && agent.agentId === userId ? myPremiumDisplayName : agent.agentName}
+              </span>
+              <strong className="agent-premium-value">{money(agent.total)}</strong>
+              <div className="agent-premium-meta">
+                <span>{monthNames[currentMonth]}: <b>{money(agent.currentMonth)}</b></span>
+                <span>{currentYear}: <b>{money(agent.currentYear)}</b></span>
+              </div>
             </div>
           ))}
         </div>
-
-        {premiumsWithoutEffectiveDate > 0 && (
-          <p className="subtle" style={{ margin: '14px 0 0' }}>
-            {money(premiumsWithoutEffectiveDate)} is included in the overall total but not a monthly total because those policies do not have an effective date yet.
-          </p>
-        )}
       </section>
+
+      <details className="card card-pad premium-collapse monthly-premium-collapse" style={{ marginTop: 20 }}>
+        <summary>
+          <span>{monthlyHeading}</span>
+          <span className="premium-summary-total">{money(currentYearPremium)}</span>
+        </summary>
+        <div className="premium-collapse-body monthly-premium-collapse-body">
+          <div className="monthly-premium-heading">
+            <div>
+              <p className="subtle" style={{ margin: 0 }}>Totals are grouped by the Life Insurance policy effective date.</p>
+            </div>
+            <div className="year-premium-total">
+              <span>{canSeeAllAgents ? 'Year total' : 'Your year total'}</span>
+              <strong>{money(currentYearPremium)}</strong>
+            </div>
+          </div>
+
+          <div className="monthly-premium-grid">
+            {monthNames.map((month, index) => (
+              <div key={month} className={`monthly-premium-item${index === currentMonth ? ' current' : ''}`}>
+                <span>{month}</span>
+                <strong>{money(monthlyPremiums[index])}</strong>
+              </div>
+            ))}
+          </div>
+
+          {premiumsWithoutEffectiveDate > 0 && (
+            <p className="subtle" style={{ margin: '14px 0 0' }}>
+              {money(premiumsWithoutEffectiveDate)} is included in the overall total but not a monthly total because those policies do not have an effective date yet.
+            </p>
+          )}
+        </div>
+      </details>
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
 

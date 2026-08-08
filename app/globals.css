@@ -1073,3 +1073,109 @@ tbody tr:hover { background: #f9fbfd; }
 .document-row-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .input-readonly{display:flex;align-items:center;min-height:42px;background:#f6f8fa;color:#536474;font-weight:700}
 @media(max-width:760px){.document-row-actions{width:100%;justify-content:stretch}.document-row-actions>.btn{flex:1 1 120px}}
+
+
+/* Dashboard premium collapsible sections */
+.premium-collapse {
+  overflow: hidden;
+}
+
+.premium-collapse > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-weight: 850;
+  color: #173856;
+}
+
+.premium-collapse > summary::-webkit-details-marker {
+  display: none;
+}
+
+.premium-collapse > summary::after {
+  content: '+';
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(25, 67, 223, .08);
+  color: #1943df;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.premium-collapse[open] > summary::after {
+  content: '–';
+}
+
+.premium-collapse-body {
+  margin-top: 14px;
+}
+
+.premium-other-agents {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(25, 67, 223, .15);
+}
+
+.premium-other-agents > summary {
+  font-size: .88rem;
+}
+
+.premium-agent-year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(23, 56, 86, .09);
+}
+
+.premium-agent-year-row:last-child {
+  border-bottom: 0;
+}
+
+.premium-agent-year-row span {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.premium-agent-year-row strong {
+  color: #173856;
+}
+
+.agent-premium-grid-single {
+  grid-template-columns: minmax(220px, 420px);
+}
+
+.monthly-premium-collapse > summary {
+  min-height: 42px;
+  font-size: 1.12rem;
+}
+
+.premium-summary-total {
+  margin-left: auto;
+  color: #1943df;
+  font-size: 1rem;
+}
+
+.monthly-premium-collapse-body {
+  padding-top: 2px;
+}
+
+@media (max-width: 560px) {
+  .monthly-premium-collapse > summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .premium-summary-total {
+    width: 100%;
+    margin-left: 0;
+  }
+}
