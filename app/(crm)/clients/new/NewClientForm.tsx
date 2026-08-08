@@ -313,40 +313,65 @@ export default function NewClientForm(props: Props) {
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="grid" style={{ marginTop: 20 }}>
-      <details className="section-details" open>
-        <summary>Client Information</summary>
-        <div className="section-body">
-          <div className="form-grid" style={{ marginTop: 16 }}>
-            {canAssignAgent ? (
-              <label className="label span-2">Assign client to agent
+    <form ref={formRef} onSubmit={handleSubmit} className="grid add-client-form" style={{ marginTop: 20 }}>
+      <details className="section-details section-client">
+        <summary><span>Client Information</span><small>Personal, contact, address &amp; identification</small></summary>
+        <div className="section-body intake-section-body">
+          {canAssignAgent ? (
+            <div className="intake-group intake-group-agent">
+              <div className="intake-group-heading"><div><strong>Agent Assignment</strong><span>Choose which agent owns this client record.</span></div></div>
+              <label className="label">Assign client to agent
                 <select className="select" name="assigned_agent_id" defaultValue={props.currentUserRole === 'admin' ? props.currentUserId : ''} required>
                   <option value="" disabled>Select agent</option>
                   {props.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}
                 </select>
                 <span className="field-help">The client will appear in the selected agent&apos;s client list. Managers can still view the client under All agents.</span>
               </label>
-            ) : <input type="hidden" name="assigned_agent_id" value={props.currentUserId} />}
+            </div>
+          ) : <input type="hidden" name="assigned_agent_id" value={props.currentUserId} />}
 
-            <label className="label">First name<input className="input" name="first_name" required /></label>
-            <label className="label">Last name<input className="input" name="last_name" required /></label>
-            <label className="label">Date of birth<input className="input" type="date" name="date_of_birth" /></label>
-            <label className="label">Gender<select className="select" name="gender" defaultValue=""><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></label>
-            <label className="label">Email<input className="input" type="email" name="email" inputMode="email" /></label>
-            <label className="label">Phone<input className="input" type="tel" name="phone" inputMode="tel" /></label>
-            <label className="label span-2">Street address<input className="input" name="address_line1" autoComplete="street-address" /></label>
-            <label className="label">City<input className="input" name="city" /></label>
-            <label className="label">State<input className="input" name="state" maxLength={2} placeholder="MS" /></label>
-            <label className="label">ZIP code<input className="input" name="zip_code" inputMode="numeric" /></label>
-            <label className="label">County<input className="input" name="county" /></label>
-            <label className="label">Social Security number<input className="input" name="ssn" type="password" autoComplete="off" inputMode="numeric" placeholder="Encrypted before storage" /></label>
-            <label className="label">Driver license number<input className="input" name="drivers_license" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
-            <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} /></label>
-            <label className="label">License expiration<input className="input" type="date" name="drivers_license_expiration" /></label>
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Personal Details</strong><span>Basic identifying information.</span></div></div>
+            <div className="form-grid">
+              <label className="label">First name<input className="input" name="first_name" required /></label>
+              <label className="label">Last name<input className="input" name="last_name" required /></label>
+              <label className="label">Date of birth<input className="input" type="date" name="date_of_birth" /></label>
+              <label className="label">Gender<select className="select" name="gender" defaultValue=""><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></label>
+            </div>
           </div>
-          <div style={{ marginTop: 18 }}>
-            <span className="label" style={{ marginBottom: 8 }}>Products</span>
-            <div className="checkbox-row">
+
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Contact Information</strong><span>How to reach the client.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Email<input className="input" type="email" name="email" inputMode="email" /></label>
+              <label className="label">Phone<input className="input" type="tel" name="phone" inputMode="tel" /></label>
+            </div>
+          </div>
+
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Address</strong><span>Residential and county information.</span></div></div>
+            <div className="form-grid">
+              <label className="label span-2">Street address<input className="input" name="address_line1" autoComplete="street-address" /></label>
+              <label className="label">City<input className="input" name="city" /></label>
+              <label className="label">State<input className="input" name="state" maxLength={2} placeholder="MS" /></label>
+              <label className="label">ZIP code<input className="input" name="zip_code" inputMode="numeric" /></label>
+              <label className="label">County<input className="input" name="county" /></label>
+            </div>
+          </div>
+
+          <div className="intake-group intake-group-sensitive">
+            <div className="intake-group-heading"><div><strong>Identification</strong><span>Sensitive values are encrypted before storage.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Social Security number<input className="input" name="ssn" type="password" autoComplete="off" inputMode="numeric" placeholder="Encrypted before storage" /></label>
+              <label className="label">Driver&apos;s license number<input className="input" name="drivers_license" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} placeholder="MS" /></label>
+              <label className="label">License expiration<input className="input" type="date" name="drivers_license_expiration" /></label>
+            </div>
+          </div>
+
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Products</strong><span>Select every product category that applies.</span></div></div>
+            <div className="checkbox-row product-choice-row">
               <label className="checkbox-card"><input type="checkbox" name="is_medicare" /> Medicare</label>
               <label className="checkbox-card"><input type="checkbox" name="is_life" /> Life</label>
               <label className="checkbox-card"><input type="checkbox" name="is_retirement" /> Retirement</label>
@@ -355,37 +380,39 @@ export default function NewClientForm(props: Props) {
         </div>
       </details>
 
-      <details className="section-details" open>
-        <summary>Medicare Information</summary>
-        <div className="section-body">
-          <div className="form-grid" style={{ marginTop: 16 }}>
-            <label className="label">Medicare number<input className="input" name="medicare_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
-            <label className="label">Medicaid number<input className="input" name="medicaid_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
-            <label className="label">Part A date<input className="input" type="date" name="part_a_date" /></label>
-            <label className="label">Part B date<input className="input" type="date" name="part_b_date" /></label>
-            <label className="label">Medicaid level<select className="select" name="medicaid_level" defaultValue=""><option value="">Select</option><option>QMB</option><option>SLMB</option><option>QI</option><option>FBDE</option><option>Other</option></select></label>
+      <details className="section-details section-medicare">
+        <summary><span>Medicare Information</span><small>Medicare, Medicaid, dates &amp; documents</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Coverage Identification</strong><span>Medicare and Medicaid information.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Medicare number<input className="input" name="medicare_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Medicaid number<input className="input" name="medicaid_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Medicaid level<select className="select" name="medicaid_level" defaultValue=""><option value="">Select</option><option>QMB</option><option>SLMB</option><option>QI</option><option>FBDE</option><option>Other</option></select></label>
+            </div>
           </div>
 
-          <div className="medicare-documents-panel">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Medicare Effective Dates</strong><span>Original Part A and Part B effective dates.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Part A date<input className="input" type="date" name="part_a_date" /></label>
+              <label className="label">Part B date<input className="input" type="date" name="part_b_date" /></label>
+            </div>
+          </div>
+
+          <div className="intake-group intake-group-files">
             <div className="medicare-documents-heading">
               <div>
-                <strong>Medicare Files & Forms</strong>
+                <strong>Medicare Files &amp; Forms</strong>
                 <div className="field-help">Choose files now. They will be placed in the client&apos;s private file folder when Save Client is pressed.</div>
               </div>
               <div className="document-action-row">
-                <label className="btn btn-secondary upload-button">Upload File
-                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicareFile)} />
-                </label>
-                <label className="btn btn-secondary upload-button">Take Photo
-                  <input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicarePhoto)} />
-                </label>
-                <label className="btn btn-secondary upload-button">Card Information
-                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setCardFile)} />
-                </label>
+                <label className="btn btn-secondary upload-button">Upload File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicareFile)} /></label>
+                <label className="btn btn-secondary upload-button">Take Photo<input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicarePhoto)} /></label>
+                <label className="btn btn-secondary upload-button">Card Information<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setCardFile)} /></label>
                 <button className="btn btn-primary" type="button" onClick={openSoa}>Sign Scope of Appointment</button>
               </div>
             </div>
-
             <div className="intake-file-list">
               {medicareFile ? <div className="document-row"><div><strong>Medicare File</strong><div className="field-help">{medicareFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicareFile(null)}>Remove</button></div> : null}
               {medicarePhoto ? <div className="document-row"><div><strong>Medicare Photo</strong><div className="field-help">{medicarePhoto.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicarePhoto(null)}>Remove</button></div> : null}
@@ -396,27 +423,18 @@ export default function NewClientForm(props: Props) {
         </div>
       </details>
 
-      <details className="section-details" open>
-        <summary>Doctors &amp; Medications</summary>
-        <div className="section-body">
+      <details className="section-details section-care">
+        <summary><span>Doctors &amp; Medications</span><small>Doctors, pharmacy, prescriptions &amp; medication files</small></summary>
+        <div className="section-body intake-section-body">
           <DoctorsMedicationsFields />
-
-          <div className="medicare-documents-panel">
+          <div className="intake-group intake-group-files">
             <div className="medicare-documents-heading">
-              <div>
-                <strong>Medications</strong>
-                <div className="field-help">Upload a medication list or take a picture of medication bottles. The file will save to the client&apos;s private folder when Save Client is pressed.</div>
-              </div>
+              <div><strong>Medication Files</strong><div className="field-help">Upload a medication list or take a picture of medication bottles. The file will save to the client&apos;s private folder when Save Client is pressed.</div></div>
               <div className="document-action-row">
-                <label className="btn btn-secondary upload-button">Upload Medications
-                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicationsFile)} />
-                </label>
-                <label className="btn btn-secondary upload-button">Take Medication Photo
-                  <input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicationsPhoto)} />
-                </label>
+                <label className="btn btn-secondary upload-button">Upload Medications<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicationsFile)} /></label>
+                <label className="btn btn-secondary upload-button">Take Medication Photo<input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicationsPhoto)} /></label>
               </div>
             </div>
-
             <div className="intake-file-list">
               {medicationsFile ? <div className="document-row"><div><strong>Medications</strong><div className="field-help">{medicationsFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsFile(null)}>Remove</button></div> : null}
               {medicationsPhoto ? <div className="document-row"><div><strong>Medication Photo</strong><div className="field-help">{medicationsPhoto.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsPhoto(null)}>Remove</button></div> : null}
@@ -425,40 +443,35 @@ export default function NewClientForm(props: Props) {
         </div>
       </details>
 
-
-
-      <details className="section-details" open>
-        <summary>Life Insurance</summary>
-        <div className="section-body">
-          <LifeInsuranceFields />
-
-          <div className="medicare-documents-panel">
+      <details className="section-details section-life">
+        <summary><span>Life Insurance</span><small>Carrier, coverage, premium, policy type &amp; files</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Policy Details</strong><span>Carrier and coverage information.</span></div></div>
+            <LifeInsuranceFields />
+          </div>
+          <div className="intake-group intake-group-files">
             <div className="medicare-documents-heading">
-              <div>
-                <strong>Life Insurance Files</strong>
-                <div className="field-help">Choose a policy, application, illustration, or other life insurance file now. It will be saved to the client&apos;s private folder when Save Client is pressed.</div>
-              </div>
-              <div className="document-action-row">
-                <label className="btn btn-secondary upload-button">Upload Life Insurance File
-                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setLifeInsuranceFile)} />
-                </label>
-              </div>
+              <div><strong>Life Insurance Files</strong><div className="field-help">Choose a policy, application, illustration, or other life insurance file now. It will be saved to the client&apos;s private folder when Save Client is pressed.</div></div>
+              <div className="document-action-row"><label className="btn btn-secondary upload-button">Upload Life Insurance File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setLifeInsuranceFile)} /></label></div>
             </div>
-
-            <div className="intake-file-list">
-              {lifeInsuranceFile ? <div className="document-row"><div><strong>Life Insurance File</strong><div className="field-help">{lifeInsuranceFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setLifeInsuranceFile(null)}>Remove</button></div> : null}
-            </div>
+            <div className="intake-file-list">{lifeInsuranceFile ? <div className="document-row"><div><strong>Life Insurance File</strong><div className="field-help">{lifeInsuranceFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setLifeInsuranceFile(null)}>Remove</button></div> : null}</div>
           </div>
         </div>
       </details>
 
-      <details className="section-details">
-        <summary>Notes</summary>
-        <div className="section-body"><label className="label" style={{ marginTop: 16 }}>Client notes<textarea className="textarea" name="notes" /></label></div>
+      <details className="section-details section-notes">
+        <summary><span>Notes</span><small>Additional client information</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Client Notes</strong><span>Add anything important that does not fit elsewhere.</span></div></div>
+            <label className="label">Notes<textarea className="textarea" name="notes" placeholder="Enter client notes..." /></label>
+          </div>
+        </div>
       </details>
 
       {status ? <div className="document-status">{status}</div> : null}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-primary" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save Client'}</button></div>
+      <div className="add-client-save-row"><button className="btn btn-primary" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save Client'}</button></div>
 
       {soaOpen ? (
         <div className="soa-backdrop" role="dialog" aria-modal="true" aria-label="Scope of Appointment">

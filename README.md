@@ -145,3 +145,7 @@ Both Add Client and existing client profiles include a **Doctors & Medications**
 ## Life Insurance section
 
 The Add Client and client profile pages include Life Insurance fields for company, face amount, premium amount, policy type, effective date, and a private life-insurance document upload. Company choices include American Amicable, Mutual of Omaha, CICA, Gerber, Corebridge, Transamerica, Aflac, plus a custom company option. Face amounts include $5,000 through $25,000 presets plus a custom amount.
+
+## Add Client visual redesign
+
+The Add Client page now starts every major section collapsed. Client Information, Medicare Information, Doctors & Medications, Life Insurance, and Notes each use a different colored header. Inside each section, related fields are separated into smaller cards for easier scanning on desktop, tablet, and phone.

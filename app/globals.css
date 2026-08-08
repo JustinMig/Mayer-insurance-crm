@@ -367,3 +367,38 @@ tbody tr:hover { background: #f9fbfd; }
   .medication-heading .btn,
   .medication-card-heading .btn { width: 100%; justify-content: center; }
 }
+
+/* Add Client intake redesign */
+.add-client-form { gap: 14px; }
+.add-client-form .section-details { border: 0; border-radius: 16px; box-shadow: 0 8px 24px rgba(16, 38, 63, .08); background: #fff; }
+.add-client-form .section-details > summary { min-height: 68px; padding: 15px 18px; color: #fff; gap: 14px; justify-content: flex-start; position: relative; }
+.add-client-form .section-details > summary span { display: block; font-size: 16px; line-height: 1.2; }
+.add-client-form .section-details > summary small { display: block; margin-left: auto; margin-right: 36px; font-size: 12px; font-weight: 600; opacity: .82; text-align: right; }
+.add-client-form .section-details > summary::after { position: absolute; right: 18px; color: currentColor; opacity: .9; }
+.add-client-form .section-client > summary { background: linear-gradient(135deg, #173856, #24527a); }
+.add-client-form .section-medicare > summary { background: linear-gradient(135deg, #1f6b62, #2b887d); }
+.add-client-form .section-care > summary { background: linear-gradient(135deg, #5a477d, #755da1); }
+.add-client-form .section-life > summary { background: linear-gradient(135deg, #8a6022, #b07a2d); }
+.add-client-form .section-notes > summary { background: linear-gradient(135deg, #4d5b6d, #68778a); }
+.add-client-form .section-details[open] > summary { border-radius: 16px 16px 0 0; }
+.add-client-form .intake-section-body { display: grid; gap: 16px; padding: 18px; border-top: 0; background: #f7f9fc; }
+.intake-group { padding: 16px; border: 1px solid #dde5ee; border-radius: 14px; background: #fff; box-shadow: 0 2px 8px rgba(16, 38, 63, .035); }
+.intake-group-agent { border-left: 4px solid #4e759b; }
+.intake-group-sensitive { border-left: 4px solid #b78b3f; background: #fffdf8; }
+.intake-group-files { border-style: dashed; border-color: #c8d5e2; background: #fbfcfe; }
+.intake-group-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #edf1f5; }
+.intake-group-heading strong { display: block; font-size: 14px; color: #1f2f43; }
+.intake-group-heading span { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.add-client-form .care-subsection { background: #fff; border-color: #dde5ee; box-shadow: 0 2px 8px rgba(16, 38, 63, .035); }
+.add-client-form .care-subsection-heading, .add-client-form .medication-heading { padding-bottom: 10px; border-bottom: 1px solid #edf1f5; }
+.add-client-form .specialist-card, .add-client-form .medication-card { background: #fbfcfe; border-color: #dce5ee; }
+.add-client-form .product-choice-row .checkbox-card { flex: 1 1 150px; justify-content: center; min-height: 46px; background: #f8fafc; }
+.add-client-save-row { display: flex; justify-content: flex-end; padding-top: 2px; }
+.add-client-save-row .btn { min-width: 150px; }
+@media (max-width: 760px) {
+  .add-client-form .section-details > summary { min-height: 64px; padding: 14px 48px 14px 15px; display: block; }
+  .add-client-form .section-details > summary small { margin: 5px 0 0; text-align: left; line-height: 1.3; }
+  .add-client-form .intake-section-body { padding: 12px; gap: 12px; }
+  .intake-group { padding: 13px; }
+  .add-client-save-row .btn { width: 100%; }
+}
