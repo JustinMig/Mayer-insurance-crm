@@ -27,10 +27,9 @@ const productOptions = [
   'Other Medicare-related health products'
 ]
 
-function localDate() {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60_000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+function localDate(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
@@ -72,7 +71,6 @@ export default function NewClientForm(props: Props) {
   const [healthPlanFile, setHealthPlanFile] = useState<File | null>(null)
 
   const [soaOpen, setSoaOpen] = useState(false)
-  const [appointmentDate, setAppointmentDate] = useState('')
   const [beneficiaryName, setBeneficiaryName] = useState('')
   const [beneficiaryPhone, setBeneficiaryPhone] = useState('')
   const [beneficiaryAddress, setBeneficiaryAddress] = useState('')
@@ -190,11 +188,11 @@ export default function NewClientForm(props: Props) {
     ctx.font = '24px Arial, sans-serif'
     ctx.fillStyle = '#334155'
     const signedAt = new Date()
-    const appointmentLabel = appointmentDate || 'TO BE COMPLETED BEFORE APPOINTMENT'
-    ctx.fillText(`Appointment date: ${appointmentLabel}`, 90, 235)
+    const appointmentDate = localDate(signedAt)
+    ctx.fillText(`Appointment date: ${appointmentDate}`, 90, 235)
     ctx.font = '20px Arial, sans-serif'
-    ctx.fillStyle = appointmentDate ? '#475569' : '#b42318'
-    ctx.fillText(appointmentDate ? `SOA signed: ${signedAt.toLocaleString()}` : 'DRAFT - Appointment date must be completed before this SOA is used for a scheduled appointment.', 90, 275)
+    ctx.fillStyle = '#475569'
+    ctx.fillText(`SOA signed: ${signedAt.toLocaleString()}`, 90, 275)
 
     ctx.fillStyle = '#0f172a'
     ctx.font = '22px Arial, sans-serif'
@@ -267,9 +265,7 @@ export default function NewClientForm(props: Props) {
       canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create signed Scope of Appointment.')), 'image/png')
     })
     const safeName = beneficiaryName.trim().replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
-    const fileDate = appointmentDate || localDate()
-    const prefix = appointmentDate ? 'Scope_of_Appointment' : 'SOA_DRAFT'
-    return new File([blob], `${prefix}_${safeName}_${fileDate}.png`, { type: 'image/png' })
+    return new File([blob], `Scope_of_Appointment_${safeName}_${appointmentDate}.png`, { type: 'image/png' })
   }
 
   async function stageScope() {
@@ -278,7 +274,7 @@ export default function NewClientForm(props: Props) {
       const file = await buildSoaFile()
       setSoaFile(file)
       setSoaOpen(false)
-      setStatus(appointmentDate ? 'Signed Scope of Appointment is ready and will be saved when you save the client.' : 'Signed SOA draft is ready. Add the appointment date later from the client file before using it for a scheduled appointment.')
+      setStatus('Signed Scope of Appointment is ready and will be saved when you save the client. The appointment date is the signature date.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not prepare the Scope of Appointment.')
     }
@@ -570,7 +566,7 @@ export default function NewClientForm(props: Props) {
             </div>
 
             <div className="soa-grid">
-              <label className="label">Appointment date <span className="field-optional">(can be added later)</span><input className="input" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} /><span className="field-help">Leave blank to save a signed SOA draft. The appointment date must be completed before the SOA is used for a scheduled appointment.</span></label>
+              <div className="label">Appointment date<span className="input input-readonly">Set automatically when signed</span><span className="field-help">The SOA appointment date will be the date the client signs this form.</span></div>
               <label className="label">Beneficiary name<input className="input" value={beneficiaryName} onChange={e => setBeneficiaryName(e.target.value)} /></label>
               <label className="label">Beneficiary phone<input className="input" type="tel" value={beneficiaryPhone} onChange={e => setBeneficiaryPhone(e.target.value)} /></label>
               <label className="label">Beneficiary address<input className="input" value={beneficiaryAddress} onChange={e => setBeneficiaryAddress(e.target.value)} /></label>
@@ -596,12 +592,12 @@ export default function NewClientForm(props: Props) {
             <div className="soa-section">
               <div className="signature-heading"><strong>Client Signature</strong><button type="button" className="btn btn-secondary btn-small" onClick={clearSignature}>Clear Signature</button></div>
               <canvas ref={signatureRef} className="signature-canvas" width={900} height={260} onPointerDown={startSignature} onPointerMove={moveSignature} onPointerUp={endSignature} onPointerCancel={endSignature} onPointerLeave={endSignature} />
-              <div className="field-help">The signed scope will be staged now and uploaded to the new client&apos;s private file folder after Save Client. If the appointment date is blank, it will be saved as a draft that can be finalized later from the client file list.</div>
+              <div className="field-help">The signed scope will be staged now and uploaded to the new client&apos;s private file folder after Save Client. The appointment date is automatically set to the date the client signs it.</div>
             </div>
 
             <div className="soa-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={stageScope}>{appointmentDate ? 'Save Signed Scope for New Client' : 'Save Signed SOA Draft'}</button>
+              <button type="button" className="btn btn-primary" onClick={stageScope}>Save Signed Scope for New Client</button>
             </div>
           </div>
         </div>

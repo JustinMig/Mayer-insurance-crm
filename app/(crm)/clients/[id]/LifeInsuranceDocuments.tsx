@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, type ChangeEvent } from 'react'
+import DocumentActions from './DocumentActions'
 
 type DocumentRow = {
   id: string
@@ -75,13 +76,7 @@ export default function LifeInsuranceDocuments({ clientId, initialDocuments }: P
               <strong>{doc.file_name}</strong>
               <div className="field-help">Life Insurance · {new Date(doc.created_at).toLocaleString()}</div>
             </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              onClick={() => window.open(`/api/clients/${clientId}/documents/${doc.id}`, '_blank', 'noopener,noreferrer')}
-            >
-              Open
-            </button>
+            <DocumentActions clientId={clientId} documentId={doc.id} fileName={doc.file_name} onDeleted={(id) => setDocuments(current => current.filter(item => item.id !== id))} onStatus={setStatus} />
           </div>
         )) : <div className="field-help">No life insurance files saved yet.</div>}
       </div>

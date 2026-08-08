@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import DocumentActions from './DocumentActions'
+
 type DocumentRow = {
   id: string
   file_name: string
@@ -16,7 +19,9 @@ const LABELS: Record<string, string> = {
   retirement: 'Retirement'
 }
 
-export default function OtherCoverageDocuments({ clientId, documents }: { clientId: string; documents: DocumentRow[] }) {
+export default function OtherCoverageDocuments({ clientId, documents: initialDocuments }: { clientId: string; documents: DocumentRow[] }) {
+  const [documents, setDocuments] = useState<DocumentRow[]>(initialDocuments)
+  const [status, setStatus] = useState('')
   const sorted = [...documents].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
   if (!sorted.length) return null
 
@@ -32,6 +37,7 @@ export default function OtherCoverageDocuments({ clientId, documents }: { client
                 <div className="field-help">These files came from matching legacy attachment CSV records and are kept with the correct client.</div>
               </div>
             </div>
+            {status ? <div className="document-status">{status}</div> : null}
             <div className="document-list">
               {sorted.map((doc) => (
                 <div className="document-row" key={doc.id}>
@@ -39,7 +45,7 @@ export default function OtherCoverageDocuments({ clientId, documents }: { client
                     <strong>{doc.file_name}</strong>
                     <div className="field-help">{LABELS[doc.document_type || ''] || 'Other Coverage'} · {new Date(doc.created_at).toLocaleString()}</div>
                   </div>
-                  <button type="button" className="btn btn-secondary btn-small" onClick={() => window.open(`/api/clients/${clientId}/documents/${doc.id}`, '_blank', 'noopener,noreferrer')}>Open</button>
+                  <DocumentActions clientId={clientId} documentId={doc.id} fileName={doc.file_name} onDeleted={(id) => setDocuments(current => current.filter(item => item.id !== id))} onStatus={setStatus} />
                 </div>
               ))}
             </div>

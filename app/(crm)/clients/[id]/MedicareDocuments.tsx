@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from 'react'
+import DocumentActions from './DocumentActions'
 
 type DocumentRow = {
   id: string
@@ -29,10 +30,9 @@ const productOptions = [
   'Other Medicare-related health products'
 ]
 
-function localDate() {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60_000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+function localDate(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
 }
 
 function prettyType(type: string | null) {
@@ -66,15 +66,12 @@ export default function MedicareDocuments(props: Props) {
   const [uploading, setUploading] = useState(false)
   const [status, setStatus] = useState('')
   const [soaOpen, setSoaOpen] = useState(false)
-  const [appointmentDate, setAppointmentDate] = useState('')
   const [beneficiaryName, setBeneficiaryName] = useState(props.clientName)
   const [beneficiaryPhone, setBeneficiaryPhone] = useState(props.clientPhone)
   const [agentPhone, setAgentPhone] = useState('')
   const [selectedProducts, setSelectedProducts] = useState<string[]>([...productOptions])
   const [otherProduct, setOtherProduct] = useState('')
   const [hasInk, setHasInk] = useState(false)
-  const [draftDates, setDraftDates] = useState<Record<string, string>>({})
-  const [finalizingDocumentId, setFinalizingDocumentId] = useState<string | null>(null)
   const signatureRef = useRef<HTMLCanvasElement | null>(null)
   const drawingRef = useRef(false)
   const lastPointRef = useRef<{ x: number; y: number } | null>(null)
@@ -188,11 +185,11 @@ export default function MedicareDocuments(props: Props) {
     ctx.font = '24px Arial, sans-serif'
     ctx.fillStyle = '#334155'
     const signedAt = new Date()
-    const appointmentLabel = appointmentDate || 'TO BE COMPLETED BEFORE APPOINTMENT'
-    ctx.fillText(`Appointment date: ${appointmentLabel}`, 90, 235)
+    const appointmentDate = localDate(signedAt)
+    ctx.fillText(`Appointment date: ${appointmentDate}`, 90, 235)
     ctx.font = '20px Arial, sans-serif'
-    ctx.fillStyle = appointmentDate ? '#475569' : '#b42318'
-    ctx.fillText(appointmentDate ? `SOA signed: ${signedAt.toLocaleString()}` : 'DRAFT - Appointment date must be completed before this SOA is used for a scheduled appointment.', 90, 275)
+    ctx.fillStyle = '#475569'
+    ctx.fillText(`SOA signed: ${signedAt.toLocaleString()}`, 90, 275)
 
     ctx.fillStyle = '#0f172a'
     ctx.font = '22px Arial, sans-serif'
@@ -263,100 +260,30 @@ export default function MedicareDocuments(props: Props) {
     ctx.font = '18px Arial, sans-serif'
     ctx.fillText('Generated and stored by Mayer Insurance Group CRM. Retain according to applicable carrier and CMS requirements.', 90, y)
 
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not create signed Scope of Appointment.')), 'image/png')
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create signed Scope of Appointment.')), 'image/png')
     })
+    return { blob, appointmentDate }
   }
 
   async function saveScope() {
     setStatus('')
     try {
-      const blob = await buildSoaImage()
+      const { blob, appointmentDate } = await buildSoaImage()
       const safeName = props.clientName.replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
-      const fileDate = appointmentDate || localDate()
-      const prefix = appointmentDate ? 'Scope_of_Appointment' : 'SOA_DRAFT'
-      const fileName = `${prefix}_${safeName}_${fileDate}.png`
+      const fileName = `Scope_of_Appointment_${safeName}_${appointmentDate}.png`
       const file = new File([blob], fileName, { type: 'image/png' })
       const saved = await uploadFile(file, 'scope_of_appointment', fileName)
       if (saved) {
         setSoaOpen(false)
         clearSignature()
-        setStatus(appointmentDate ? 'Signed Scope of Appointment saved.' : 'Signed SOA draft saved. Add the appointment date from the file list before using it for a scheduled appointment.')
+        setStatus('Signed Scope of Appointment saved. The appointment date is the date the client signed it.')
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not save the Scope of Appointment.')
     }
   }
 
-
-  function isDraftSoa(doc: DocumentRow) {
-    return doc.document_type === 'scope_of_appointment' && doc.file_name.startsWith('SOA_DRAFT_') && doc.mime_type === 'image/png'
-  }
-
-  async function imageFromBlob(blob: Blob) {
-    const url = URL.createObjectURL(blob)
-    try {
-      return await new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image()
-        image.onload = () => resolve(image)
-        image.onerror = () => reject(new Error('Could not open the saved SOA draft.'))
-        image.src = url
-      })
-    } finally {
-      // The image has decoded by the time the promise resolves.
-      setTimeout(() => URL.revokeObjectURL(url), 0)
-    }
-  }
-
-  async function finalizeDraftSoa(doc: DocumentRow) {
-    const date = draftDates[doc.id] || ''
-    if (!date) {
-      setStatus('Choose the appointment date first.')
-      return
-    }
-
-    setFinalizingDocumentId(doc.id)
-    setStatus('Adding appointment date to the signed SOA…')
-    try {
-      const response = await fetch(`/api/clients/${props.clientId}/documents/${doc.id}?raw=1`, { cache: 'no-store' })
-      if (!response.ok) throw new Error(await response.text() || 'Could not open the SOA draft.')
-      const image = await imageFromBlob(await response.blob())
-
-      const canvas = document.createElement('canvas')
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Could not finalize the SOA draft.')
-      ctx.drawImage(image, 0, 0)
-
-      const scaleX = canvas.width / 1400
-      const scaleY = canvas.height / 2300
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(70 * scaleX, 195 * scaleY, 1260 * scaleX, 125 * scaleY)
-      ctx.fillStyle = '#334155'
-      ctx.font = `${Math.max(18, Math.round(24 * scaleY))}px Arial, sans-serif`
-      ctx.fillText(`Appointment date: ${date}`, 90 * scaleX, 245 * scaleY)
-      ctx.font = `${Math.max(14, Math.round(18 * scaleY))}px Arial, sans-serif`
-      ctx.fillStyle = '#475569'
-      ctx.fillText('Appointment date added in Mayer Insurance Group CRM.', 90 * scaleX, 285 * scaleY)
-
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the finalized SOA.')), 'image/png')
-      })
-      const safeName = props.clientName.replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
-      const fileName = `Scope_of_Appointment_${safeName}_${date}.png`
-      const file = new File([blob], fileName, { type: 'image/png' })
-      const saved = await uploadFile(file, 'scope_of_appointment', fileName)
-      if (saved) {
-        setDraftDates(current => ({ ...current, [doc.id]: '' }))
-        setStatus('Finalized SOA saved with the appointment date. The original signed draft remains in the file history.')
-      }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not finalize the SOA draft.')
-    } finally {
-      setFinalizingDocumentId(null)
-    }
-  }
 
   return (
     <div className="medicare-documents-panel">
@@ -412,34 +339,7 @@ export default function MedicareDocuments(props: Props) {
               <strong>{doc.file_name}</strong>
               <div className="field-help">{prettyType(doc.document_type)} · {new Date(doc.created_at).toLocaleString()}</div>
             </div>
-            <div className="document-row-actions">
-              {isDraftSoa(doc) ? (
-                <div className="soa-finalize-row">
-                  <input
-                    className="input soa-finalize-date"
-                    type="date"
-                    aria-label="Appointment date"
-                    value={draftDates[doc.id] || ''}
-                    onChange={event => setDraftDates(current => ({ ...current, [doc.id]: event.target.value }))}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-small"
-                    disabled={finalizingDocumentId === doc.id}
-                    onClick={() => finalizeDraftSoa(doc)}
-                  >
-                    {finalizingDocumentId === doc.id ? 'Saving…' : 'Add Appointment Date'}
-                  </button>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-secondary btn-small"
-                onClick={() => window.open(`/api/clients/${props.clientId}/documents/${doc.id}`, '_blank', 'noopener,noreferrer')}
-              >
-                Open
-              </button>
-            </div>
+            <DocumentActions clientId={props.clientId} documentId={doc.id} fileName={doc.file_name} onDeleted={(id) => setDocuments(current => current.filter(item => item.id !== id))} onStatus={setStatus} />
           </div>
         )) : <div className="field-help">No Medicare files saved yet.</div>}
       </div>
@@ -456,10 +356,7 @@ export default function MedicareDocuments(props: Props) {
             </div>
 
             <div className="soa-grid">
-              <label className="label">Appointment date <span className="field-optional">(can be added later)</span>
-                <input className="input" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} />
-                <span className="field-help">Leave blank to save a signed SOA draft. The appointment date must be completed before the SOA is used for a scheduled appointment.</span>
-              </label>
+              <div className="label">Appointment date<span className="input input-readonly">Set automatically when signed</span><span className="field-help">The SOA appointment date will be the date the client signs this form.</span></div>
               <label className="label">Beneficiary name
                 <input className="input" value={beneficiaryName} onChange={e => setBeneficiaryName(e.target.value)} />
               </label>
@@ -507,13 +404,13 @@ export default function MedicareDocuments(props: Props) {
                 onPointerCancel={endSignature}
                 onPointerLeave={endSignature}
               />
-              <div className="field-help">Electronic signature captured in the CRM. A blank appointment date saves as a draft; complete the appointment date before use. Carrier-specific requirements may also apply.</div>
+              <div className="field-help">Electronic signature captured in the CRM. The appointment date is automatically set to the signature date. Carrier-specific requirements may also apply.</div>
             </div>
 
             <div className="soa-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Cancel</button>
               <button type="button" className="btn btn-primary" disabled={uploading} onClick={saveScope}>
-                {uploading ? 'Saving…' : appointmentDate ? 'Save Signed Scope to Client Files' : 'Save Signed SOA Draft'}
+                {uploading ? 'Saving…' : 'Save Signed Scope to Client Files'}
               </button>
             </div>
           </div>
