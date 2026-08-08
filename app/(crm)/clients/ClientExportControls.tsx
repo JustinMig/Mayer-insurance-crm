@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import type { MouseEvent } from 'react'
 
 type ExportField = {
   key: string
@@ -26,7 +27,13 @@ const EXPORT_FIELDS: ExportField[] = [
   { key: 'products', label: 'Products' }
 ]
 
-export default function ClientExportControls({ filters, hasActiveFilters }: { filters: ExportFilters; hasActiveFilters: boolean }) {
+export default function ClientExportControls({
+  filters,
+  selectedClientIds
+}: {
+  filters: ExportFilters
+  selectedClientIds: string[]
+}) {
   const defaultFields = useMemo(
     () => EXPORT_FIELDS.filter((field) => field.defaultChecked).map((field) => field.key),
     []
@@ -43,6 +50,11 @@ export default function ClientExportControls({ filters, hasActiveFilters }: { fi
   }
 
   async function download(format: 'csv' | 'pdf') {
+    if (selectedClientIds.length === 0) {
+      setMessage('Select at least 1 client from the current page first.')
+      return
+    }
+
     if (selectedFields.length === 0) {
       setMessage('Select at least 1 field to export.')
       return
@@ -55,7 +67,12 @@ export default function ClientExportControls({ filters, hasActiveFilters }: { fi
       const response = await fetch('/api/clients/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, fields: selectedFields, ...filters })
+        body: JSON.stringify({
+          format,
+          fields: selectedFields,
+          client_ids: selectedClientIds,
+          ...filters
+        })
       })
 
       if (!response.ok) {
@@ -87,28 +104,33 @@ export default function ClientExportControls({ filters, hasActiveFilters }: { fi
 
   return (
     <>
-      <button className="btn btn-secondary" type="button" onClick={() => setOpen(true)}>Export Clients</button>
+      <button className="btn btn-secondary" type="button" onClick={() => {
+        setMessage('')
+        setOpen(true)
+      }}>
+        Export Clients{selectedClientIds.length > 0 ? ` (${selectedClientIds.length})` : ''}
+      </button>
 
       {open ? (
-        <div className="export-backdrop" role="presentation" onMouseDown={(event) => {
+        <div className="export-backdrop" role="presentation" onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
           if (event.target === event.currentTarget) setOpen(false)
         }}>
           <section className="export-modal" role="dialog" aria-modal="true" aria-labelledby="export-clients-title">
             <div className="export-modal-header">
               <div>
-                <h2 id="export-clients-title">Export Client Information</h2>
-                <p className="subtle">Choose exactly which non-sensitive fields you want included.</p>
+                <h2 id="export-clients-title">Export Selected Clients</h2>
+                <p className="subtle">Choose which information to include for the clients you selected.</p>
               </div>
               <button className="btn btn-secondary btn-small" type="button" onClick={() => setOpen(false)}>Close</button>
             </div>
 
-            {!hasActiveFilters ? (
+            {selectedClientIds.length === 0 ? (
               <div className="notice" style={{ marginTop: 16 }}>
-                No client filter is active. This export will include every client your login is authorized to view.
+                Select at least 1 client from the current results page before exporting.
               </div>
             ) : (
-              <div className="notice" style={{ marginTop: 16 }}>
-                The export will use your current client search, product, Turn 65, and agent filters.
+              <div className="notice notice-success" style={{ marginTop: 16 }}>
+                <strong>{selectedClientIds.length}</strong> selected client{selectedClientIds.length === 1 ? '' : 's'} will be exported.
               </div>
             )}
 
@@ -132,10 +154,20 @@ export default function ClientExportControls({ filters, hasActiveFilters }: { fi
             {message ? <div className="notice" style={{ marginTop: 14 }}>{message}</div> : null}
 
             <div className="export-actions">
-              <button className="btn btn-primary" type="button" disabled={workingFormat !== null} onClick={() => download('csv')}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={workingFormat !== null || selectedClientIds.length === 0}
+                onClick={() => download('csv')}
+              >
                 {workingFormat === 'csv' ? 'Creating CSV…' : 'Download CSV'}
               </button>
-              <button className="btn btn-secondary" type="button" disabled={workingFormat !== null} onClick={() => download('pdf')}>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={workingFormat !== null || selectedClientIds.length === 0}
+                onClick={() => download('pdf')}
+              >
                 {workingFormat === 'pdf' ? 'Creating PDF…' : 'Download PDF'}
               </button>
             </div>

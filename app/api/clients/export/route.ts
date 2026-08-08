@@ -33,6 +33,7 @@ const FIELD_LABELS: Record<ExportFieldKey, string> = {
 }
 
 const ALLOWED_PRODUCTS = new Set(['', 'life', 'medicare', 'retirement', 'life_medicare', 'non_life', 'non_medicare'])
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const CLIENT_SELECT = 'id,assigned_agent_id,first_name,last_name,date_of_birth,email,phone,address_line1,city,state,zip_code,county,is_medicare,is_life,is_retirement'
 
 function csvCell(value: string) {
@@ -185,10 +186,16 @@ export async function POST(request: NextRequest) {
   const product = String(body?.product || '')
   const turn65 = body?.turn65 === true
   const requestedAgent = String(body?.agent || '').trim()
+  const requestedClientIds: string[] = Array.isArray(body?.client_ids)
+    ? Array.from(new Set<string>(body.client_ids.map((id: unknown) => String(id).trim()).filter(Boolean)))
+    : []
 
   if (!format) return NextResponse.json({ error: 'Choose CSV or PDF.' }, { status: 400 })
   if (fields.length === 0) return NextResponse.json({ error: 'Select at least 1 export field.' }, { status: 400 })
   if (!ALLOWED_PRODUCTS.has(product)) return NextResponse.json({ error: 'Invalid product filter.' }, { status: 400 })
+  if (requestedClientIds.length === 0) return NextResponse.json({ error: 'Select at least 1 client to export.' }, { status: 400 })
+  if (requestedClientIds.length > 250) return NextResponse.json({ error: 'A maximum of 250 clients can be exported at once.' }, { status: 400 })
+  if (requestedClientIds.some((id) => !UUID_PATTERN.test(id))) return NextResponse.json({ error: 'One or more selected client IDs are invalid.' }, { status: 400 })
 
   const canFilterByAgent = profile.role === 'admin' || profile.role === 'manager'
   let selectedAgent = ''
@@ -206,43 +213,36 @@ export async function POST(request: NextRequest) {
     selectedAgent = agent.id
   }
 
-  const allClients: ClientRow[] = []
-  const pageSize = 1000
-  const maxRows = 50000
+  let query = supabase
+    .from('clients')
+    .select(CLIENT_SELECT)
+    .in('id', requestedClientIds)
+    .order('last_name', { ascending: true })
+    .order('first_name', { ascending: true })
+    .limit(250)
 
-  for (let start = 0; start < maxRows; start += pageSize) {
-    let query = supabase
-      .from('clients')
-      .select(CLIENT_SELECT)
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
-      .range(start, start + pageSize - 1)
-
-    if (q) {
-      const safe = q.replace(/[,%()]/g, ' ').trim()
-      if (safe) query = query.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`)
-    }
-
-    if (product === 'life') query = query.eq('is_life', true)
-    if (product === 'medicare') query = query.eq('is_medicare', true)
-    if (product === 'retirement') query = query.eq('is_retirement', true)
-    if (product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
-    if (product === 'non_life') query = query.eq('is_life', false)
-    if (product === 'non_medicare') query = query.eq('is_medicare', false)
-    if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
-
-    if (turn65) {
-      const birthYear = new Date().getFullYear() - 65
-      query = query.gte('date_of_birth', `${birthYear}-01-01`).lte('date_of_birth', `${birthYear}-12-31`)
-    }
-
-    const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    const rows = (data || []) as ClientRow[]
-    allClients.push(...rows)
-    if (rows.length < pageSize) break
+  if (q) {
+    const safe = q.replace(/[,%()]/g, ' ').trim()
+    if (safe) query = query.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`)
   }
+
+  if (product === 'life') query = query.eq('is_life', true)
+  if (product === 'medicare') query = query.eq('is_medicare', true)
+  if (product === 'retirement') query = query.eq('is_retirement', true)
+  if (product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
+  if (product === 'non_life') query = query.eq('is_life', false)
+  if (product === 'non_medicare') query = query.eq('is_medicare', false)
+  if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
+
+  if (turn65) {
+    const birthYear = new Date().getFullYear() - 65
+    query = query.gte('date_of_birth', `${birthYear}-01-01`).lte('date_of_birth', `${birthYear}-12-31`)
+  }
+
+  const { data, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const allClients = (data || []) as ClientRow[]
 
   const dateStamp = new Date().toISOString().slice(0, 10)
 
@@ -257,6 +257,7 @@ export async function POST(request: NextRequest) {
       turn65,
       selected_agent_id: selectedAgent || null,
       search_applied: Boolean(q),
+      selected_client_count_requested: requestedClientIds.length,
       client_count: allClients.length
     }
   })

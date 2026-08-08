@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import ClientExportControls from './ClientExportControls'
+import ClientsResults from './ClientsResults'
 
 type SearchParams = Promise<{ q?: string; product?: string; turn65?: string; agent?: string }>
 
@@ -23,7 +23,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
 
   const { data: currentProfile } = await supabase
     .from('profiles')
-    .select('agency_id, role')
+    .select('agency_id, role, full_name')
     .eq('id', userId)
     .maybeSingle()
 
@@ -47,7 +47,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     : ''
 
   const shouldSearch = Boolean(q || product || turn65 || selectedAgent)
-  const agentNames = new Map(agents.map((agent) => [agent.id, agent.full_name]))
+  const agentNames: Record<string, string> = Object.fromEntries(agents.map((agent) => [agent.id, agent.full_name]))
+  if (userId && currentProfile?.full_name) agentNames[userId] = currentProfile.full_name
 
   let clients: any[] = []
   let errorMessage = ''
@@ -55,7 +56,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   if (shouldSearch) {
     let query = supabase
       .from('clients')
-      .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, email, county, state, is_medicare, is_life, is_retirement, created_at')
+      .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, county, state, is_medicare, is_life, is_retirement')
       .order('last_name', { ascending: true })
       .limit(250)
 
@@ -89,10 +90,6 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div><h1>Clients</h1><p className="subtle">Search the database without loading every client onto the screen.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <ClientExportControls
-            filters={{ q, product, turn65, agent: selectedAgent }}
-            hasActiveFilters={shouldSearch}
-          />
           <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
         </div>
       </div>
@@ -125,47 +122,23 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
 
       {canFilterByAgent ? (
         <div className="notice" style={{ marginBottom: 14 }}>
-          <strong>Agent view:</strong> {selectedAgent ? agentNames.get(selectedAgent) || 'Selected agent' : 'All agents'}
+          <strong>Agent view:</strong> {selectedAgent ? agentNames[selectedAgent] || 'Selected agent' : 'All agents'}
         </div>
       ) : null}
 
-      <section className="card">
-        {errorMessage ? <div className="notice notice-error" style={{ margin: 16 }}>{errorMessage}</div> : null}
-        {!shouldSearch ? (
+      {!shouldSearch ? (
+        <section className="card">
           <div className="empty"><strong>No clients are loaded by default.</strong><br />Search above, choose an agent, or use the Turn 65 button.</div>
-        ) : clients.length === 0 ? (
-          <div className="empty">No matching clients found.</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  {canFilterByAgent ? <th>Agent</th> : null}
-                  <th>DOB</th><th>Phone</th><th>Location</th><th>Products</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <tr key={client.id}>
-                    <td><strong>{client.first_name} {client.last_name}</strong><br /><span style={{ color: '#657084', fontSize: 12 }}>{client.email || ''}</span></td>
-                    {canFilterByAgent ? <td><strong>{agentNames.get(client.assigned_agent_id) || 'Unassigned'}</strong></td> : null}
-                    <td>{client.date_of_birth || '—'}</td>
-                    <td>{client.phone || '—'}</td>
-                    <td>{[client.county, client.state].filter(Boolean).join(', ') || '—'}</td>
-                    <td>
-                      {client.is_medicare ? <span className="badge badge-gold">Medicare</span> : null}
-                      {client.is_life ? <span className="badge">Life</span> : null}
-                      {client.is_retirement ? <span className="badge">Retirement</span> : null}
-                    </td>
-                    <td><Link className="btn btn-secondary" href={`/clients/${client.id}`}>Open</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <ClientsResults
+          key={`${q}|${product}|${turn65 ? '1' : '0'}|${selectedAgent}`}
+          clients={clients}
+          agentNames={agentNames}
+          filters={{ q, product, turn65, agent: selectedAgent }}
+          errorMessage={errorMessage}
+        />
+      )}
     </>
   )
 }
