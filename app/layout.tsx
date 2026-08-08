@@ -12,8 +12,8 @@ export const metadata: Metadata = {
     title: 'Mayer CRM'
   },
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg'
+    icon: '/icon.png',
+    apple: '/icon.png'
   }
 }
 
@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#10263f'
+  themeColor: '#d9e7ef'
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

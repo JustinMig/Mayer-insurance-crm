@@ -1,4 +1,4 @@
-const CACHE = 'mayer-crm-shell-v1'
+const CACHE = 'mayer-crm-shell-v2'
 const SHELL = ['/login']
 
 self.addEventListener('install', (event) => {

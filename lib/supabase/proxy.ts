@@ -24,7 +24,7 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
   const loggedIn = Boolean(data?.claims)
   const path = request.nextUrl.pathname
-  const publicPath = path === '/login' || path.startsWith('/auth/') || path === '/manifest.webmanifest' || path === '/sw.js' || path === '/icon.svg'
+  const publicPath = path === '/login' || path.startsWith('/auth/') || path === '/manifest.webmanifest' || path === '/sw.js' || path === '/icon.png' || path === '/mayer-bear.png' || path === '/icon.svg'
 
   if (!loggedIn && !publicPath) {
     const url = request.nextUrl.clone()

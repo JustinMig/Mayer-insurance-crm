@@ -30,7 +30,7 @@ export default function LoginPage() {
   return (
     <main className="login-shell">
       <section className="login-card">
-        <div className="login-logo">MIG</div>
+        <img className="login-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
         <h1>Mayer Insurance Group</h1>
         <p className="subtle">Secure CRM access</p>
         <form onSubmit={submit}>

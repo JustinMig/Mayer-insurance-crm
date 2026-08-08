@@ -18,8 +18,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <div className="crm-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">MIG</div>
-          <div className="brand-text"><strong>Mayer Insurance Group</strong><span>CRM</span></div>
+          <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+          <div className="brand-text">
+            <strong>Mayer Insurance Group</strong>
+            <span>CRM</span>
+          </div>
         </div>
         <nav className="nav">
           <Link href="/dashboard">Dashboard</Link>
@@ -31,8 +34,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
       <div className="main">
         <header className="topbar">
-          <strong>Mayer CRM</strong>
-          <span style={{ color: '#657084', fontSize: 13 }}>{profile?.full_name || 'CRM User'}{profile?.role ? ` · ${profile.role}` : ''}</span>
+          <div className="topbar-brand">
+            <img className="topbar-bear" src="/mayer-bear.png" alt="" aria-hidden="true" />
+            <strong>Mayer Insurance Group</strong>
+          </div>
+          <span className="topbar-user">{profile?.full_name || 'CRM User'}{profile?.role ? ` · ${profile.role}` : ''}</span>
         </header>
         <main className="content">{children}</main>
       </div>
@@ -41,7 +47,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <Link href="/dashboard"><b>⌂</b><span>Home</span></Link>
         <Link href="/clients/new"><b>＋</b><span>Add</span></Link>
         <Link href="/clients"><b>⌕</b><span>Clients</span></Link>
-        <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" style={{ border: 0, background: 'transparent', color: '#10263f', fontWeight: 700, fontSize: 11 }}><b style={{ display: 'block', fontSize: 18 }}>⇥</b>Sign out</button></form>
+        <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>
   )
