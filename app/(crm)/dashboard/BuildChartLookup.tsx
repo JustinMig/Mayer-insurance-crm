@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { AMERICAN_AMICABLE_BUILD, MUTUAL_OF_OMAHA_BUILD } from '@/lib/build-charts'
 
 type CompanyKey = 'mutual-of-omaha' | 'american-amicable'
@@ -8,41 +8,20 @@ type CompanyKey = 'mutual-of-omaha' | 'american-amicable'
 type CompanyOption = {
   key: CompanyKey
   name: string
-  aliases: string[]
 }
 
 const companies: CompanyOption[] = [
-  { key: 'mutual-of-omaha', name: 'Mutual of Omaha', aliases: ['moo', 'mutual of omaha', 'mutual omaha', 'omaha'] },
-  { key: 'american-amicable', name: 'American Amicable', aliases: ['amam', 'american amicable', 'americanamicable', 'amicable'] }
+  { key: 'mutual-of-omaha', name: 'Mutual of Omaha' },
+  { key: 'american-amicable', name: 'American Amicable' }
 ]
 
-function normalize(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-function companyFromQuery(query: string): CompanyOption | null {
-  const needle = normalize(query)
-  if (!needle) return null
-  return companies.find((company) => company.aliases.some((alias) => normalize(alias) === needle) || normalize(company.name) === needle) || null
-}
-
 export default function BuildChartLookup() {
-  const [companyQuery, setCompanyQuery] = useState('')
-  const [selectedCompany, setSelectedCompany] = useState<CompanyKey | null>(null)
+  const [selectedCompany, setSelectedCompany] = useState<CompanyKey | ''>('')
   const [heightKey, setHeightKey] = useState('')
 
   const exactCompany = selectedCompany
     ? companies.find((company) => company.key === selectedCompany) || null
-    : companyFromQuery(companyQuery)
-
-  const companyMatches = useMemo(() => {
-    const needle = normalize(companyQuery)
-    if (!needle || exactCompany) return []
-    return companies.filter((company) => {
-      const haystack = [company.name, ...company.aliases].map(normalize).join(' ')
-      return haystack.includes(needle)
-    })
-  }, [companyQuery, exactCompany])
+    : null
 
   const rows = exactCompany?.key === 'mutual-of-omaha'
     ? MUTUAL_OF_OMAHA_BUILD
@@ -58,21 +37,7 @@ export default function BuildChartLookup() {
   const hasSelectedRow = Boolean(mutualRow || americanRow)
 
   function resetLookup() {
-    setCompanyQuery('')
-    setSelectedCompany(null)
-    setHeightKey('')
-  }
-
-  function chooseCompany(company: CompanyOption) {
-    setSelectedCompany(company.key)
-    setCompanyQuery(company.name)
-    setHeightKey('')
-  }
-
-  function resetCompanyForText(value: string) {
-    setCompanyQuery(value)
-    const exact = companyFromQuery(value)
-    setSelectedCompany(exact?.key || null)
+    setSelectedCompany('')
     setHeightKey('')
   }
 
@@ -81,7 +46,7 @@ export default function BuildChartLookup() {
       <div className="build-lookup-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Height &amp; Weight Underwriting Lookup</h2>
-          <p className="subtle" style={{ margin: 0 }}>Type MOO / Mutual of Omaha or AMAM / American Amicable, then select the client&apos;s height.</p>
+          <p className="subtle" style={{ margin: 0 }}>Select the insurance company, then select the client&apos;s height.</p>
         </div>
         <div className="build-lookup-actions">
           <span className="build-lookup-badge">Life build charts</span>
@@ -90,27 +55,23 @@ export default function BuildChartLookup() {
       </div>
 
       <div className="build-lookup-controls">
-        <div className="build-company-wrap">
-          <label className="label">Company
-            <input
-              className="input"
-              value={companyQuery}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => resetCompanyForText(event.target.value)}
-              placeholder="MOO, AMAM, or company name"
-              autoComplete="off"
-            />
-          </label>
-          {companyMatches.length ? (
-            <div className="build-company-results">
-              {companyMatches.map((company) => (
-                <button key={company.key} type="button" onClick={() => chooseCompany(company)}>
-                  <strong>{company.name}</strong>
-                  <span>{company.key === 'mutual-of-omaha' ? 'MOO' : 'AMAM'}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <label className="label">Company
+          <select
+            className="select"
+            value={selectedCompany}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+              setSelectedCompany(event.target.value as CompanyKey | '')
+              setHeightKey('')
+            }}
+          >
+            <option value="">Select company</option>
+            {companies.map((company) => (
+              <option key={company.key} value={company.key}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <label className="label">Height
           <select
