@@ -31,10 +31,16 @@ export default async function ClientProfilePage({ params, searchParams }: { para
   if (!claimsData?.claims) redirect('/login')
   const userId = String(claimsData.claims.sub)
 
-  const { data: profile } = await supabase.from('profiles').select('agency_id, role').eq('id', userId).single()
-  const { data: client } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
+  const [
+    { data: profile },
+    { data: client }
+  ] = await Promise.all([
+    supabase.from('profiles').select('agency_id, role, full_name').eq('id', userId).single(),
+    supabase.from('clients').select('*').eq('id', id).maybeSingle()
+  ])
   if (!client) notFound()
 
+  const canAssignAgents = profile?.role === 'admin' || profile?.role === 'manager'
   const [
     { data: medicare },
     { data: careInfo },
@@ -44,7 +50,8 @@ export default async function ClientProfilePage({ params, searchParams }: { para
     { data: healthPlan },
     { data: hospitalIndemnity },
     { data: banking },
-    { data: documents }
+    { data: documents },
+    agentsResult
   ] = await Promise.all([
     supabase.from('medicare_info').select('*').eq('client_id', id).maybeSingle(),
     supabase.from('client_care_info').select('*').eq('client_id', id).maybeSingle(),
@@ -54,15 +61,14 @@ export default async function ClientProfilePage({ params, searchParams }: { para
     supabase.from('client_health_plan_info').select('*').eq('client_id', id).maybeSingle(),
     supabase.from('client_hospital_indemnity').select('*').eq('client_id', id).maybeSingle(),
     supabase.from('client_banking_info').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('documents').select('id, file_name, mime_type, document_type, created_at').eq('client_id', id).order('created_at', { ascending: false })
+    supabase.from('documents').select('id, file_name, mime_type, document_type, created_at').eq('client_id', id).order('created_at', { ascending: false }),
+    canAssignAgents && profile?.agency_id
+      ? supabase.from('profiles').select('id, full_name, role, active').eq('agency_id', profile.agency_id).eq('active', true).in('role', ['admin', 'agent']).order('full_name')
+      : Promise.resolve({ data: null, error: null })
   ])
 
   const agentEmail = String(claimsData.claims.email || '')
-  const { data: currentAgent } = await supabase.from('profiles').select('full_name').eq('id', userId).single()
-  const canAssignAgents = profile?.role === 'admin' || profile?.role === 'manager'
-  const { data: agents } = canAssignAgents
-    ? await supabase.from('profiles').select('id, full_name, role, active').eq('agency_id', profile!.agency_id).eq('active', true).in('role', ['admin', 'agent']).order('full_name')
-    : { data: null }
+  const agents = agentsResult.data
 
   let ssnMasked = 'Not saved'
   let dlMasked = 'Not saved'
@@ -214,7 +220,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 clientName={`${client.first_name} ${client.last_name}`}
                 clientPhone={client.phone || ''}
                 clientAddress={[client.address_line1, client.city, client.state, client.zip_code].filter(Boolean).join(', ')}
-                agentName={currentAgent?.full_name || 'Mayer Insurance Group Agent'}
+                agentName={profile?.full_name || 'Mayer Insurance Group Agent'}
                 agentEmail={agentEmail}
                 initialDocuments={(documents || []).filter(doc => !['medications', 'life_insurance', 'health_plan'].includes(doc.document_type || ''))}
               />

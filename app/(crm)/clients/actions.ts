@@ -332,7 +332,8 @@ async function createClientRecord(form: FormData) {
   if (clientError || !client) throw new Error(clientError?.message || 'Unable to save client.')
 
   const hasMedicareData = checked(form, 'is_medicare') || value(form, 'medicare_number') || value(form, 'part_a_date') || value(form, 'part_b_date') || value(form, 'medicaid_number') || value(form, 'medicaid_level')
-  if (hasMedicareData) {
+  const saveMedicare = async () => {
+    if (!hasMedicareData) return
     const { error: medicareError } = await supabase.from('medicare_info').insert({
       agency_id: profile.agency_id,
       client_id: client.id,
@@ -345,11 +346,14 @@ async function createClientRecord(form: FormData) {
     if (medicareError) throw new Error(medicareError.message)
   }
 
-  await saveDoctorsAndMedications(supabase, profile.agency_id, client.id, form)
-  await saveLifeInsurance(supabase, profile.agency_id, client.id, form)
-  await saveHealthPlan(supabase, profile.agency_id, client.id, form)
-  await saveHospitalIndemnity(supabase, profile.agency_id, client.id, form)
-  await saveBankingInfo(supabase, profile.agency_id, client.id, form)
+  await Promise.all([
+    saveMedicare(),
+    saveDoctorsAndMedications(supabase, profile.agency_id, client.id, form),
+    saveLifeInsurance(supabase, profile.agency_id, client.id, form),
+    saveHealthPlan(supabase, profile.agency_id, client.id, form),
+    saveHospitalIndemnity(supabase, profile.agency_id, client.id, form),
+    saveBankingInfo(supabase, profile.agency_id, client.id, form)
+  ])
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
@@ -436,11 +440,27 @@ export async function updateClient(form: FormData) {
 
   if (updateError) throw new Error(updateError.message)
 
-  const { data: currentMedicare } = await supabase
-    .from('medicare_info')
-    .select('id, medicare_number_ciphertext, medicaid_number_ciphertext')
-    .eq('client_id', clientId)
-    .maybeSingle()
+  const [
+    { data: currentMedicare },
+    { data: currentHealthPlan },
+    { data: currentBanking }
+  ] = await Promise.all([
+    supabase
+      .from('medicare_info')
+      .select('id, medicare_number_ciphertext, medicaid_number_ciphertext')
+      .eq('client_id', clientId)
+      .maybeSingle(),
+    supabase
+      .from('client_health_plan_info')
+      .select('member_id_ciphertext')
+      .eq('client_id', clientId)
+      .maybeSingle(),
+    supabase
+      .from('client_banking_info')
+      .select('routing_number_ciphertext, account_number_ciphertext, debit_card_number_ciphertext')
+      .eq('client_id', clientId)
+      .maybeSingle()
+  ])
 
   let medicareCiphertext = currentMedicare?.medicare_number_ciphertext || null
   if (checked(form, 'clear_medicare_number')) medicareCiphertext = null
@@ -452,48 +472,44 @@ export async function updateClient(form: FormData) {
 
   const hasMedicareData = checked(form, 'is_medicare') || medicareCiphertext || medicaidCiphertext || value(form, 'part_a_date') || value(form, 'part_b_date') || value(form, 'medicaid_level')
 
-  if (currentMedicare) {
-    const { error: medicareError } = await supabase
-      .from('medicare_info')
-      .update({
+  const saveMedicare = async () => {
+    if (currentMedicare) {
+      const { error: medicareError } = await supabase
+        .from('medicare_info')
+        .update({
+          medicare_number_ciphertext: medicareCiphertext,
+          part_a_date: nullable(form, 'part_a_date'),
+          part_b_date: nullable(form, 'part_b_date'),
+          medicaid_number_ciphertext: medicaidCiphertext,
+          medicaid_level: nullable(form, 'medicaid_level')
+        })
+        .eq('client_id', clientId)
+      if (medicareError) throw new Error(medicareError.message)
+      return
+    }
+
+    if (hasMedicareData) {
+      const { error: medicareError } = await supabase.from('medicare_info').insert({
+        agency_id: profile.agency_id,
+        client_id: clientId,
         medicare_number_ciphertext: medicareCiphertext,
         part_a_date: nullable(form, 'part_a_date'),
         part_b_date: nullable(form, 'part_b_date'),
         medicaid_number_ciphertext: medicaidCiphertext,
         medicaid_level: nullable(form, 'medicaid_level')
       })
-      .eq('client_id', clientId)
-    if (medicareError) throw new Error(medicareError.message)
-  } else if (hasMedicareData) {
-    const { error: medicareError } = await supabase.from('medicare_info').insert({
-      agency_id: profile.agency_id,
-      client_id: clientId,
-      medicare_number_ciphertext: medicareCiphertext,
-      part_a_date: nullable(form, 'part_a_date'),
-      part_b_date: nullable(form, 'part_b_date'),
-      medicaid_number_ciphertext: medicaidCiphertext,
-      medicaid_level: nullable(form, 'medicaid_level')
-    })
-    if (medicareError) throw new Error(medicareError.message)
+      if (medicareError) throw new Error(medicareError.message)
+    }
   }
 
-  const { data: currentHealthPlan } = await supabase
-    .from('client_health_plan_info')
-    .select('member_id_ciphertext')
-    .eq('client_id', clientId)
-    .maybeSingle()
-
-  const { data: currentBanking } = await supabase
-    .from('client_banking_info')
-    .select('routing_number_ciphertext, account_number_ciphertext, debit_card_number_ciphertext')
-    .eq('client_id', clientId)
-    .maybeSingle()
-
-  await saveDoctorsAndMedications(supabase, profile.agency_id, clientId, form)
-  await saveLifeInsurance(supabase, profile.agency_id, clientId, form)
-  await saveHealthPlan(supabase, profile.agency_id, clientId, form, currentHealthPlan?.member_id_ciphertext || null)
-  await saveHospitalIndemnity(supabase, profile.agency_id, clientId, form)
-  await saveBankingInfo(supabase, profile.agency_id, clientId, form, currentBanking || null)
+  await Promise.all([
+    saveMedicare(),
+    saveDoctorsAndMedications(supabase, profile.agency_id, clientId, form),
+    saveLifeInsurance(supabase, profile.agency_id, clientId, form),
+    saveHealthPlan(supabase, profile.agency_id, clientId, form, currentHealthPlan?.member_id_ciphertext || null),
+    saveHospitalIndemnity(supabase, profile.agency_id, clientId, form),
+    saveBankingInfo(supabase, profile.agency_id, clientId, form, currentBanking || null)
+  ])
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
