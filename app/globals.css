@@ -701,3 +701,59 @@ tbody tr:hover { background: #f9fbfd; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Role-aware dashboard premium totals */
+.agent-premium-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.agent-premium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.agent-premium-card {
+  min-height: 142px;
+  padding: 16px;
+  border: 1px solid rgba(25, 67, 223, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(25, 67, 223, 0.07), rgba(255, 253, 247, 0.92));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.agent-premium-name {
+  color: #173856;
+  font-size: 0.92rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+}
+
+.agent-premium-value {
+  display: block;
+  margin-top: 7px;
+  color: #1943df;
+  font-size: clamp(1.7rem, 3vw, 2.25rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.agent-premium-meta {
+  display: flex;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.agent-premium-meta b {
+  color: #27384b;
+}
