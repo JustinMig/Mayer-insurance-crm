@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClientIntake } from '../actions'
 import DoctorsMedicationsFields from '../DoctorsMedicationsFields'
 import LifeInsuranceFields from '../LifeInsuranceFields'
+import HealthPlanFields from '../HealthPlanFields'
+import HospitalIndemnityFields from '../HospitalIndemnityFields'
 
 type AgentOption = { id: string; full_name: string; role: string }
 
@@ -66,6 +68,7 @@ export default function NewClientForm(props: Props) {
   const [medicationsFile, setMedicationsFile] = useState<File | null>(null)
   const [medicationsPhoto, setMedicationsPhoto] = useState<File | null>(null)
   const [lifeInsuranceFile, setLifeInsuranceFile] = useState<File | null>(null)
+  const [healthPlanFile, setHealthPlanFile] = useState<File | null>(null)
 
   const [soaOpen, setSoaOpen] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState(localDate())
@@ -294,6 +297,7 @@ export default function NewClientForm(props: Props) {
       if (medicationsFile) queued.push({ file: medicationsFile, type: 'medications' })
       if (medicationsPhoto) queued.push({ file: medicationsPhoto, type: 'medications' })
       if (lifeInsuranceFile) queued.push({ file: lifeInsuranceFile, type: 'life_insurance' })
+      if (healthPlanFile) queued.push({ file: healthPlanFile, type: 'health_plan' })
 
       let failed = 0
       for (const item of queued) {
@@ -356,6 +360,22 @@ export default function NewClientForm(props: Props) {
               <label className="label">State<input className="input" name="state" maxLength={2} placeholder="MS" /></label>
               <label className="label">ZIP code<input className="input" name="zip_code" inputMode="numeric" /></label>
               <label className="label">County<input className="input" name="county" /></label>
+            </div>
+          </div>
+
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Client Status</strong><span>Veteran and tobacco-use information.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Veteran
+                <select className="select" name="is_veteran" defaultValue="">
+                  <option value="">Select</option><option value="yes">Yes</option><option value="no">No</option>
+                </select>
+              </label>
+              <label className="label">Smoking / tobacco use
+                <select className="select" name="is_smoker" defaultValue="">
+                  <option value="">Select</option><option value="yes">Yes</option><option value="no">No</option>
+                </select>
+              </label>
             </div>
           </div>
 
@@ -456,6 +476,55 @@ export default function NewClientForm(props: Props) {
               <div className="document-action-row"><label className="btn btn-secondary upload-button">Upload Life Insurance File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setLifeInsuranceFile)} /></label></div>
             </div>
             <div className="intake-file-list">{lifeInsuranceFile ? <div className="document-row"><div><strong>Life Insurance File</strong><div className="field-help">{lifeInsuranceFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setLifeInsuranceFile(null)}>Remove</button></div> : null}</div>
+          </div>
+        </div>
+      </details>
+
+      <details className="section-details section-health">
+        <summary><span>Health Plan Info</span><small>Company, member ID, plan ID, effective date &amp; files</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Health Plan Details</strong><span>Current medical plan information.</span></div></div>
+            <HealthPlanFields />
+          </div>
+          <div className="intake-group intake-group-files">
+            <div className="medicare-documents-heading">
+              <div><strong>Health Plan Files</strong><div className="field-help">Choose an insurance card, plan summary, enrollment document, or other health plan file. It will be saved to the client&apos;s private folder when Save Client is pressed.</div></div>
+              <div className="document-action-row"><label className="btn btn-secondary upload-button">Upload Health Plan File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setHealthPlanFile)} /></label></div>
+            </div>
+            <div className="intake-file-list">{healthPlanFile ? <div className="document-row"><div><strong>Health Plan File</strong><div className="field-help">{healthPlanFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setHealthPlanFile(null)}>Remove</button></div> : null}</div>
+          </div>
+        </div>
+      </details>
+
+      <details className="section-details section-hospital">
+        <summary><span>Hospital Indemnity Plan</span><small>Company, premium &amp; effective date</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group">
+            <div className="intake-group-heading"><div><strong>Plan Details</strong><span>Hospital indemnity coverage information.</span></div></div>
+            <HospitalIndemnityFields />
+          </div>
+        </div>
+      </details>
+
+      <details className="section-details section-banking">
+        <summary><span>Banking Information</span><small>Bank, account &amp; debit card details</small></summary>
+        <div className="section-body intake-section-body">
+          <div className="intake-group intake-group-sensitive">
+            <div className="intake-group-heading"><div><strong>Bank Account</strong><span>Financial account numbers are encrypted before storage.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Bank name<input className="input" name="bank_name" autoComplete="off" /></label>
+              <label className="label">Routing number<input className="input" name="bank_routing_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Account number<input className="input" name="bank_account_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+            </div>
+          </div>
+          <div className="intake-group intake-group-sensitive">
+            <div className="intake-group-heading"><div><strong>Debit Card</strong><span>Card number is encrypted. CVV is never stored.</span></div></div>
+            <div className="form-grid">
+              <label className="label">Debit card number<input className="input" name="bank_debit_card_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Expiration date<input className="input" name="bank_debit_card_expiration" inputMode="numeric" autoComplete="off" placeholder="MM/YY" maxLength={7} /></label>
+              <label className="label">CVV code<input className="input" value="Not stored for security" disabled readOnly /><span className="field-help">CVV codes are intentionally not saved in the CRM.</span></label>
+            </div>
           </div>
         </div>
       </details>

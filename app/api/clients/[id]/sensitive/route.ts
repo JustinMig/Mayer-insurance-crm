@@ -4,13 +4,17 @@ import { decryptValue } from '@/lib/crypto'
 
 type Params = Promise<{ id: string }>
 
-type SensitiveField = 'ssn' | 'drivers_license' | 'medicare_number' | 'medicaid_number'
+type SensitiveField = 'ssn' | 'drivers_license' | 'medicare_number' | 'medicaid_number' | 'health_member_id' | 'bank_routing_number' | 'bank_account_number' | 'bank_debit_card_number'
 
 const allowedFields = new Set<SensitiveField>([
   'ssn',
   'drivers_license',
   'medicare_number',
-  'medicaid_number'
+  'medicaid_number',
+  'health_member_id',
+  'bank_routing_number',
+  'bank_account_number',
+  'bank_debit_card_number'
 ])
 
 function noStoreJson(body: unknown, status = 200) {
@@ -77,6 +81,28 @@ export async function POST(request: NextRequest, { params }: { params: Params })
     ciphertext = field === 'medicare_number'
       ? medicare?.medicare_number_ciphertext ?? null
       : medicare?.medicaid_number_ciphertext ?? null
+  }
+
+  if (field === 'health_member_id') {
+    const { data: healthPlan, error: healthPlanError } = await supabase
+      .from('client_health_plan_info')
+      .select('member_id_ciphertext')
+      .eq('client_id', clientId)
+      .maybeSingle()
+    if (healthPlanError) return noStoreJson({ error: 'Unable to access health plan information' }, 403)
+    ciphertext = healthPlan?.member_id_ciphertext ?? null
+  }
+
+  if (field === 'bank_routing_number' || field === 'bank_account_number' || field === 'bank_debit_card_number') {
+    const { data: banking, error: bankingError } = await supabase
+      .from('client_banking_info')
+      .select('routing_number_ciphertext, account_number_ciphertext, debit_card_number_ciphertext')
+      .eq('client_id', clientId)
+      .maybeSingle()
+    if (bankingError) return noStoreJson({ error: 'Unable to access banking information' }, 403)
+    if (field === 'bank_routing_number') ciphertext = banking?.routing_number_ciphertext ?? null
+    if (field === 'bank_account_number') ciphertext = banking?.account_number_ciphertext ?? null
+    if (field === 'bank_debit_card_number') ciphertext = banking?.debit_card_number_ciphertext ?? null
   }
 
   if (!ciphertext) return noStoreJson({ value: null })

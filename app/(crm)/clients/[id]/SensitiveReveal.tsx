@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-type SensitiveField = 'ssn' | 'drivers_license' | 'medicare_number' | 'medicaid_number'
+type SensitiveField = 'ssn' | 'drivers_license' | 'medicare_number' | 'medicaid_number' | 'health_member_id' | 'bank_routing_number' | 'bank_account_number' | 'bank_debit_card_number'
 
 export default function SensitiveReveal({
   clientId,

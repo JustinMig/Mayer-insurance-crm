@@ -17,6 +17,13 @@ function checked(form: FormData, key: string) {
   return form.get(key) === 'on'
 }
 
+function optionalYesNo(form: FormData, key: string) {
+  const raw = value(form, key).toLowerCase()
+  if (raw === 'yes') return true
+  if (raw === 'no') return false
+  return null
+}
+
 function optionalMoney(form: FormData, key: string) {
   const raw = value(form, key).replace(/[$,]/g, '')
   if (!raw) return null
@@ -38,6 +45,12 @@ function resolvedLifeFaceAmount(form: FormData) {
   const number = Number(choice)
   if (!Number.isFinite(number) || number < 0) throw new Error('Enter a valid face amount.')
   return number
+}
+
+function resolvedHealthCompany(form: FormData) {
+  const choice = value(form, 'health_company_choice')
+  if (choice === '__other__') return nullable(form, 'health_company_custom')
+  return choice || null
 }
 
 async function getProfile() {
@@ -166,6 +179,99 @@ async function saveLifeInsurance(
   }
 }
 
+async function saveHealthPlan(
+  supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
+  agencyId: string,
+  clientId: string,
+  form: FormData,
+  existingMemberCiphertext: string | null = null
+) {
+  let memberCiphertext = existingMemberCiphertext
+  if (checked(form, 'clear_health_member_id')) memberCiphertext = null
+  else if (value(form, 'health_member_id')) memberCiphertext = encryptValue(nullable(form, 'health_member_id'))
+
+  const record = {
+    agency_id: agencyId,
+    client_id: clientId,
+    company_name: resolvedHealthCompany(form),
+    member_id_ciphertext: memberCiphertext,
+    plan_id: nullable(form, 'health_plan_id'),
+    effective_date: nullable(form, 'health_effective_date')
+  }
+
+  const hasData = Boolean(record.company_name || record.member_id_ciphertext || record.plan_id || record.effective_date)
+  if (hasData) {
+    const { error } = await supabase.from('client_health_plan_info').upsert(record, { onConflict: 'client_id' })
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('client_health_plan_info').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+  }
+}
+
+async function saveHospitalIndemnity(
+  supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
+  agencyId: string,
+  clientId: string,
+  form: FormData
+) {
+  const record = {
+    agency_id: agencyId,
+    client_id: clientId,
+    company_name: nullable(form, 'hospital_indemnity_company'),
+    premium_amount: optionalMoney(form, 'hospital_indemnity_premium'),
+    effective_date: nullable(form, 'hospital_indemnity_effective_date')
+  }
+  const hasData = Boolean(record.company_name || record.premium_amount !== null || record.effective_date)
+  if (hasData) {
+    const { error } = await supabase.from('client_hospital_indemnity').upsert(record, { onConflict: 'client_id' })
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('client_hospital_indemnity').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+  }
+}
+
+async function saveBankingInfo(
+  supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
+  agencyId: string,
+  clientId: string,
+  form: FormData,
+  existing: { routing_number_ciphertext?: string | null; account_number_ciphertext?: string | null; debit_card_number_ciphertext?: string | null } | null = null
+) {
+  let routingCiphertext = existing?.routing_number_ciphertext || null
+  let accountCiphertext = existing?.account_number_ciphertext || null
+  let debitCardCiphertext = existing?.debit_card_number_ciphertext || null
+
+  if (checked(form, 'clear_bank_routing_number')) routingCiphertext = null
+  else if (value(form, 'bank_routing_number')) routingCiphertext = encryptValue(nullable(form, 'bank_routing_number'))
+
+  if (checked(form, 'clear_bank_account_number')) accountCiphertext = null
+  else if (value(form, 'bank_account_number')) accountCiphertext = encryptValue(nullable(form, 'bank_account_number'))
+
+  if (checked(form, 'clear_bank_debit_card_number')) debitCardCiphertext = null
+  else if (value(form, 'bank_debit_card_number')) debitCardCiphertext = encryptValue(nullable(form, 'bank_debit_card_number'))
+
+  const record = {
+    agency_id: agencyId,
+    client_id: clientId,
+    bank_name: nullable(form, 'bank_name'),
+    routing_number_ciphertext: routingCiphertext,
+    account_number_ciphertext: accountCiphertext,
+    debit_card_number_ciphertext: debitCardCiphertext,
+    debit_card_expiration: nullable(form, 'bank_debit_card_expiration')
+  }
+
+  const hasData = Boolean(record.bank_name || record.routing_number_ciphertext || record.account_number_ciphertext || record.debit_card_number_ciphertext || record.debit_card_expiration)
+  if (hasData) {
+    const { error } = await supabase.from('client_banking_info').upsert(record, { onConflict: 'client_id' })
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('client_banking_info').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+  }
+}
+
 async function createClientRecord(form: FormData) {
   const { supabase, userId, profile } = await getProfile()
 
@@ -213,6 +319,8 @@ async function createClientRecord(form: FormData) {
       drivers_license_ciphertext: encryptValue(nullable(form, 'drivers_license')),
       drivers_license_state: nullable(form, 'drivers_license_state'),
       drivers_license_expiration: nullable(form, 'drivers_license_expiration'),
+      is_veteran: optionalYesNo(form, 'is_veteran'),
+      is_smoker: optionalYesNo(form, 'is_smoker'),
       is_medicare: checked(form, 'is_medicare'),
       is_life: checked(form, 'is_life'),
       is_retirement: checked(form, 'is_retirement'),
@@ -239,6 +347,9 @@ async function createClientRecord(form: FormData) {
 
   await saveDoctorsAndMedications(supabase, profile.agency_id, client.id, form)
   await saveLifeInsurance(supabase, profile.agency_id, client.id, form)
+  await saveHealthPlan(supabase, profile.agency_id, client.id, form)
+  await saveHospitalIndemnity(supabase, profile.agency_id, client.id, form)
+  await saveBankingInfo(supabase, profile.agency_id, client.id, form)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
@@ -306,6 +417,8 @@ export async function updateClient(form: FormData) {
     drivers_license_ciphertext: dlCiphertext,
     drivers_license_state: nullable(form, 'drivers_license_state'),
     drivers_license_expiration: nullable(form, 'drivers_license_expiration'),
+    is_veteran: optionalYesNo(form, 'is_veteran'),
+    is_smoker: optionalYesNo(form, 'is_smoker'),
     is_medicare: checked(form, 'is_medicare'),
     is_life: checked(form, 'is_life'),
     is_retirement: checked(form, 'is_retirement'),
@@ -364,8 +477,23 @@ export async function updateClient(form: FormData) {
     if (medicareError) throw new Error(medicareError.message)
   }
 
+  const { data: currentHealthPlan } = await supabase
+    .from('client_health_plan_info')
+    .select('member_id_ciphertext')
+    .eq('client_id', clientId)
+    .maybeSingle()
+
+  const { data: currentBanking } = await supabase
+    .from('client_banking_info')
+    .select('routing_number_ciphertext, account_number_ciphertext, debit_card_number_ciphertext')
+    .eq('client_id', clientId)
+    .maybeSingle()
+
   await saveDoctorsAndMedications(supabase, profile.agency_id, clientId, form)
   await saveLifeInsurance(supabase, profile.agency_id, clientId, form)
+  await saveHealthPlan(supabase, profile.agency_id, clientId, form, currentHealthPlan?.member_id_ciphertext || null)
+  await saveHospitalIndemnity(supabase, profile.agency_id, clientId, form)
+  await saveBankingInfo(supabase, profile.agency_id, clientId, form, currentBanking || null)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
