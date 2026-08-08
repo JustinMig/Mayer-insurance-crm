@@ -21,11 +21,12 @@ type Props = {
 }
 
 const productOptions = [
-  'Medicare Advantage (Part C)',
-  'Prescription Drug Plan (Part D)',
+  'Medicare Advantage (Part C) / Cost Plans',
+  'Stand-alone Prescription Drug Plans (Part D)',
   'Medicare Supplement (Medigap)',
-  'Dental / Vision / Hearing',
-  'Other Medicare-related coverage'
+  'Dental / Vision / Hearing products',
+  'Hospital Indemnity products',
+  'Other Medicare-related health products'
 ]
 
 function localDate() {
@@ -65,13 +66,15 @@ export default function MedicareDocuments(props: Props) {
   const [uploading, setUploading] = useState(false)
   const [status, setStatus] = useState('')
   const [soaOpen, setSoaOpen] = useState(false)
-  const [appointmentDate, setAppointmentDate] = useState(localDate())
+  const [appointmentDate, setAppointmentDate] = useState('')
   const [beneficiaryName, setBeneficiaryName] = useState(props.clientName)
   const [beneficiaryPhone, setBeneficiaryPhone] = useState(props.clientPhone)
   const [agentPhone, setAgentPhone] = useState('')
-  const [selectedProducts, setSelectedProducts] = useState<string[]>(['Medicare Advantage (Part C)'])
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([...productOptions])
   const [otherProduct, setOtherProduct] = useState('')
   const [hasInk, setHasInk] = useState(false)
+  const [draftDates, setDraftDates] = useState<Record<string, string>>({})
+  const [finalizingDocumentId, setFinalizingDocumentId] = useState<string | null>(null)
   const signatureRef = useRef<HTMLCanvasElement | null>(null)
   const drawingRef = useRef(false)
   const lastPointRef = useRef<{ x: number; y: number } | null>(null)
@@ -165,14 +168,13 @@ export default function MedicareDocuments(props: Props) {
 
   async function buildSoaImage() {
     if (!hasInk) throw new Error('The client must sign before saving the Scope of Appointment.')
-    if (!appointmentDate) throw new Error('Enter the appointment date.')
     if (!beneficiaryName.trim()) throw new Error('Enter the beneficiary name.')
     if (!agentPhone.trim()) throw new Error('Enter the agent phone number.')
     if (!selectedProducts.length && !otherProduct.trim()) throw new Error('Select at least one product type to discuss.')
 
     const canvas = document.createElement('canvas')
     canvas.width = 1400
-    canvas.height = 1900
+    canvas.height = 2300
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Could not create the signed document.')
 
@@ -182,12 +184,24 @@ export default function MedicareDocuments(props: Props) {
     ctx.font = 'bold 48px Arial, sans-serif'
     ctx.fillText('Mayer Insurance Group', 90, 110)
     ctx.font = 'bold 38px Arial, sans-serif'
-    ctx.fillText('Scope of Appointment', 90, 175)
+    ctx.fillText('Scope of Sales Appointment Confirmation', 90, 175)
     ctx.font = '24px Arial, sans-serif'
     ctx.fillStyle = '#334155'
-    ctx.fillText(`Appointment date: ${appointmentDate}`, 90, 235)
+    const signedAt = new Date()
+    const appointmentLabel = appointmentDate || 'TO BE COMPLETED BEFORE APPOINTMENT'
+    ctx.fillText(`Appointment date: ${appointmentLabel}`, 90, 235)
+    ctx.font = '20px Arial, sans-serif'
+    ctx.fillStyle = appointmentDate ? '#475569' : '#b42318'
+    ctx.fillText(appointmentDate ? `SOA signed: ${signedAt.toLocaleString()}` : 'DRAFT - Appointment date must be completed before this SOA is used for a scheduled appointment.', 90, 275)
 
-    let y = 305
+    ctx.fillStyle = '#0f172a'
+    ctx.font = '22px Arial, sans-serif'
+    let introY = 325
+    introY = wrapText(ctx, 'This Scope of Appointment documents the health-related Medicare product types the beneficiary has requested to discuss with the agent named below.', 90, introY, 1210, 32)
+    introY = wrapText(ctx, 'Signing this form does not obligate the beneficiary to enroll, does not affect current or future Medicare enrollment status, and does not automatically enroll the beneficiary in any plan.', 90, introY + 8, 1210, 32)
+
+    let y = introY + 28
+
     ctx.fillStyle = '#0f172a'
     ctx.font = 'bold 28px Arial, sans-serif'
     ctx.fillText('Beneficiary', 90, y)
@@ -226,10 +240,12 @@ export default function MedicareDocuments(props: Props) {
     ctx.fillText('Beneficiary acknowledgement', 90, y)
     y += 44
     ctx.font = '24px Arial, sans-serif'
-    const acknowledgement = 'By signing below, I agree that the agent named above may discuss the product types selected on this form during the appointment shown above. I understand that signing this form does not require me to enroll in a plan, does not change my current or future Medicare enrollment, and does not automatically enroll me in any plan.'
-    y = wrapText(ctx, acknowledgement, 90, y, 1210, 36) + 28
-    const additional = 'If I ask to discuss a different plan type during the appointment, a new Scope of Appointment may be required before that additional product type is discussed.'
-    y = wrapText(ctx, additional, 90, y, 1210, 36) + 35
+    const acknowledgement = 'By signing below, I confirm that I requested discussion of the health-related product types selected above. I understand that I am under no obligation to enroll in a plan, my current or future Medicare enrollment status will not be affected by signing this form, and I will not be automatically enrolled in any plan.'
+    y = wrapText(ctx, acknowledgement, 90, y, 1210, 36) + 24
+    const additional = 'The agent may discuss only the product types agreed to on this Scope of Appointment. If I request discussion of a different product type, an updated or new Scope of Appointment must be documented before that additional product type is discussed.'
+    y = wrapText(ctx, additional, 90, y, 1210, 36) + 20
+    const timing = 'For scheduled individual Medicare marketing appointments, CMS timing requirements may require the Scope of Appointment to be documented at least 48 hours in advance, subject to applicable exceptions.'
+    y = wrapText(ctx, timing, 90, y, 1210, 36) + 35
 
     ctx.font = 'bold 26px Arial, sans-serif'
     ctx.fillText('Beneficiary signature', 90, y)
@@ -256,15 +272,89 @@ export default function MedicareDocuments(props: Props) {
     setStatus('')
     try {
       const blob = await buildSoaImage()
-      const fileName = `Scope_of_Appointment_${props.clientName.replace(/[^a-zA-Z0-9]+/g, '_')}_${appointmentDate}.png`
+      const safeName = props.clientName.replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
+      const fileDate = appointmentDate || localDate()
+      const prefix = appointmentDate ? 'Scope_of_Appointment' : 'SOA_DRAFT'
+      const fileName = `${prefix}_${safeName}_${fileDate}.png`
       const file = new File([blob], fileName, { type: 'image/png' })
       const saved = await uploadFile(file, 'scope_of_appointment', fileName)
       if (saved) {
         setSoaOpen(false)
         clearSignature()
+        setStatus(appointmentDate ? 'Signed Scope of Appointment saved.' : 'Signed SOA draft saved. Add the appointment date from the file list before using it for a scheduled appointment.')
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not save the Scope of Appointment.')
+    }
+  }
+
+
+  function isDraftSoa(doc: DocumentRow) {
+    return doc.document_type === 'scope_of_appointment' && doc.file_name.startsWith('SOA_DRAFT_') && doc.mime_type === 'image/png'
+  }
+
+  async function imageFromBlob(blob: Blob) {
+    const url = URL.createObjectURL(blob)
+    try {
+      return await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve(image)
+        image.onerror = () => reject(new Error('Could not open the saved SOA draft.'))
+        image.src = url
+      })
+    } finally {
+      // The image has decoded by the time the promise resolves.
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    }
+  }
+
+  async function finalizeDraftSoa(doc: DocumentRow) {
+    const date = draftDates[doc.id] || ''
+    if (!date) {
+      setStatus('Choose the appointment date first.')
+      return
+    }
+
+    setFinalizingDocumentId(doc.id)
+    setStatus('Adding appointment date to the signed SOA…')
+    try {
+      const response = await fetch(`/api/clients/${props.clientId}/documents/${doc.id}?raw=1`, { cache: 'no-store' })
+      if (!response.ok) throw new Error(await response.text() || 'Could not open the SOA draft.')
+      const image = await imageFromBlob(await response.blob())
+
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Could not finalize the SOA draft.')
+      ctx.drawImage(image, 0, 0)
+
+      const scaleX = canvas.width / 1400
+      const scaleY = canvas.height / 2300
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(70 * scaleX, 195 * scaleY, 1260 * scaleX, 125 * scaleY)
+      ctx.fillStyle = '#334155'
+      ctx.font = `${Math.max(18, Math.round(24 * scaleY))}px Arial, sans-serif`
+      ctx.fillText(`Appointment date: ${date}`, 90 * scaleX, 245 * scaleY)
+      ctx.font = `${Math.max(14, Math.round(18 * scaleY))}px Arial, sans-serif`
+      ctx.fillStyle = '#475569'
+      ctx.fillText('Appointment date added in Mayer Insurance Group CRM.', 90 * scaleX, 285 * scaleY)
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the finalized SOA.')), 'image/png')
+      })
+      const safeName = props.clientName.replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
+      const fileName = `Scope_of_Appointment_${safeName}_${date}.png`
+      const file = new File([blob], fileName, { type: 'image/png' })
+      const saved = await uploadFile(file, 'scope_of_appointment', fileName)
+      if (saved) {
+        setDraftDates(current => ({ ...current, [doc.id]: '' }))
+        setStatus('Finalized SOA saved with the appointment date. The original signed draft remains in the file history.')
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not finalize the SOA draft.')
+    } finally {
+      setFinalizingDocumentId(null)
     }
   }
 
@@ -322,13 +412,34 @@ export default function MedicareDocuments(props: Props) {
               <strong>{doc.file_name}</strong>
               <div className="field-help">{prettyType(doc.document_type)} · {new Date(doc.created_at).toLocaleString()}</div>
             </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              onClick={() => window.open(`/api/clients/${props.clientId}/documents/${doc.id}`, '_blank', 'noopener,noreferrer')}
-            >
-              Open
-            </button>
+            <div className="document-row-actions">
+              {isDraftSoa(doc) ? (
+                <div className="soa-finalize-row">
+                  <input
+                    className="input soa-finalize-date"
+                    type="date"
+                    aria-label="Appointment date"
+                    value={draftDates[doc.id] || ''}
+                    onChange={event => setDraftDates(current => ({ ...current, [doc.id]: event.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-small"
+                    disabled={finalizingDocumentId === doc.id}
+                    onClick={() => finalizeDraftSoa(doc)}
+                  >
+                    {finalizingDocumentId === doc.id ? 'Saving…' : 'Add Appointment Date'}
+                  </button>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-secondary btn-small"
+                onClick={() => window.open(`/api/clients/${props.clientId}/documents/${doc.id}`, '_blank', 'noopener,noreferrer')}
+              >
+                Open
+              </button>
+            </div>
           </div>
         )) : <div className="field-help">No Medicare files saved yet.</div>}
       </div>
@@ -338,15 +449,16 @@ export default function MedicareDocuments(props: Props) {
           <div className="soa-modal">
             <div className="soa-modal-header">
               <div>
-                <h2>Scope of Appointment</h2>
-                <p className="subtle">Have the client review the scope, then sign with a finger, stylus, or mouse.</p>
+                <h2>Scope of Sales Appointment Confirmation</h2>
+                <p className="subtle">Review the requested Medicare/health-related product types with the client, then capture the client signature.</p>
               </div>
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Close</button>
             </div>
 
             <div className="soa-grid">
-              <label className="label">Appointment date
+              <label className="label">Appointment date <span className="field-optional">(can be added later)</span>
                 <input className="input" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} />
+                <span className="field-help">Leave blank to save a signed SOA draft. The appointment date must be completed before the SOA is used for a scheduled appointment.</span>
               </label>
               <label className="label">Beneficiary name
                 <input className="input" value={beneficiaryName} onChange={e => setBeneficiaryName(e.target.value)} />
@@ -360,7 +472,8 @@ export default function MedicareDocuments(props: Props) {
             </div>
 
             <div className="soa-section">
-              <strong>Products the client agrees may be discussed</strong>
+              <strong>Products requested for discussion</strong>
+              <div className="field-help">All health-related product categories are pre-selected. Uncheck any category the beneficiary does not want discussed.</div>
               <div className="soa-products">
                 {productOptions.map(product => (
                   <label className="checkbox-card" key={product}>
@@ -374,7 +487,8 @@ export default function MedicareDocuments(props: Props) {
             </div>
 
             <div className="soa-acknowledgement">
-              By signing, the client agrees that the agent may discuss the selected product types during the appointment. Signing does not require enrollment, change Medicare enrollment status, or automatically enroll the client in a plan. A new scope may be needed if the client asks to discuss a different plan type.
+              <strong>Beneficiary acknowledgement</strong><br />
+              I requested discussion of the selected health-related product types. Signing does not obligate me to enroll, does not affect my current or future Medicare enrollment status, and does not automatically enroll me in any plan. The agent may discuss only the product types agreed to on this scope; an updated or new scope must be documented before discussing another product type.
             </div>
 
             <div className="soa-section">
@@ -393,13 +507,13 @@ export default function MedicareDocuments(props: Props) {
                 onPointerCancel={endSignature}
                 onPointerLeave={endSignature}
               />
-              <div className="field-help">Electronic signature captured in the CRM. Confirm any carrier-specific SOA requirements before use.</div>
+              <div className="field-help">Electronic signature captured in the CRM. A blank appointment date saves as a draft; complete the appointment date before use. Carrier-specific requirements may also apply.</div>
             </div>
 
             <div className="soa-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Cancel</button>
               <button type="button" className="btn btn-primary" disabled={uploading} onClick={saveScope}>
-                {uploading ? 'Saving…' : 'Save Signed Scope to Client Files'}
+                {uploading ? 'Saving…' : appointmentDate ? 'Save Signed Scope to Client Files' : 'Save Signed SOA Draft'}
               </button>
             </div>
           </div>

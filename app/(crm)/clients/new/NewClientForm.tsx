@@ -19,11 +19,12 @@ type Props = {
 }
 
 const productOptions = [
-  'Medicare Advantage (Part C)',
-  'Prescription Drug Plan (Part D)',
+  'Medicare Advantage (Part C) / Cost Plans',
+  'Stand-alone Prescription Drug Plans (Part D)',
   'Medicare Supplement (Medigap)',
-  'Dental / Vision / Hearing',
-  'Other Medicare-related coverage'
+  'Dental / Vision / Hearing products',
+  'Hospital Indemnity products',
+  'Other Medicare-related health products'
 ]
 
 function localDate() {
@@ -71,14 +72,14 @@ export default function NewClientForm(props: Props) {
   const [healthPlanFile, setHealthPlanFile] = useState<File | null>(null)
 
   const [soaOpen, setSoaOpen] = useState(false)
-  const [appointmentDate, setAppointmentDate] = useState(localDate())
+  const [appointmentDate, setAppointmentDate] = useState('')
   const [beneficiaryName, setBeneficiaryName] = useState('')
   const [beneficiaryPhone, setBeneficiaryPhone] = useState('')
   const [beneficiaryAddress, setBeneficiaryAddress] = useState('')
   const [agentName, setAgentName] = useState(props.currentUserName)
   const [agentEmail, setAgentEmail] = useState(props.currentUserEmail)
   const [agentPhone, setAgentPhone] = useState('')
-  const [selectedProducts, setSelectedProducts] = useState<string[]>(['Medicare Advantage (Part C)'])
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([...productOptions])
   const [otherProduct, setOtherProduct] = useState('')
   const [hasInk, setHasInk] = useState(false)
 
@@ -168,7 +169,6 @@ export default function NewClientForm(props: Props) {
 
   async function buildSoaFile() {
     if (!hasInk) throw new Error('The client must sign before saving the Scope of Appointment.')
-    if (!appointmentDate) throw new Error('Enter the appointment date.')
     if (!beneficiaryName.trim()) throw new Error('Enter the beneficiary name.')
     if (!agentName.trim()) throw new Error('Enter the agent name.')
     if (!agentPhone.trim()) throw new Error('Enter the agent phone number.')
@@ -176,7 +176,7 @@ export default function NewClientForm(props: Props) {
 
     const canvas = document.createElement('canvas')
     canvas.width = 1400
-    canvas.height = 1900
+    canvas.height = 2300
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Could not create the signed document.')
 
@@ -186,12 +186,24 @@ export default function NewClientForm(props: Props) {
     ctx.font = 'bold 48px Arial, sans-serif'
     ctx.fillText('Mayer Insurance Group', 90, 110)
     ctx.font = 'bold 38px Arial, sans-serif'
-    ctx.fillText('Scope of Appointment', 90, 175)
+    ctx.fillText('Scope of Sales Appointment Confirmation', 90, 175)
     ctx.font = '24px Arial, sans-serif'
     ctx.fillStyle = '#334155'
-    ctx.fillText(`Appointment date: ${appointmentDate}`, 90, 235)
+    const signedAt = new Date()
+    const appointmentLabel = appointmentDate || 'TO BE COMPLETED BEFORE APPOINTMENT'
+    ctx.fillText(`Appointment date: ${appointmentLabel}`, 90, 235)
+    ctx.font = '20px Arial, sans-serif'
+    ctx.fillStyle = appointmentDate ? '#475569' : '#b42318'
+    ctx.fillText(appointmentDate ? `SOA signed: ${signedAt.toLocaleString()}` : 'DRAFT - Appointment date must be completed before this SOA is used for a scheduled appointment.', 90, 275)
 
-    let y = 305
+    ctx.fillStyle = '#0f172a'
+    ctx.font = '22px Arial, sans-serif'
+    let introY = 325
+    introY = wrapText(ctx, 'This Scope of Appointment documents the health-related Medicare product types the beneficiary has requested to discuss with the agent named below.', 90, introY, 1210, 32)
+    introY = wrapText(ctx, 'Signing this form does not obligate the beneficiary to enroll, does not affect current or future Medicare enrollment status, and does not automatically enroll the beneficiary in any plan.', 90, introY + 8, 1210, 32)
+
+    let y = introY + 28
+
     ctx.fillStyle = '#0f172a'
     ctx.font = 'bold 28px Arial, sans-serif'
     ctx.fillText('Beneficiary', 90, y)
@@ -230,10 +242,12 @@ export default function NewClientForm(props: Props) {
     ctx.fillText('Beneficiary acknowledgement', 90, y)
     y += 44
     ctx.font = '24px Arial, sans-serif'
-    const acknowledgement = 'By signing below, I agree that the agent named above may discuss the product types selected on this form during the appointment shown above. I understand that signing this form does not require me to enroll in a plan, does not change my current or future Medicare enrollment, and does not automatically enroll me in any plan.'
-    y = wrapText(ctx, acknowledgement, 90, y, 1210, 36) + 28
-    const additional = 'If I ask to discuss a different plan type during the appointment, a new Scope of Appointment may be required before that additional product type is discussed.'
-    y = wrapText(ctx, additional, 90, y, 1210, 36) + 35
+    const acknowledgement = 'By signing below, I confirm that I requested discussion of the health-related product types selected above. I understand that I am under no obligation to enroll in a plan, my current or future Medicare enrollment status will not be affected by signing this form, and I will not be automatically enrolled in any plan.'
+    y = wrapText(ctx, acknowledgement, 90, y, 1210, 36) + 24
+    const additional = 'The agent may discuss only the product types agreed to on this Scope of Appointment. If I request discussion of a different product type, an updated or new Scope of Appointment must be documented before that additional product type is discussed.'
+    y = wrapText(ctx, additional, 90, y, 1210, 36) + 20
+    const timing = 'For scheduled individual Medicare marketing appointments, CMS timing requirements may require the Scope of Appointment to be documented at least 48 hours in advance, subject to applicable exceptions.'
+    y = wrapText(ctx, timing, 90, y, 1210, 36) + 35
 
     ctx.font = 'bold 26px Arial, sans-serif'
     ctx.fillText('Beneficiary signature', 90, y)
@@ -253,7 +267,9 @@ export default function NewClientForm(props: Props) {
       canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create signed Scope of Appointment.')), 'image/png')
     })
     const safeName = beneficiaryName.trim().replace(/[^a-zA-Z0-9]+/g, '_') || 'Client'
-    return new File([blob], `Scope_of_Appointment_${safeName}_${appointmentDate}.png`, { type: 'image/png' })
+    const fileDate = appointmentDate || localDate()
+    const prefix = appointmentDate ? 'Scope_of_Appointment' : 'SOA_DRAFT'
+    return new File([blob], `${prefix}_${safeName}_${fileDate}.png`, { type: 'image/png' })
   }
 
   async function stageScope() {
@@ -262,7 +278,7 @@ export default function NewClientForm(props: Props) {
       const file = await buildSoaFile()
       setSoaFile(file)
       setSoaOpen(false)
-      setStatus('Signed Scope of Appointment is ready and will be saved when you save the client.')
+      setStatus(appointmentDate ? 'Signed Scope of Appointment is ready and will be saved when you save the client.' : 'Signed SOA draft is ready. Add the appointment date later from the client file before using it for a scheduled appointment.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not prepare the Scope of Appointment.')
     }
@@ -549,12 +565,12 @@ export default function NewClientForm(props: Props) {
         <div className="soa-backdrop" role="dialog" aria-modal="true" aria-label="Scope of Appointment">
           <div className="soa-modal">
             <div className="soa-modal-header">
-              <div><h2>Scope of Appointment</h2><p className="subtle">Have the client review the scope, then sign with a finger, stylus, or mouse.</p></div>
+              <div><h2>Scope of Sales Appointment Confirmation</h2><p className="subtle">Review the requested Medicare/health-related product types with the client, then capture the client signature.</p></div>
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Close</button>
             </div>
 
             <div className="soa-grid">
-              <label className="label">Appointment date<input className="input" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} /></label>
+              <label className="label">Appointment date <span className="field-optional">(can be added later)</span><input className="input" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} /><span className="field-help">Leave blank to save a signed SOA draft. The appointment date must be completed before the SOA is used for a scheduled appointment.</span></label>
               <label className="label">Beneficiary name<input className="input" value={beneficiaryName} onChange={e => setBeneficiaryName(e.target.value)} /></label>
               <label className="label">Beneficiary phone<input className="input" type="tel" value={beneficiaryPhone} onChange={e => setBeneficiaryPhone(e.target.value)} /></label>
               <label className="label">Beneficiary address<input className="input" value={beneficiaryAddress} onChange={e => setBeneficiaryAddress(e.target.value)} /></label>
@@ -564,24 +580,28 @@ export default function NewClientForm(props: Props) {
             </div>
 
             <div className="soa-section">
-              <strong>Products the client agrees may be discussed</strong>
+              <strong>Products requested for discussion</strong>
+              <div className="field-help">All health-related product categories are pre-selected. Uncheck any category the beneficiary does not want discussed.</div>
               <div className="soa-products">
                 {productOptions.map(product => <label className="checkbox-card" key={product}><input type="checkbox" checked={selectedProducts.includes(product)} onChange={() => toggleProduct(product)} /> {product}</label>)}
               </div>
               <label className="label" style={{ marginTop: 12 }}>Other product type<input className="input" value={otherProduct} onChange={e => setOtherProduct(e.target.value)} placeholder="Optional" /></label>
             </div>
 
-            <div className="soa-acknowledgement">By signing, the client agrees that the agent may discuss the selected product types during the appointment. Signing does not require enrollment, change Medicare enrollment status, or automatically enroll the client in a plan. A new scope may be needed if the client asks to discuss a different plan type.</div>
+            <div className="soa-acknowledgement">
+              <strong>Beneficiary acknowledgement</strong><br />
+              I requested discussion of the selected health-related product types. Signing does not obligate me to enroll, does not affect my current or future Medicare enrollment status, and does not automatically enroll me in any plan. The agent may discuss only the product types agreed to on this scope; an updated or new scope must be documented before discussing another product type.
+            </div>
 
             <div className="soa-section">
               <div className="signature-heading"><strong>Client Signature</strong><button type="button" className="btn btn-secondary btn-small" onClick={clearSignature}>Clear Signature</button></div>
               <canvas ref={signatureRef} className="signature-canvas" width={900} height={260} onPointerDown={startSignature} onPointerMove={moveSignature} onPointerUp={endSignature} onPointerCancel={endSignature} onPointerLeave={endSignature} />
-              <div className="field-help">The signed scope will be staged now and uploaded to the new client&apos;s private file folder after Save Client.</div>
+              <div className="field-help">The signed scope will be staged now and uploaded to the new client&apos;s private file folder after Save Client. If the appointment date is blank, it will be saved as a draft that can be finalized later from the client file list.</div>
             </div>
 
             <div className="soa-footer">
               <button type="button" className="btn btn-secondary" onClick={() => setSoaOpen(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={stageScope}>Save Signed Scope for New Client</button>
+              <button type="button" className="btn btn-primary" onClick={stageScope}>{appointmentDate ? 'Save Signed Scope for New Client' : 'Save Signed SOA Draft'}</button>
             </div>
           </div>
         </div>

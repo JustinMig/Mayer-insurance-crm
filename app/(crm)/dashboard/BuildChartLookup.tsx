@@ -57,6 +57,12 @@ export default function BuildChartLookup() {
     : null
   const hasSelectedRow = Boolean(mutualRow || americanRow)
 
+  function resetLookup() {
+    setCompanyQuery('')
+    setSelectedCompany(null)
+    setHeightKey('')
+  }
+
   function chooseCompany(company: CompanyOption) {
     setSelectedCompany(company.key)
     setCompanyQuery(company.name)
@@ -77,7 +83,10 @@ export default function BuildChartLookup() {
           <h2 style={{ marginBottom: 4 }}>Height &amp; Weight Underwriting Lookup</h2>
           <p className="subtle" style={{ margin: 0 }}>Type MOO / Mutual of Omaha or AMAM / American Amicable, then select the client&apos;s height.</p>
         </div>
-        <span className="build-lookup-badge">Life build charts</span>
+        <div className="build-lookup-actions">
+          <span className="build-lookup-badge">Life build charts</span>
+          <button type="button" className="btn btn-secondary btn-small" onClick={resetLookup}>Reset</button>
+        </div>
       </div>
 
       <div className="build-lookup-controls">
