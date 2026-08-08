@@ -10,14 +10,30 @@ import {
   sanitizeImportRowForTransport,
   restrictedImportFields
 } from '@/lib/client-import'
+import {
+  attachmentMetadataFromRows,
+  looksLikeAttachmentExportHeaders,
+  prettyImportDocumentType,
+  matchImportAttachmentFiles,
+  type ImportAttachmentMatch
+} from '@/lib/import-attachments'
 
 type Agent = { id: string; full_name: string; role: string }
-type Summary = ReturnType<typeof importRowSummary> & { rowIndex: number }
-type ResultRow = { source_id: string | null; name: string; status: 'imported' | 'duplicate' | 'failed'; reason?: string; client_id?: string; skipped_sensitive_fields?: string[] }
+type Summary = ReturnType<typeof importRowSummary> & { rowIndex: number; source_id: string }
+type ResultRow = {
+  source_id: string | null
+  name: string
+  status: 'imported' | 'duplicate' | 'failed'
+  reason?: string
+  client_id?: string
+  skipped_sensitive_fields?: string[]
+  documents_uploaded?: number
+  document_errors?: string[]
+}
 type FileReport = {
   name: string
   rowCount: number
-  kind: 'client' | 'related' | 'ignored'
+  kind: 'client' | 'attachment' | 'related' | 'ignored'
 }
 
 type ParsedUpload = {
@@ -30,13 +46,25 @@ type ParsedUpload = {
 const PAGE_SIZE = 50
 const BATCH_SIZE = 20
 const MAX_ROWS = 10000
-const MAX_FILES = 30
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const MAX_TOTAL_SIZE = 30 * 1024 * 1024
+const MAX_FILES = 500
+const MAX_CSV_FILE_SIZE = 10 * 1024 * 1024
+const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024
+const MAX_CSV_TOTAL_SIZE = 30 * 1024 * 1024
+const MAX_ALL_FILES_TOTAL_SIZE = 250 * 1024 * 1024
+
+const DOCUMENT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.pdf', '.txt', '.doc', '.docx']
+const DIRECTORY_INPUT_PROPS = { webkitdirectory: '', directory: '' } as Record<string, string>
 
 function fileLooksLikeCsv(file: File) {
   return file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel'
 }
+
+function fileLooksLikeSupportedDocument(file: File) {
+  const lower = file.name.toLowerCase()
+  return DOCUMENT_EXTENSIONS.some((extension) => lower.endsWith(extension))
+}
+
+
 
 function sourceId(row: CsvRow) {
   const entry = Object.entries(row).find(([key]) => key.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === 'mayerinsurancegroupid')
@@ -60,8 +88,34 @@ function mergeNonEmpty(target: CsvRow, incoming: CsvRow) {
 
 function classify(headers: string[]): FileReport['kind'] {
   if (looksLikeClientDataHeaders(headers)) return 'client'
+  if (looksLikeAttachmentExportHeaders(headers)) return 'attachment'
   if (looksLikeRelatedExportHeaders(headers)) return 'related'
   return 'ignored'
+}
+
+
+
+async function uploadMatchedDocuments(clientId: string, matches: ImportAttachmentMatch[]) {
+  let uploaded = 0
+  const errors: string[] = []
+
+  for (const match of matches) {
+    if (match.status !== 'matched' || !match.file) continue
+    try {
+      const form = new FormData()
+      form.set('file', match.file)
+      form.set('document_type', match.meta.document_type)
+      form.set('file_name', match.meta.name || match.file.name)
+      const response = await fetch(`/api/clients/${clientId}/documents`, { method: 'POST', body: form })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`)
+      uploaded += 1
+    } catch (error) {
+      errors.push(`${match.meta.name}: ${error instanceof Error ? error.message : 'Upload failed.'}`)
+    }
+  }
+
+  return { uploaded, errors }
 }
 
 export default function ClientImportForm({ agents }: { agents: Agent[] }) {
@@ -69,6 +123,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const [fileReports, setFileReports] = useState<FileReport[]>([])
   const [rows, setRows] = useState<CsvRow[]>([])
   const [summaries, setSummaries] = useState<Summary[]>([])
+  const [attachmentMatches, setAttachmentMatches] = useState<ImportAttachmentMatch[]>([])
+  const [unmatchedDocumentCount, setUnmatchedDocumentCount] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [agentId, setAgentId] = useState('')
   const [page, setPage] = useState(0)
@@ -76,7 +132,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const [warning, setWarning] = useState('')
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [progress, setProgress] = useState({ done: 0, total: 0, documentsDone: 0, documentsTotal: 0 })
   const [results, setResults] = useState<ResultRow[]>([])
 
   const validSummaries = useMemo(() => summaries.filter((item) => item.valid), [summaries])
@@ -86,42 +142,59 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const pageValidIndexes = pageRows.filter((item) => item.valid).map((item) => item.rowIndex)
   const allPageSelected = pageValidIndexes.length > 0 && pageValidIndexes.every((index) => selected.has(index))
   const clientFileCount = fileReports.filter((item) => item.kind === 'client').length
+  const attachmentCsvCount = fileReports.filter((item) => item.kind === 'attachment').length
   const relatedFileCount = fileReports.filter((item) => item.kind === 'related').length
   const ignoredFileCount = fileReports.filter((item) => item.kind === 'ignored').length
+  const matchedAttachmentCount = attachmentMatches.filter((item) => item.status === 'matched').length
+  const missingAttachmentCount = attachmentMatches.filter((item) => item.status === 'missing').length
+  const ambiguousAttachmentCount = attachmentMatches.filter((item) => item.status === 'ambiguous').length
 
   async function handleFiles(input: FileList | File[] | null) {
     setFiles([])
     setFileReports([])
     setRows([])
     setSummaries([])
+    setAttachmentMatches([])
+    setUnmatchedDocumentCount(0)
     setSelected(new Set())
     setPage(0)
     setError('')
     setWarning('')
     setResults([])
-    setProgress({ done: 0, total: 0 })
+    setProgress({ done: 0, total: 0, documentsDone: 0, documentsTotal: 0 })
 
     if (!input) return
     const chosen = Array.from(input)
     if (chosen.length === 0) return
     if (chosen.length > MAX_FILES) {
-      setError(`Choose no more than ${MAX_FILES} CSV files at one time.`)
+      setError(`Choose no more than ${MAX_FILES} files at one time.`)
       return
     }
 
-    const nonCsv = chosen.filter((file) => !fileLooksLikeCsv(file))
     const csvFiles = chosen.filter(fileLooksLikeCsv)
+    const documentFiles = chosen.filter((file) => !fileLooksLikeCsv(file) && fileLooksLikeSupportedDocument(file))
+    const unsupportedFiles = chosen.filter((file) => !fileLooksLikeCsv(file) && !fileLooksLikeSupportedDocument(file))
+
     if (csvFiles.length === 0) {
-      setError('No CSV files were found in the files you selected.')
+      setError('No CSV files were found. Include the main Mayer Insurance Group client CSV.')
       return
     }
-    if (csvFiles.some((file) => file.size > MAX_FILE_SIZE)) {
+    if (csvFiles.some((file) => file.size > MAX_CSV_FILE_SIZE)) {
       setError('One of the CSV files is larger than 10 MB. Split that export before importing.')
       return
     }
-    const totalSize = csvFiles.reduce((total, file) => total + file.size, 0)
-    if (totalSize > MAX_TOTAL_SIZE) {
+    if (documentFiles.some((file) => file.size > MAX_DOCUMENT_FILE_SIZE)) {
+      setError('One of the client documents is larger than 10 MB. That file must be reduced before importing.')
+      return
+    }
+    const csvTotalSize = csvFiles.reduce((total, file) => total + file.size, 0)
+    if (csvTotalSize > MAX_CSV_TOTAL_SIZE) {
       setError('The selected CSV files are larger than 30 MB combined. Import them in smaller groups.')
+      return
+    }
+    const allSize = chosen.reduce((total, file) => total + file.size, 0)
+    if (allSize > MAX_ALL_FILES_TOTAL_SIZE) {
+      setError('The selected files are larger than 250 MB combined. Import them in smaller groups.')
       return
     }
 
@@ -149,10 +222,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         }
       }
 
-      // Match every related CSV to its client using the old MayerInsuranceGroup_Id.
-      // Current Cognito attachment tables only contain metadata (filename/content type/id),
-      // not the actual PDF/image bytes. Those files are accepted and recognized, but no
-      // metadata-only value is forced into an unrelated intake field.
+      // Related non-attachment CSVs may contain current intake fields. Attachment CSVs
+      // are handled separately so metadata such as file IDs is never copied into a client field.
       const clientKeyBySourceId = new Map<string, string>()
       for (const key of rowOrder) {
         const id = sourceId(mergedBySource.get(key) || {})
@@ -167,11 +238,18 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         }
       }
 
+      const metadata = parsedUploads
+        .filter((item) => item.kind === 'attachment')
+        .flatMap((item) => attachmentMetadataFromRows(item.file.name, item.headers, item.rows))
+        .filter((item) => clientKeyBySourceId.has(item.source_id))
+      const matched = matchImportAttachmentFiles(metadata, documentFiles)
+      const usedFiles = new Set(matched.filter((item) => item.file).map((item) => item.file))
+
       const mergedRows = rowOrder.map((key) => mergedBySource.get(key) || {})
       if (mergedRows.length === 0) throw new Error('No client rows were found in the selected CSV files.')
       if (mergedRows.length > MAX_ROWS) throw new Error(`This importer supports up to ${MAX_ROWS.toLocaleString()} clients at one time.`)
 
-      const mapped = mergedRows.map((row, rowIndex) => ({ ...importRowSummary(row), rowIndex }))
+      const mapped = mergedRows.map((row, rowIndex) => ({ ...importRowSummary(row), rowIndex, source_id: sourceId(row) }))
       const recognized = mapped.filter((item) => item.first_name || item.last_name).length
       if (recognized === 0) throw new Error('The selected files did not contain recognizable client names.')
 
@@ -179,23 +257,29 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       const restrictedCount = mergedRows.reduce((total, row) => total + restrictedImportFields(row).length, 0)
       const sanitizedRows = mergedRows.map(sanitizeImportRowForTransport)
 
-      setFiles(csvFiles)
+      setFiles(chosen)
       setFileReports(parsedUploads.map((item) => ({ name: item.file.name, rowCount: item.rows.length, kind: item.kind })))
       setRows(sanitizedRows)
       setSummaries(mapped)
+      setAttachmentMatches(matched)
+      setUnmatchedDocumentCount(documentFiles.filter((file) => !usedFiles.has(file)).length)
       setSelected(selectedRows)
 
       const messages: string[] = []
-      if (nonCsv.length) messages.push(`${nonCsv.length} non-CSV file${nonCsv.length === 1 ? ' was' : 's were'} ignored.`)
+      if (unsupportedFiles.length) messages.push(`${unsupportedFiles.length} unsupported file${unsupportedFiles.length === 1 ? ' was' : 's were'} ignored.`)
       if (restrictedCount) messages.push('CVV and Medicare.gov login/registration credentials were detected and excluded for security.')
-      if (parsedUploads.some((item) => item.kind === 'related' && item.rows.length > 0)) {
-        messages.push('Related attachment CSVs were matched by client ID, but document metadata is not imported because those CSVs do not contain the actual PDF/image files.')
+      if (metadata.length) {
+        messages.push(`${metadata.length} attachment record${metadata.length === 1 ? '' : 's'} found in the CSV exports: ${matched.filter((item) => item.status === 'matched').length} matched to actual files.`)
       }
-      if (parsedUploads.some((item) => item.kind === 'ignored')) messages.push('CSV files with no current intake fields were accepted but ignored.')
-      messages.push('Only data that has a matching field on the current client intake form will be imported.')
+      if (matched.some((item) => item.status !== 'matched')) {
+        messages.push('Some attachment CSV records do not have a matching PDF/image/document in the selected files. Those are marked below and cannot be recreated from CSV metadata alone.')
+      }
+      if (documentFiles.some((file) => !usedFiles.has(file))) messages.push('Some selected documents could not be tied to an attachment CSV record and will not be uploaded.')
+      if (parsedUploads.some((item) => item.kind === 'ignored')) messages.push('CSV files with no current intake fields or recognized file mapping were accepted but ignored.')
+      messages.push('Only data that has a matching field on the current client intake form will be imported. The CSV field Level is normalized into Medicaid Level (QMB, SLMB, QI, FBDE, or Other).')
       setWarning(messages.join(' '))
     } catch (fileError) {
-      setError(fileError instanceof Error ? fileError.message : 'The CSV files could not be read.')
+      setError(fileError instanceof Error ? fileError.message : 'The import files could not be read.')
     }
   }
 
@@ -232,7 +316,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     setError('')
     setResults([])
     if (files.length === 0 || rows.length === 0) {
-      setError('Choose the CSV files first.')
+      setError('Choose the CSV export files first.')
       return
     }
     if (!agentId) {
@@ -246,9 +330,13 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       return
     }
 
+    const selectedSourceIds = new Set(indexes.map((index) => summaries[index]?.source_id).filter(Boolean))
+    const selectedDocumentMatches = attachmentMatches.filter((item) => item.status === 'matched' && selectedSourceIds.has(item.meta.source_id))
+
     setImporting(true)
-    setProgress({ done: 0, total: indexes.length })
+    setProgress({ done: 0, total: indexes.length, documentsDone: 0, documentsTotal: selectedDocumentMatches.length })
     const allResults: ResultRow[] = []
+    let documentsDone = 0
 
     try {
       for (let offset = 0; offset < indexes.length; offset += BATCH_SIZE) {
@@ -262,9 +350,21 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         const payload = await response.json().catch(() => null)
         if (!response.ok) throw new Error(payload?.error || `Import stopped with HTTP ${response.status}.`)
 
-        allResults.push(...(payload?.results || []))
+        const batchResults: ResultRow[] = Array.isArray(payload?.results) ? payload.results : []
+        for (const result of batchResults) {
+          if (result.status !== 'imported' || !result.client_id || !result.source_id) continue
+          const clientMatches = attachmentMatches.filter((item) => item.status === 'matched' && item.meta.source_id === result.source_id)
+          if (!clientMatches.length) continue
+          const upload = await uploadMatchedDocuments(result.client_id, clientMatches)
+          result.documents_uploaded = upload.uploaded
+          result.document_errors = upload.errors
+          documentsDone += clientMatches.length
+          setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: selectedDocumentMatches.length })
+        }
+
+        allResults.push(...batchResults)
         setResults([...allResults])
-        setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length })
+        setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: selectedDocumentMatches.length })
       }
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'The import could not be completed.')
@@ -276,13 +376,15 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const importedCount = results.filter((item) => item.status === 'imported').length
   const duplicateCount = results.filter((item) => item.status === 'duplicate').length
   const failedCount = results.filter((item) => item.status === 'failed').length
+  const uploadedDocumentCount = results.reduce((total, item) => total + (item.documents_uploaded || 0), 0)
+  const documentErrorCount = results.reduce((total, item) => total + (item.document_errors?.length || 0), 0)
 
   return (
     <div className="import-layout">
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
-        <h2>Drop CSV Files</h2>
-        <p className="subtle">Select or drag in the entire Mayer Insurance Group CSV export set. The CRM will identify the main client file automatically and match related CSVs by client ID.</p>
+        <h2>Drop CSVs + Client Files</h2>
+        <p className="subtle">Select or drag in the entire Mayer Insurance Group export set: all CSV files plus the actual PDFs, images, DOC/DOCX, or TXT files. The CRM matches file records by MayerInsuranceGroup_Id and file name.</p>
 
         <div
           className={`import-drop-zone${dragging ? ' is-dragging' : ''}`}
@@ -291,33 +393,58 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           onDragLeave={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false) }}
           onDrop={onDrop}
         >
-          <strong>Drop all CSV files here</strong>
-          <span>or choose all of them at once</span>
+          <strong>Drop all CSVs and client files here</strong>
+          <span>or choose all files from the export folder at once</span>
           <input
             className="input"
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,image/*,.pdf,.txt,.doc,.docx"
             multiple
             disabled={importing}
             onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files)}
           />
+          <label className={`btn btn-secondary upload-button ${importing ? 'is-disabled' : ''}`}>
+            Choose Entire Folder
+            <input
+              type="file"
+              hidden
+              multiple
+              disabled={importing}
+              {...DIRECTORY_INPUT_PROPS}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files)}
+            />
+          </label>
         </div>
 
         {files.length ? (
           <div className="import-file-summary">
-            <strong>{files.length} CSV file{files.length === 1 ? '' : 's'} loaded</strong>
-            <span>{clientFileCount} client data · {relatedFileCount} related · {ignoredFileCount} ignored</span>
+            <strong>{files.length} total file{files.length === 1 ? '' : 's'} loaded</strong>
+            <span>{clientFileCount} client CSV · {attachmentCsvCount} attachment CSV · {relatedFileCount} related data CSV · {ignoredFileCount} ignored CSV</span>
             <span>{summaries.length.toLocaleString()} client row{summaries.length === 1 ? '' : 's'} recognized</span>
+            <span>{matchedAttachmentCount} client file{matchedAttachmentCount === 1 ? '' : 's'} matched · {missingAttachmentCount} missing · {ambiguousAttachmentCount} ambiguous · {unmatchedDocumentCount} selected but unmatched</span>
           </div>
         ) : null}
 
         {fileReports.length ? (
           <details className="import-file-details">
-            <summary>Show recognized files</summary>
+            <summary>Show recognized CSV files</summary>
             <div>
               {fileReports.map((item) => (
                 <span key={item.name}>
-                  <strong>{item.name}</strong> — {item.kind === 'client' ? 'Client data' : item.kind === 'related' ? 'Related export' : 'Ignored'} · {item.rowCount.toLocaleString()} row{item.rowCount === 1 ? '' : 's'}
+                  <strong>{item.name}</strong> — {item.kind === 'client' ? 'Client data' : item.kind === 'attachment' ? 'Attachment map' : item.kind === 'related' ? 'Related data' : 'Ignored'} · {item.rowCount.toLocaleString()} row{item.rowCount === 1 ? '' : 's'}
+                </span>
+              ))}
+            </div>
+          </details>
+        ) : null}
+
+        {attachmentMatches.length ? (
+          <details className="import-file-details" open={missingAttachmentCount + ambiguousAttachmentCount > 0}>
+            <summary>Show attachment matching ({matchedAttachmentCount} matched / {attachmentMatches.length} records)</summary>
+            <div>
+              {attachmentMatches.slice(0, 250).map((item, index) => (
+                <span key={`${item.meta.source_csv}-${item.meta.source_id}-${item.meta.name}-${index}`}>
+                  <strong>{item.meta.name}</strong> — {item.meta.section_label} · {prettyImportDocumentType(item.meta.document_type)} · {item.status === 'matched' ? `Matched to ${item.file?.name}` : item.status === 'ambiguous' ? 'More than one possible file — not uploaded' : 'Actual file missing — not uploaded'}
                 </span>
               ))}
             </div>
@@ -334,7 +461,9 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
 
         <div className="import-security-box">
           <strong>Import protections</strong>
-          <span>Only fields that exist on the current client intake form are imported.</span>
+          <span>CSV Level is mapped directly to Medicaid Level and standardized to QMB, SLMB, QI, FBDE, or Other.</span>
+          <span>Only client data fields that exist on the current intake form are imported.</span>
+          <span>Actual client files are uploaded only when their attachment CSV record and client ID match.</span>
           <span>SSN, Medicare/Medicaid numbers, health member ID, routing/account/card numbers are encrypted before storage.</span>
           <span>CVV and Medicare.gov credentials are never stored or imported.</span>
           <span>Possible duplicates are skipped using email, phone, or name + DOB.</span>
@@ -345,7 +474,9 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
 
         <div className="import-actions">
           <button className="btn btn-primary" type="button" onClick={startImport} disabled={importing || selectedCount === 0}>
-            {importing ? `Importing ${progress.done} of ${progress.total}…` : `Import ${selectedCount.toLocaleString()} Selected Clients`}
+            {importing
+              ? `Importing ${progress.done} of ${progress.total} clients${progress.documentsTotal ? ` · ${progress.documentsDone} of ${progress.documentsTotal} files` : ''}…`
+              : `Import ${selectedCount.toLocaleString()} Selected Clients`}
           </button>
           <Link className="btn btn-secondary" href="/clients">Back to Clients</Link>
         </div>
@@ -373,7 +504,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         </div>
 
         {!summaries.length ? (
-          <div className="empty">Drop in the CSV export files to preview the clients that will be created.</div>
+          <div className="empty">Drop in the CSV export files and any actual client documents to preview the clients that will be created.</div>
         ) : (
           <>
             <div className="import-summary-strip">
@@ -393,24 +524,30 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
                     <th>County</th>
                     <th>State</th>
                     <th>Products</th>
+                    <th>Files</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageRows.map((item) => (
-                    <tr key={item.rowIndex} className={selected.has(item.rowIndex) ? 'client-row-selected' : undefined}>
-                      <td className="client-select-cell">
-                        <input type="checkbox" checked={selected.has(item.rowIndex)} disabled={!item.valid || importing} onChange={() => toggle(item.rowIndex)} />
-                      </td>
-                      <td><strong>{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Missing name'}</strong></td>
-                      <td>{item.date_of_birth || '—'}</td>
-                      <td>{item.phone || '—'}</td>
-                      <td>{item.county || '—'}</td>
-                      <td>{item.state || '—'}</td>
-                      <td>{item.products || '—'}</td>
-                      <td>{item.valid ? 'Ready' : <span className="import-invalid">Needs first + last name</span>}</td>
-                    </tr>
-                  ))}
+                  {pageRows.map((item) => {
+                    const clientFiles = item.source_id ? attachmentMatches.filter((match) => match.meta.source_id === item.source_id) : []
+                    const matchedFiles = clientFiles.filter((match) => match.status === 'matched').length
+                    return (
+                      <tr key={item.rowIndex} className={selected.has(item.rowIndex) ? 'client-row-selected' : undefined}>
+                        <td className="client-select-cell">
+                          <input type="checkbox" checked={selected.has(item.rowIndex)} disabled={!item.valid || importing} onChange={() => toggle(item.rowIndex)} />
+                        </td>
+                        <td><strong>{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Missing name'}</strong></td>
+                        <td>{item.date_of_birth || '—'}</td>
+                        <td>{item.phone || '—'}</td>
+                        <td>{item.county || '—'}</td>
+                        <td>{item.state || '—'}</td>
+                        <td>{item.products || '—'}</td>
+                        <td>{clientFiles.length ? `${matchedFiles}/${clientFiles.length} matched` : '—'}</td>
+                        <td>{item.valid ? 'Ready' : <span className="import-invalid">Needs first + last name</span>}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -428,16 +565,20 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           <h2>Import Results</h2>
           <div className="import-result-counts">
             <span><strong>{importedCount}</strong> imported</span>
+            <span><strong>{uploadedDocumentCount}</strong> files uploaded</span>
             <span><strong>{duplicateCount}</strong> duplicates skipped</span>
-            <span><strong>{failedCount}</strong> failed</span>
+            <span><strong>{failedCount}</strong> client failures</span>
+            <span><strong>{documentErrorCount}</strong> file failures</span>
           </div>
-          {results.some((item) => item.status !== 'imported') ? (
+          {results.some((item) => item.status !== 'imported' || (item.document_errors?.length || 0) > 0) ? (
             <div className="import-result-list">
-              {results.filter((item) => item.status !== 'imported').slice(0, 100).map((item, index) => (
-                <div key={`${item.source_id || item.name}-${index}`}><strong>{item.name}</strong> — {item.reason || item.status}</div>
+              {results.filter((item) => item.status !== 'imported' || (item.document_errors?.length || 0) > 0).slice(0, 100).map((item, index) => (
+                <div key={`${item.source_id || item.name}-${index}`}>
+                  <strong>{item.name}</strong> — {item.status !== 'imported' ? (item.reason || item.status) : `${item.documents_uploaded || 0} files uploaded${item.document_errors?.length ? `; ${item.document_errors.join(' | ')}` : ''}`}
+                </div>
               ))}
             </div>
-          ) : <div className="notice">All selected clients imported successfully.</div>}
+          ) : <div className="notice">All selected clients and matched files imported successfully.</div>}
         </section>
       ) : null}
     </div>

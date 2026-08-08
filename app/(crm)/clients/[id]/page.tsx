@@ -12,6 +12,8 @@ import LifeInsuranceDocuments from './LifeInsuranceDocuments'
 import HealthPlanFields from '../HealthPlanFields'
 import HealthPlanDocuments from './HealthPlanDocuments'
 import HospitalIndemnityFields from '../HospitalIndemnityFields'
+import HospitalIndemnityDocuments from './HospitalIndemnityDocuments'
+import OtherCoverageDocuments from './OtherCoverageDocuments'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -222,7 +224,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 clientAddress={[client.address_line1, client.city, client.state, client.zip_code].filter(Boolean).join(', ')}
                 agentName={profile?.full_name || 'Mayer Insurance Group Agent'}
                 agentEmail={agentEmail}
-                initialDocuments={(documents || []).filter(doc => !['medications', 'life_insurance', 'health_plan'].includes(doc.document_type || ''))}
+                initialDocuments={(documents || []).filter(doc => ['medicare_document', 'medicare_photo', 'scope_of_appointment', 'card_information'].includes(doc.document_type || ''))}
               />
             </div>
           </div>
@@ -256,6 +258,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <summary><span>Hospital Indemnity Plan</span><small>Company, premium &amp; effective date</small></summary>
           <div className="section-body intake-section-body">
             <div className="intake-group"><div className="intake-group-heading"><div><strong>Plan Details</strong><span>Hospital indemnity coverage information.</span></div></div><HospitalIndemnityFields hospitalIndemnity={hospitalIndemnity} /></div>
+            <div className="intake-group intake-group-files"><HospitalIndemnityDocuments clientId={client.id} initialDocuments={(documents || []).filter(doc => doc.document_type === 'hospital_indemnity')} /></div>
           </div>
         </details>
 
@@ -292,6 +295,8 @@ export default async function ClientProfilePage({ params, searchParams }: { para
             </div>
           </div>
         </details>
+
+        <OtherCoverageDocuments clientId={client.id} documents={(documents || []).filter(doc => ['aca', 'dental', 'hearing', 'vision', 'retirement'].includes(doc.document_type || ''))} />
 
         <details className="section-details section-notes">
           <summary><span>Notes</span><small>Additional client information</small></summary>

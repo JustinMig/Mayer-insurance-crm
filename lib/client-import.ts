@@ -168,6 +168,18 @@ export function parseImportDate(value: string | null): string | null {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+
+function normalizeMedicaidLevel(value: string | null): string | null {
+  const raw = clean(value)
+  if (!raw) return null
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (compact === 'QMB') return 'QMB'
+  if (compact === 'SLMB') return 'SLMB'
+  if (compact === 'QI' || compact === 'QI1') return 'QI'
+  if (compact === 'FBDE' || compact === 'FULLBENEFITDUALELIGIBLE') return 'FBDE'
+  return 'Other'
+}
+
 function yesNo(value: string | null): boolean | null {
   const raw = clean(value)?.toLowerCase()
   if (!raw) return null
@@ -235,7 +247,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
   const partADate = parseImportDate(pick(row, 'PartAEffectiveDate', 'PartADate'))
   const partBDate = parseImportDate(pick(row, 'PartBEffectiveDate', 'PartBDate'))
   const medicaidNumber = pick(row, 'MedicaidNumber')
-  const medicaidLevel = pick(row, 'Level', 'MedicaidLevel')
+  const medicaidLevel = normalizeMedicaidLevel(pick(row, 'Level', 'MedicaidLevel'))
   const medicare = hasAny([medicareNumber, partADate, partBDate, medicaidNumber, medicaidLevel]) ? {
     medicare_number: medicareNumber,
     part_a_date: partADate,
