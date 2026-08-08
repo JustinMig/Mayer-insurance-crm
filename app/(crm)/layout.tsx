@@ -18,7 +18,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <div className="crm-shell">
       <aside className="sidebar">
         <div className="brand">
-          <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+          <Link className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard">
+            <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+          </Link>
           <div className="brand-text">
             <strong>Mayer Insurance Group</strong>
             <span>CRM</span>
@@ -28,6 +30,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard">Dashboard</Link>
           <Link href="/clients/new">Add Client</Link>
           <Link href="/clients">Clients</Link>
+          <a href="https://mayerig.com" target="_blank" rel="noopener noreferrer">MayerIG.com ↗</a>
           <form action="/auth/signout" method="post"><button type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -35,7 +38,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <div className="main">
         <header className="topbar">
           <div className="topbar-brand">
-            <img className="topbar-bear" src="/mayer-bear.png" alt="" aria-hidden="true" />
+            <Link className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard">
+              <img className="topbar-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+            </Link>
             <strong>Mayer Insurance Group</strong>
           </div>
           <span className="topbar-user">{profile?.full_name || 'CRM User'}{profile?.role ? ` · ${profile.role}` : ''}</span>

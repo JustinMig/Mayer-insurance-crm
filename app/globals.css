@@ -54,6 +54,17 @@ button { cursor: pointer; }
   padding: 8px 8px 12px;
   border-bottom: 1px solid rgba(66,77,84,.16);
 }
+.brand-bear-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 70px;
+  border-radius: 12px;
+}
+.brand-bear-link:focus-visible, .topbar-bear-link:focus-visible {
+  outline: 3px solid rgba(0,17,246,.28);
+  outline-offset: 3px;
+}
 .brand-bear {
   width: 70px;
   height: 82px;
@@ -109,6 +120,7 @@ button { cursor: pointer; }
   backdrop-filter: blur(12px);
 }
 .topbar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.topbar-bear-link { display: flex; align-items: center; justify-content: center; border-radius: 9px; flex: 0 0 auto; }
 .topbar-bear { width: 38px; height: 52px; object-fit: contain; flex: 0 0 auto; }
 .topbar-brand strong {
   color: var(--brand-blue);
