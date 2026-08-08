@@ -90,6 +90,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div><h1>Clients</h1><p className="subtle">Search the database without loading every client onto the screen.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {canFilterByAgent ? <Link href="/clients/import" className="btn btn-secondary">Import Clients</Link> : null}
           <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
         </div>
       </div>
