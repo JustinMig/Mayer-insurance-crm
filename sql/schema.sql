@@ -103,6 +103,20 @@ create table if not exists public.client_medications (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists public.client_life_insurance (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references public.agencies(id) on delete cascade,
+  client_id uuid not null unique references public.clients(id) on delete cascade,
+  company_name text,
+  face_amount numeric(12,2) check (face_amount is null or face_amount >= 0),
+  premium_amount numeric(12,2) check (premium_amount is null or premium_amount >= 0),
+  policy_type text check (policy_type is null or policy_type in ('Term','Whole Life','IUL')),
+  effective_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   agency_id uuid not null references public.agencies(id) on delete cascade,
@@ -138,6 +152,7 @@ create index if not exists client_specialists_client_idx on public.client_specia
 create index if not exists client_specialists_agency_idx on public.client_specialists (agency_id);
 create index if not exists client_medications_client_idx on public.client_medications (client_id, sort_order, created_at);
 create index if not exists client_medications_agency_idx on public.client_medications (agency_id);
+create index if not exists client_life_insurance_agency_idx on public.client_life_insurance (agency_id);
 create index if not exists documents_client_idx on public.documents (client_id);
 create index if not exists documents_agency_idx on public.documents (agency_id);
 create index if not exists documents_uploaded_by_idx on public.documents (uploaded_by);
@@ -177,6 +192,10 @@ drop trigger if exists client_medications_set_updated_at on public.client_medica
 create trigger client_medications_set_updated_at before update on public.client_medications
 for each row execute function public.set_updated_at();
 
+drop trigger if exists client_life_insurance_set_updated_at on public.client_life_insurance;
+create trigger client_life_insurance_set_updated_at before update on public.client_life_insurance
+for each row execute function public.set_updated_at();
+
 -- RLS helper functions live in an unexposed schema.
 create or replace function private.current_agency_id()
 returns uuid
@@ -212,6 +231,7 @@ alter table public.medicare_info enable row level security;
 alter table public.client_care_info enable row level security;
 alter table public.client_specialists enable row level security;
 alter table public.client_medications enable row level security;
+alter table public.client_life_insurance enable row level security;
 alter table public.documents enable row level security;
 alter table public.audit_log enable row level security;
 
@@ -345,6 +365,25 @@ create policy "authorized users delete medications" on public.client_medications
 for delete to authenticated
 using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
 
+
+
+create policy "authorized users view life insurance" on public.client_life_insurance
+for select to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users insert life insurance" on public.client_life_insurance
+for insert to authenticated
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users update life insurance" on public.client_life_insurance
+for update to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id))
+with check (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
+create policy "authorized users delete life insurance" on public.client_life_insurance
+for delete to authenticated
+using (agency_id = private.current_agency_id() and exists (select 1 from public.clients c where c.id = client_id));
+
 create policy "authorized users view documents" on public.documents
 for select to authenticated
 using (
@@ -374,6 +413,8 @@ grant select, insert, update, delete on public.medicare_info to authenticated;
 grant select, insert, update, delete on public.client_care_info to authenticated;
 grant select, insert, update, delete on public.client_specialists to authenticated;
 grant select, insert, update, delete on public.client_medications to authenticated;
+revoke all privileges on table public.client_life_insurance from anon, authenticated;
+grant select, insert, update, delete on public.client_life_insurance to authenticated;
 grant select, insert, update, delete on public.documents to authenticated;
 grant select, insert on public.audit_log to authenticated;
 grant usage, select on sequence public.audit_log_id_seq to authenticated;

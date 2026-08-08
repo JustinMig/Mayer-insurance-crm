@@ -17,6 +17,29 @@ function checked(form: FormData, key: string) {
   return form.get(key) === 'on'
 }
 
+function optionalMoney(form: FormData, key: string) {
+  const raw = value(form, key).replace(/[$,]/g, '')
+  if (!raw) return null
+  const number = Number(raw)
+  if (!Number.isFinite(number) || number < 0) throw new Error('Enter a valid non-negative dollar amount.')
+  return number
+}
+
+function resolvedLifeCompany(form: FormData) {
+  const choice = value(form, 'life_company_choice')
+  if (choice === '__other__') return nullable(form, 'life_company_custom')
+  return choice || null
+}
+
+function resolvedLifeFaceAmount(form: FormData) {
+  const choice = value(form, 'life_face_amount_choice')
+  if (!choice) return null
+  if (choice === '__custom__') return optionalMoney(form, 'life_face_amount_custom')
+  const number = Number(choice)
+  if (!Number.isFinite(number) || number < 0) throw new Error('Enter a valid face amount.')
+  return number
+}
+
 async function getProfile() {
   const supabase = await createSupabaseClient()
   const { data } = await supabase.auth.getClaims()
@@ -113,6 +136,36 @@ async function saveDoctorsAndMedications(
   }
 }
 
+
+async function saveLifeInsurance(
+  supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
+  agencyId: string,
+  clientId: string,
+  form: FormData
+) {
+  const record = {
+    agency_id: agencyId,
+    client_id: clientId,
+    company_name: resolvedLifeCompany(form),
+    face_amount: resolvedLifeFaceAmount(form),
+    premium_amount: optionalMoney(form, 'life_premium_amount'),
+    policy_type: nullable(form, 'life_policy_type'),
+    effective_date: nullable(form, 'life_effective_date')
+  }
+
+  const hasLifeInsuranceData = Object.entries(record).some(
+    ([key, item]) => !['agency_id', 'client_id'].includes(key) && item !== null && item !== ''
+  )
+
+  if (hasLifeInsuranceData) {
+    const { error } = await supabase.from('client_life_insurance').upsert(record, { onConflict: 'client_id' })
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('client_life_insurance').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+  }
+}
+
 async function createClientRecord(form: FormData) {
   const { supabase, userId, profile } = await getProfile()
 
@@ -185,6 +238,7 @@ async function createClientRecord(form: FormData) {
   }
 
   await saveDoctorsAndMedications(supabase, profile.agency_id, client.id, form)
+  await saveLifeInsurance(supabase, profile.agency_id, client.id, form)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
@@ -311,6 +365,7 @@ export async function updateClient(form: FormData) {
   }
 
   await saveDoctorsAndMedications(supabase, profile.agency_id, clientId, form)
+  await saveLifeInsurance(supabase, profile.agency_id, clientId, form)
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,

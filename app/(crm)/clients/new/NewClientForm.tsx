@@ -4,6 +4,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent, type PointerEvent }
 import { useRouter } from 'next/navigation'
 import { createClientIntake } from '../actions'
 import DoctorsMedicationsFields from '../DoctorsMedicationsFields'
+import LifeInsuranceFields from '../LifeInsuranceFields'
 
 type AgentOption = { id: string; full_name: string; role: string }
 
@@ -64,6 +65,7 @@ export default function NewClientForm(props: Props) {
   const [soaFile, setSoaFile] = useState<File | null>(null)
   const [medicationsFile, setMedicationsFile] = useState<File | null>(null)
   const [medicationsPhoto, setMedicationsPhoto] = useState<File | null>(null)
+  const [lifeInsuranceFile, setLifeInsuranceFile] = useState<File | null>(null)
 
   const [soaOpen, setSoaOpen] = useState(false)
   const [appointmentDate, setAppointmentDate] = useState(localDate())
@@ -291,6 +293,7 @@ export default function NewClientForm(props: Props) {
       if (soaFile) queued.push({ file: soaFile, type: 'scope_of_appointment' })
       if (medicationsFile) queued.push({ file: medicationsFile, type: 'medications' })
       if (medicationsPhoto) queued.push({ file: medicationsPhoto, type: 'medications' })
+      if (lifeInsuranceFile) queued.push({ file: lifeInsuranceFile, type: 'life_insurance' })
 
       let failed = 0
       for (const item of queued) {
@@ -417,6 +420,33 @@ export default function NewClientForm(props: Props) {
             <div className="intake-file-list">
               {medicationsFile ? <div className="document-row"><div><strong>Medications</strong><div className="field-help">{medicationsFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsFile(null)}>Remove</button></div> : null}
               {medicationsPhoto ? <div className="document-row"><div><strong>Medication Photo</strong><div className="field-help">{medicationsPhoto.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setMedicationsPhoto(null)}>Remove</button></div> : null}
+            </div>
+          </div>
+        </div>
+      </details>
+
+
+
+      <details className="section-details" open>
+        <summary>Life Insurance</summary>
+        <div className="section-body">
+          <LifeInsuranceFields />
+
+          <div className="medicare-documents-panel">
+            <div className="medicare-documents-heading">
+              <div>
+                <strong>Life Insurance Files</strong>
+                <div className="field-help">Choose a policy, application, illustration, or other life insurance file now. It will be saved to the client&apos;s private folder when Save Client is pressed.</div>
+              </div>
+              <div className="document-action-row">
+                <label className="btn btn-secondary upload-button">Upload Life Insurance File
+                  <input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setLifeInsuranceFile)} />
+                </label>
+              </div>
+            </div>
+
+            <div className="intake-file-list">
+              {lifeInsuranceFile ? <div className="document-row"><div><strong>Life Insurance File</strong><div className="field-help">{lifeInsuranceFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setLifeInsuranceFile(null)}>Remove</button></div> : null}
             </div>
           </div>
         </div>

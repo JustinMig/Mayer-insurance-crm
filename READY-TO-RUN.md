@@ -52,3 +52,8 @@ Files and the signed SOA are staged until Save Client is pressed. After the clie
 ## Doctors & Medications update
 
 The connected Supabase project has already been migrated for this feature. No additional SQL setup is required. Add Client and client profiles now include Primary Doctor, 5 Specialists, Pharmacy, an unlimited medication list, and Medications file/photo upload. Uploading this version to the existing GitHub repository will trigger Vercel to redeploy automatically.
+
+
+## Life Insurance update
+
+This version adds the Life Insurance section to Add Client and client profiles, including carrier, face amount, premium, policy type, effective date, and private document uploads. The connected Supabase database migration has already been applied.

@@ -7,6 +7,8 @@ import SensitiveReveal from './SensitiveReveal'
 import MedicareDocuments from './MedicareDocuments'
 import MedicationDocuments from './MedicationDocuments'
 import DoctorsMedicationsFields from '../DoctorsMedicationsFields'
+import LifeInsuranceFields from '../LifeInsuranceFields'
+import LifeInsuranceDocuments from './LifeInsuranceDocuments'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -32,6 +34,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
   const { data: careInfo } = await supabase.from('client_care_info').select('*').eq('client_id', id).maybeSingle()
   const { data: specialists } = await supabase.from('client_specialists').select('*').eq('client_id', id).order('slot')
   const { data: medications } = await supabase.from('client_medications').select('*').eq('client_id', id).order('sort_order').order('created_at')
+  const { data: lifeInsurance } = await supabase.from('client_life_insurance').select('*').eq('client_id', id).maybeSingle()
   const { data: documents } = await supabase
     .from('documents')
     .select('id, file_name, mime_type, document_type, created_at')
@@ -161,7 +164,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               clientAddress={[client.address_line1, client.city, client.state, client.zip_code].filter(Boolean).join(', ')}
               agentName={currentAgent?.full_name || 'Mayer Insurance Group Agent'}
               agentEmail={agentEmail}
-              initialDocuments={(documents || []).filter(doc => doc.document_type !== 'medications')}
+              initialDocuments={(documents || []).filter(doc => doc.document_type !== 'medications' && doc.document_type !== 'life_insurance')}
             />
           </div>
         </details>
@@ -177,6 +180,19 @@ export default async function ClientProfilePage({ params, searchParams }: { para
             <MedicationDocuments
               clientId={client.id}
               initialDocuments={(documents || []).filter(doc => doc.document_type === 'medications')}
+            />
+          </div>
+        </details>
+
+
+
+        <details className="section-details" open={Boolean(client.is_life || lifeInsurance)}>
+          <summary>Life Insurance</summary>
+          <div className="section-body">
+            <LifeInsuranceFields lifeInsurance={lifeInsurance} />
+            <LifeInsuranceDocuments
+              clientId={client.id}
+              initialDocuments={(documents || []).filter(doc => doc.document_type === 'life_insurance')}
             />
           </div>
         </details>

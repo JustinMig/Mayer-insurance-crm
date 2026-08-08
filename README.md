@@ -140,3 +140,8 @@ New-client intake can stage a Medicare document, camera photo, Card Information 
 ## Doctors & Medications
 
 Both Add Client and existing client profiles include a **Doctors & Medications** section. It stores the primary doctor, up to five specialist doctors, the client's pharmacy, and an expandable medication list with medication name, dosage, times per day, quantity filled, and number of refills. Medication lists/photos are stored in the existing private `client-documents` bucket using the `medications` document type.
+
+
+## Life Insurance section
+
+The Add Client and client profile pages include Life Insurance fields for company, face amount, premium amount, policy type, effective date, and a private life-insurance document upload. Company choices include American Amicable, Mutual of Omaha, CICA, Gerber, Corebridge, Transamerica, Aflac, plus a custom company option. Face amounts include $5,000 through $25,000 presets plus a custom amount.

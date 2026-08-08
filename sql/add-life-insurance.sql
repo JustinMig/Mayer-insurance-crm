@@ -1,0 +1,6 @@
+-- Applied to the connected Mayer Insurance Group Supabase project on 2026-08-08.
+-- Included for source-control reference; do not rerun against the same database.
+-- Adds public.client_life_insurance with RLS inherited through the visible parent client.
+-- Life insurance documents continue to use the existing private client-documents bucket
+-- with document_type = 'life_insurance'.
+-- Authenticated access was tightened to SELECT, INSERT, UPDATE, and DELETE only.
