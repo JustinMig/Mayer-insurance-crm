@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import ClientExportControls from './ClientExportControls'
 
 type SearchParams = Promise<{ q?: string; product?: string; turn65?: string; agent?: string }>
 
@@ -35,6 +36,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       .select('id, full_name, role')
       .eq('agency_id', currentProfile.agency_id)
       .eq('active', true)
+      .in('role', ['admin', 'agent'])
       .order('full_name', { ascending: true })
 
     agents = (data || []) as AgentProfile[]
@@ -64,6 +66,9 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     if (product === 'medicare') query = query.eq('is_medicare', true)
     if (product === 'life') query = query.eq('is_life', true)
     if (product === 'retirement') query = query.eq('is_retirement', true)
+    if (product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
+    if (product === 'non_life') query = query.eq('is_life', false)
+    if (product === 'non_medicare') query = query.eq('is_medicare', false)
     if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
     if (turn65) {
       const birthYear = new Date().getFullYear() - 65
@@ -83,7 +88,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div><h1>Clients</h1><p className="subtle">Search the database without loading every client onto the screen.</p></div>
-        <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <ClientExportControls
+            filters={{ q, product, turn65, agent: selectedAgent }}
+            hasActiveFilters={shouldSearch}
+          />
+          <Link href="/clients/new" className="btn btn-primary">+ Add Client</Link>
+        </div>
       </div>
 
       <form className="toolbar" action="/clients" method="get">
@@ -99,7 +110,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         ) : null}
 
         <select className="select" name="product" defaultValue={product} style={{ width: 180 }}>
-          <option value="">All products</option><option value="medicare">Medicare</option><option value="life">Life</option><option value="retirement">Retirement</option>
+          <option value="">All products</option>
+          <option value="life">Life</option>
+          <option value="medicare">Medicare</option>
+          <option value="retirement">Retirement</option>
+          <option value="life_medicare">Life + Medicare</option>
+          <option value="non_life">Non-Life</option>
+          <option value="non_medicare">Non-Medicare</option>
         </select>
         <button className="btn btn-primary" type="submit">Search</button>
         <Link className="btn btn-secondary" href={turn65Href}>Turn 65</Link>

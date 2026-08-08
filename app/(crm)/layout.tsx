@@ -14,6 +14,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     .eq('id', userId)
     .maybeSingle()
 
+  const isAgentPortal = profile?.role === 'agent'
+  const portalBrand = isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
+
   return (
     <div className="crm-shell">
       <aside className="sidebar">
@@ -22,8 +25,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
           </Link>
           <div className="brand-text">
-            <strong>Mayer Insurance Group</strong>
-            <span>CRM</span>
+            <strong>{portalBrand}</strong>
+            <span>{isAgentPortal ? 'Agent Portal' : 'CRM'}</span>
           </div>
         </div>
         <nav className="nav">
@@ -41,9 +44,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <Link className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard">
               <img className="topbar-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
             </Link>
-            <strong>Mayer Insurance Group</strong>
+            <strong>{portalBrand}</strong>
           </div>
-          <span className="topbar-user">{profile?.full_name || 'CRM User'}{profile?.role ? ` · ${profile.role}` : ''}</span>
+          <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
         </header>
         <main className="content">{children}</main>
       </div>
