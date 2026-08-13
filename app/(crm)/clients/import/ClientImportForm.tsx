@@ -77,7 +77,8 @@ function fileLooksLikeSupportedDocument(file: File) {
 
 
 function sourceId(row: CsvRow) {
-  const entry = Object.entries(row).find(([key]) => key.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === 'mayerinsurancegroupid')
+  const allowed = new Set(['mayerinsurancegroupid', 'isaiahhernandezid'])
+  const entry = Object.entries(row).find(([key]) => allowed.has(key.trim().toLowerCase().replace(/[^a-z0-9]/g, '')))
   return String(entry?.[1] || '').trim()
 }
 
@@ -448,7 +449,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
         <h2>Import Clients + Pull Cognito Files</h2>
-        <p className="subtle">Choose which Cognito form these clients came from, then load the client CSV. For every selected client with a MayerInsuranceGroup_Id, the CRM securely pulls the current files directly from that Cognito form and places them in the correct CRM section. The old Cognito export folder is optional and used only as a fallback.</p>
+        <p className="subtle">Choose which Cognito form these clients came from, then load the client CSV. For every selected client with that Cognito form's Entry ID column, the CRM securely pulls the current files directly from that Cognito form and places them in the correct CRM section. The old Cognito export folder is optional and used only as a fallback.</p>
 
         <label className="field">
           <span>Cognito source</span>

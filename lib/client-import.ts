@@ -318,7 +318,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
   const retirementFlag = yesNo(retirementInfo) === true || Boolean(retirementInfo && !['no', 'none', 'n/a', 'na'].includes(retirementInfo.toLowerCase()))
 
   return {
-    source_id: pick(row, 'MayerInsuranceGroup_Id'),
+    source_id: pick(row, 'MayerInsuranceGroup_Id', 'IsaiahHernandez_Id'),
     first_name: pick(row, 'FirstName', 'First Name', 'first_name') || '',
     last_name: pick(row, 'LastName', 'Last Name', 'last_name') || '',
     date_of_birth: parseImportDate(pick(row, 'DateOfBirthDOB2', 'DateOfBirth', 'DOB', 'date_of_birth')),

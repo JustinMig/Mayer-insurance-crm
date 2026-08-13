@@ -144,7 +144,7 @@ function pick(row: CsvRow, ...keys: string[]) {
 
 export function looksLikeAttachmentExportHeaders(headers: string[]) {
   const set = new Set(headers.map(normalize))
-  return set.has('mayerinsurancegroupid') && (set.has('name') || set.has('filename')) && (set.has('contenttype') || set.has('storageurl') || set.has('id'))
+  return (set.has('mayerinsurancegroupid') || set.has('isaiahhernandezid')) && (set.has('name') || set.has('filename')) && (set.has('contenttype') || set.has('storageurl') || set.has('id'))
 }
 
 export function attachmentRule(sourceCsv: string, headers: string[]): Pick<ImportAttachmentMeta, 'document_type' | 'section_label'> | null {
@@ -158,7 +158,7 @@ export function attachmentMetadataFromRows(sourceCsv: string, headers: string[],
   if (!rule) return []
 
   return rows.flatMap((row) => {
-    const sourceId = pick(row, 'MayerInsuranceGroup_Id')
+    const sourceId = pick(row, 'MayerInsuranceGroup_Id', 'IsaiahHernandez_Id')
     const name = pick(row, 'Name', 'File_Name', 'FileName')
     if (!sourceId || !name) return []
 
