@@ -109,7 +109,8 @@ function cognitoEntryNumber(row: CsvRow) {
 // are sent to the import API. Legacy-only fields are intentionally ignored rather than
 // being copied into Notes or another unrelated field.
 const ALLOWED_IMPORT_HEADERS = new Set([
-  'mayerinsurancegroupid',
+  // Preserve only the approved Cognito entry identifiers needed for direct file pulls.
+  'mayerinsurancegroupid', 'isaiahhernandezid', 'entryid', 'entrynumber', 'id',
   'firstname', 'lastname', 'dateofbirthdob2', 'dateofbirth', 'dob', 'gender', 'smoking', 'smoker',
   'phone2', 'phone', 'email', 'address2', 'address', 'mailingaddress', 'city', 'state', 'zipcode', 'zip', 'county2', 'county',
   'notesappointmentstodos', 'notes',
