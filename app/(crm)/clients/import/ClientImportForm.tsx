@@ -12,6 +12,7 @@ import {
 } from '@/lib/client-import'
 import {
   attachmentMetadataFromRows,
+  cognitoBulkAttachmentMatches,
   looksLikeAttachmentExportHeaders,
   prettyImportDocumentType,
   matchImportAttachmentFiles,
@@ -48,11 +49,11 @@ type ParsedUpload = {
 const PAGE_SIZE = 50
 const BATCH_SIZE = 20
 const MAX_ROWS = 10000
-const MAX_FILES = 500
+const MAX_FILES = 5000
 const MAX_CSV_FILE_SIZE = 10 * 1024 * 1024
 const MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024
 const MAX_CSV_TOTAL_SIZE = 30 * 1024 * 1024
-const MAX_ALL_FILES_TOTAL_SIZE = 250 * 1024 * 1024
+const MAX_ALL_FILES_TOTAL_SIZE = 2 * 1024 * 1024 * 1024
 
 const DOCUMENT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.pdf', '.txt', '.doc', '.docx']
 const DIRECTORY_INPUT_PROPS = { webkitdirectory: '', directory: '' } as Record<string, string>
@@ -153,7 +154,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const missingAttachmentCount = attachmentMatches.filter((item) => item.status === 'missing').length
   const ambiguousAttachmentCount = attachmentMatches.filter((item) => item.status === 'ambiguous').length
 
-  async function handleFiles(input: FileList | File[] | null) {
+  async function handleFiles(input: FileList | File[] | null, append = false) {
     setFiles([])
     setFileReports([])
     setRows([])
@@ -168,7 +169,10 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     setProgress({ done: 0, total: 0, documentsDone: 0, documentsTotal: 0 })
 
     if (!input) return
-    const chosen = Array.from(input)
+    const incoming = Array.from(input)
+    const chosen = append
+      ? Array.from(new Map([...files, ...incoming].map((file) => [`${(file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name}:${file.size}:${file.lastModified}`, file])).values())
+      : incoming
     if (chosen.length === 0) return
     if (chosen.length > MAX_FILES) {
       setError(`Choose no more than ${MAX_FILES} files at one time.`)
@@ -246,7 +250,13 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         .filter((item) => item.kind === 'attachment')
         .flatMap((item) => attachmentMetadataFromRows(item.file.name, item.headers, item.rows))
         .filter((item) => clientKeyBySourceId.has(item.source_id))
-      const matched = matchImportAttachmentFiles(metadata, documentFiles)
+      const metadataMatches = matchImportAttachmentFiles(metadata, documentFiles)
+      const metadataUsedFiles = new Set(metadataMatches.filter((item) => item.file).map((item) => item.file))
+      const cognitoBulkMatches = cognitoBulkAttachmentMatches(
+        documentFiles.filter((file) => !metadataUsedFiles.has(file)),
+        new Set(clientKeyBySourceId.keys())
+      )
+      const matched = [...metadataMatches, ...cognitoBulkMatches]
       const usedFiles = new Set(matched.filter((item) => item.file).map((item) => item.file))
 
       const mergedRows = rowOrder.map((key) => mergedBySource.get(key) || {})
@@ -273,8 +283,9 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       if (unsupportedFiles.length) messages.push(`${unsupportedFiles.length} unsupported file${unsupportedFiles.length === 1 ? ' was' : 's were'} ignored.`)
       if (restrictedCount) messages.push('CVV and Medicare.gov login/registration credentials were detected and excluded for security.')
       if (metadata.length) {
-        messages.push(`${metadata.length} attachment record${metadata.length === 1 ? '' : 's'} found in the CSV exports: ${matched.filter((item) => item.status === 'matched').length} matched to actual files.`)
+        messages.push(`${metadata.length} attachment record${metadata.length === 1 ? '' : 's'} found in the CSV exports.`)
       }
+      if (cognitoBulkMatches.length) messages.push(`${cognitoBulkMatches.length} Cognito bulk-download file${cognitoBulkMatches.length === 1 ? '' : 's'} matched by Entry ID and folder name.`)
       if (matched.some((item) => item.status !== 'matched')) {
         messages.push('Some attachment CSV records do not have a matching PDF/image/document in the selected files. Those are marked below and cannot be recreated from CSV metadata alone.')
       }
@@ -389,8 +400,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     <div className="import-layout">
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
-        <h2>Drop CSVs + Client Files</h2>
-        <p className="subtle">Select or drag in the entire Mayer Insurance Group export set: all CSV files plus the actual PDFs, images, DOC/DOCX, or TXT files. The CRM matches file records by MayerInsuranceGroup_Id and file name.</p>
+        <h2>Drop CSVs + Cognito Client Files</h2>
+        <p className="subtle">Include the main Mayer Insurance Group CSV and the files from Cognito’s unzipped bulk file download. The CRM recognizes Cognito names such as 91_1_filename.pdf, matches 91 to MayerInsuranceGroup_Id, and uses the Cognito folder name to place the file in the correct CRM section.</p>
 
         <div
           className={`import-drop-zone${dragging ? ' is-dragging' : ''}`}
@@ -399,25 +410,25 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           onDragLeave={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false) }}
           onDrop={onDrop}
         >
-          <strong>Drop all CSVs and client files here</strong>
-          <span>or choose all files from the export folder at once</span>
+          <strong>Drop the client CSV and Cognito export folder here</strong>
+          <span>On iPhone/iPad/Android, you can choose the client CSV first and then add the unzipped Cognito folder; the selections are combined.</span>
           <input
             className="input"
             type="file"
             accept=".csv,text/csv,image/*,.pdf,.txt,.doc,.docx"
             multiple
             disabled={importing}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files)}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files, true)}
           />
           <label className={`btn btn-secondary upload-button ${importing ? 'is-disabled' : ''}`}>
-            Choose Entire Folder
+            Choose Cognito Export Folder
             <input
               type="file"
               hidden
               multiple
               disabled={importing}
               {...DIRECTORY_INPUT_PROPS}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files, true)}
             />
           </label>
         </div>

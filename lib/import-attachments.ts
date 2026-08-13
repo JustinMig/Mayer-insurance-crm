@@ -109,7 +109,7 @@ type Rule = {
 }
 
 const RULES: Rule[] = [
-  { tests: ['soa2', 'scopeofappointment'], document_type: 'scope_of_appointment', section_label: 'Medicare Information' },
+  { tests: ['soa2', 'soa', 'scopeofappointment'], document_type: 'scope_of_appointment', section_label: 'Medicare Information' },
   { tests: ['cardinformation2', 'cardinformation'], document_type: 'card_information', section_label: 'Medicare Information' },
   { tests: ['medicationsphotos', 'medicationphotos'], document_type: 'medications', section_label: 'Doctors & Medications' },
   { tests: ['policydocuments', 'policydocument'], document_type: 'life_insurance', section_label: 'Life Insurance' },
@@ -172,6 +172,42 @@ export function attachmentMetadataFromRows(sourceCsv: string, headers: string[],
       content_type: pick(row, 'ContentType'),
       storage_url: pick(row, 'StorageUrl'),
       external_file_id: pick(row, 'Id')
+    }]
+  })
+}
+
+
+export function cognitoBulkAttachmentMatches(documentFiles: File[], sourceIds: Set<string>): ImportAttachmentMatch[] {
+  return documentFiles.flatMap((file) => {
+    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+    const baseName = relativePath.replace(/\\/g, '/').split('/').pop() || file.name
+    // Cognito bulk downloads name files: entryId_fileSequence_originalFileName.
+    const match = baseName.match(/^(\d+)_([0-9]+)_(.+)$/)
+    if (!match) return []
+
+    const sourceId = match[1]
+    if (!sourceIds.has(sourceId)) return []
+
+    const rule = attachmentRule(relativePath, [relativePath]) || {
+      document_type: 'medicare_document' as const,
+      section_label: 'Medicare Information'
+    }
+    const originalName = match[3] || file.name
+
+    return [{
+      meta: {
+        source_id: sourceId,
+        source_csv: 'Cognito bulk file download',
+        document_type: rule.document_type,
+        section_label: rule.section_label,
+        name: originalName,
+        file_name: originalName,
+        content_type: file.type || null,
+        storage_url: null,
+        external_file_id: null
+      },
+      file,
+      status: 'matched' as const
     }]
   })
 }
