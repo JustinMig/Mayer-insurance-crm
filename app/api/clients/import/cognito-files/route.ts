@@ -59,11 +59,38 @@ function mimeFromName(name: string) {
   return ''
 }
 
+const DIRECT_FIELD_DOCUMENT_TYPES: Record<string, ImportDocumentType> = {
+  SoA2: 'scope_of_appointment',
+  SoA: 'scope_of_appointment',
+  CardInformation2: 'card_information',
+  CardInformation: 'card_information',
+  MedicationsPhotos: 'medications',
+  MedicationPhotos: 'medications',
+  PolicyDocuments: 'life_insurance',
+  PolicyDocuments2: 'life_insurance',
+  HipPlanDocument2: 'hospital_indemnity',
+  HipPlanDocument: 'hospital_indemnity',
+  PlanDocuments: 'health_plan',
+  PlanExtraDocuments: 'health_plan',
+  PlanExtraDocuments2: 'health_plan',
+  PDPPlanInfo2: 'medicare_document',
+  PDPPlanInfo: 'medicare_document',
+  PDPExtra: 'medicare_document',
+  SupplementPlanInfo: 'medicare_document',
+  ACAFiles: 'aca',
+  DentalFiles2: 'dental',
+  DentalFiles: 'dental',
+  HearingFiles: 'hearing',
+  VisionFiles: 'vision',
+  RetirementFiles: 'retirement'
+}
+
 function filesFromEntry(entry: Record<string, unknown>): DirectFile[] {
   const files: DirectFile[] = []
   for (const [fieldName, value] of Object.entries(entry)) {
     if (!Array.isArray(value) || value.length === 0) continue
-    const rule = attachmentRule(fieldName, [fieldName])
+    const explicitDocumentType = DIRECT_FIELD_DOCUMENT_TYPES[fieldName]
+    const rule = explicitDocumentType ? { document_type: explicitDocumentType } : attachmentRule(fieldName, [fieldName])
     if (!rule) continue
     for (const raw of value) {
       if (!raw || typeof raw !== 'object') continue
