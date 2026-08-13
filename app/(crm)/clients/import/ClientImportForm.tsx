@@ -81,7 +81,8 @@ function sourceId(row: CsvRow) {
     'mayerinsurancegroupid',
     'isaiahhernandezid',
     'entryid',
-    'entrynumber'
+    'entrynumber',
+    'id'
   ])
   const entry = Object.entries(row).find(([key]) => preferred.has(key.trim().toLowerCase().replace(/[^a-z0-9]/g, '')))
   const raw = String(entry?.[1] || '').trim()

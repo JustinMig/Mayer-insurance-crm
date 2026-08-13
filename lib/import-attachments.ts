@@ -137,12 +137,13 @@ function cognitoEntryNumber(row: CsvRow) {
     'EntryId',
     'Entry_Number',
     'Entry Number',
-    'EntryNumber'
+    'EntryNumber',
+    'Id'
   )
   if (!value) {
     const entry = Object.entries(row).find(([key]) => {
       const normalized = normalize(key)
-      return normalized === 'entryid' || normalized === 'entrynumber' || normalized === 'mayerinsurancegroupid' || normalized === 'isaiahhernandezid'
+      return normalized === 'id' || normalized === 'entryid' || normalized === 'entrynumber' || normalized === 'mayerinsurancegroupid' || normalized === 'isaiahhernandezid'
     })
     value = entry ? String(entry[1] ?? '').trim() : null
   }
