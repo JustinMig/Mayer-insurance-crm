@@ -26,8 +26,10 @@ export default async function NewClientPage() {
 
   return (
     <>
-      <h1>Add Client</h1>
-      <p className="subtle">Enter the client once. The record is immediately available on your phone, tablet, and computer.</p>
+      <div className="clients-page-heading">
+        <h1>NEW CLIENT</h1>
+        <p className="subtle">Enter the client once. The record is immediately available on your phone, tablet, and computer.</p>
+      </div>
       <NewClientForm
         currentUserId={userId}
         currentUserName={profile.full_name || 'Mayer Insurance Group Agent'}

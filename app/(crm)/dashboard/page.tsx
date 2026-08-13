@@ -20,11 +20,15 @@ type PremiumRollupRow = {
   premium_total: number | string | null
 }
 
-type AgentPremiumStats = {
+type AgentDashboardStats = {
   agentId: string
   agentName: string
-  currentMonth: number
-  currentYear: number
+  totalClients: number
+  medicareClients: number
+  lifeClients: number
+  turning65: number
+  currentMonthPremium: number
+  currentYearPremium: number
 }
 
 function money(amount: number) {
@@ -50,131 +54,123 @@ export default async function DashboardPage() {
   const { supabase, userId, profile: currentProfile } = await getCrmSession()
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
-  const canSeeAllAgents = currentProfile.role === 'admin' || currentProfile.role === 'manager'
+  const isManager = currentProfile.role === 'manager'
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth()
   const turn65Year = currentYear - 65
 
-  const [clients, medicare, life, turn65, premiumRollupResult, agentProfilesResult] = await Promise.all([
-    supabase.from('clients').select('*', { count: 'exact', head: true }),
-    supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_medicare', true),
-    supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_life', true),
-    supabase.from('clients').select('*', { count: 'exact', head: true }).gte('date_of_birth', `${turn65Year}-01-01`).lte('date_of_birth', `${turn65Year}-12-31`),
-    supabase
-      .from('life_premium_dashboard_rollup')
-      .select('assigned_agent_id,effective_month,premium_total')
-      .eq('effective_year', currentYear),
-    canSeeAllAgents
-      ? supabase
-          .from('profiles')
-          .select('id, full_name, role')
-          .eq('agency_id', currentProfile.agency_id)
-          .eq('active', true)
-          .in('role', ['admin', 'agent'])
-          .order('full_name', { ascending: true })
-      : Promise.resolve({ data: [{ id: userId, full_name: currentProfile.full_name || 'Agent', role: currentProfile.role }], error: null })
-  ])
+  let targetAgents: AgentProfile[] = []
+
+  if (isManager) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('agency_id', currentProfile.agency_id)
+      .eq('active', true)
+      .in('role', ['admin', 'agent'])
+      .order('full_name', { ascending: true })
+
+    if (error) throw new Error(`Unable to load dashboard agents: ${error.message}`)
+
+    targetAgents = ((data || []) as AgentProfile[]).filter((agent) =>
+      ['justin mayer', 'isaiah hernandez'].includes(agent.full_name.trim().toLowerCase())
+    )
+  } else {
+    targetAgents = [{
+      id: userId,
+      full_name: currentProfile.full_name || 'Agent',
+      role: currentProfile.role
+    }]
+  }
+
+  const premiumRollupResult = await supabase
+    .from('life_premium_dashboard_rollup')
+    .select('assigned_agent_id,effective_month,premium_total')
+    .eq('effective_year', currentYear)
 
   if (premiumRollupResult.error) {
     throw new Error(`Unable to load Life Insurance premium totals: ${premiumRollupResult.error.message}`)
   }
 
   const premiumRows = (premiumRollupResult.data || []) as PremiumRollupRow[]
-  const agentProfiles = (agentProfilesResult.data || []) as AgentProfile[]
-  const agentNames = new Map(agentProfiles.map((agent) => [agent.id, agent.full_name || 'Agent']))
-  const agentTotals = new Map<string, AgentPremiumStats>()
 
-  for (const agent of agentProfiles) {
-    agentTotals.set(agent.id, {
-      agentId: agent.id,
-      agentName: agent.full_name || 'Agent',
-      currentMonth: 0,
-      currentYear: 0
-    })
-  }
+  const dashboardStats = await Promise.all(targetAgents.map(async (agent): Promise<AgentDashboardStats> => {
+    const [clients, medicare, life, turn65] = await Promise.all([
+      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id),
+      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).eq('is_medicare', true),
+      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).eq('is_life', true),
+      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).gte('date_of_birth', `${turn65Year}-01-01`).lte('date_of_birth', `${turn65Year}-12-31`)
+    ])
 
-  for (const row of premiumRows) {
-    const agentId = row.assigned_agent_id || 'unassigned'
-    if (!agentTotals.has(agentId)) {
-      agentTotals.set(agentId, {
-        agentId,
-        agentName: row.assigned_agent_id ? (agentNames.get(row.assigned_agent_id) || 'Agent') : 'Unassigned',
-        currentMonth: 0,
-        currentYear: 0
-      })
+    const clientErrors = [clients.error, medicare.error, life.error, turn65.error].filter(Boolean)
+    if (clientErrors.length) throw new Error(`Unable to load dashboard client totals: ${clientErrors[0]?.message}`)
+
+    let currentMonthPremium = 0
+    let currentYearPremium = 0
+
+    for (const row of premiumRows) {
+      if (row.assigned_agent_id !== agent.id) continue
+      const amount = numeric(row.premium_total)
+      currentYearPremium += amount
+      if (Number(row.effective_month) - 1 === currentMonth) currentMonthPremium += amount
     }
 
-    const stats = agentTotals.get(agentId)!
-    const amount = numeric(row.premium_total)
-    stats.currentYear += amount
-
-    const monthIndex = Number(row.effective_month) - 1
-    if (monthIndex === currentMonth) stats.currentMonth += amount
-  }
-
-  const allAgentPremiumCards = Array.from(agentTotals.values())
-    .filter((stats) => stats.agentId !== 'unassigned')
-    .sort((a, b) => a.agentName.localeCompare(b.agentName))
-
-  const myPremiumStats = agentTotals.get(userId) || {
-    agentId: userId,
-    agentName: currentProfile.full_name || 'Agent',
-    currentMonth: 0,
-    currentYear: 0
-  }
-
-  const monthlyAgentPremiumCards = canSeeAllAgents ? allAgentPremiumCards : [myPremiumStats]
-
-  const isManager = currentProfile.role === 'manager'
-  const managerYearlyPremiumCards = allAgentPremiumCards.filter((agent) =>
-    ['justin mayer', 'isaiah hernandez'].includes(agent.agentName.trim().toLowerCase())
-  )
-  const yearlyPremiumCards = isManager ? managerYearlyPremiumCards : [myPremiumStats]
+    return {
+      agentId: agent.id,
+      agentName: agent.full_name || 'Agent',
+      totalClients: clients.count || 0,
+      medicareClients: medicare.count || 0,
+      lifeClients: life.count || 0,
+      turning65: turn65.count || 0,
+      currentMonthPremium,
+      currentYearPremium
+    }
+  }))
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
-        <div><h1>Dashboard</h1><p className="subtle">Your client database at a glance.</p></div>
-        <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ Add Client</Link>
+        <div className="clients-page-heading"><h1>Dashboard</h1><p className="subtle">Your client database at a glance.</p></div>
+        <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link>
       </div>
 
-      <section className="grid grid-4" style={{ marginTop: 22 }}>
-        <div className="card card-pad stat"><span>Total clients</span><strong>{clients.count || 0}</strong></div>
-        <div className="card card-pad stat"><span>Medicare clients</span><strong>{medicare.count || 0}</strong></div>
-        <div className="card card-pad stat"><span>Life clients</span><strong>{life.count || 0}</strong></div>
-        <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{turn65.count || 0}</strong></div>
-      </section>
+      {isManager ? (
+        <section className="dashboard-agent-split" style={{ marginTop: 22 }}>
+          {dashboardStats.map((agent) => (
+            <div className="card card-pad dashboard-agent-panel" key={agent.agentId}>
+              <div className="dashboard-agent-title">{agent.agentName}</div>
+              <div className="dashboard-agent-stat-grid">
+                <div className="dashboard-agent-stat"><span>Total Clients</span><strong>{agent.totalClients}</strong></div>
+                <div className="dashboard-agent-stat"><span>Medicare Clients</span><strong>{agent.medicareClients}</strong></div>
+                <div className="dashboard-agent-stat"><span>Life Clients</span><strong>{agent.lifeClients}</strong></div>
+                <div className="dashboard-agent-stat"><span>Turning 65 in {currentYear}</span><strong>{agent.turning65}</strong></div>
+                <div className="dashboard-agent-stat premium"><span>Monthly Premium · {monthNames[currentMonth]}</span><strong>{money(agent.currentMonthPremium)}</strong></div>
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <section className="grid grid-5 dashboard-personal-stats" style={{ marginTop: 22 }}>
+          <div className="card card-pad stat"><span>Total Clients</span><strong>{dashboardStats[0]?.totalClients || 0}</strong></div>
+          <div className="card card-pad stat"><span>Medicare Clients</span><strong>{dashboardStats[0]?.medicareClients || 0}</strong></div>
+          <div className="card card-pad stat"><span>Life Clients</span><strong>{dashboardStats[0]?.lifeClients || 0}</strong></div>
+          <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0}</strong></div>
+          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[currentMonth]}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+        </section>
+      )}
 
       <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
         <div style={{ display: 'grid', gap: 14 }}>
-          {yearlyPremiumCards.map((agent) => (
+          {dashboardStats.map((agent) => (
             <div className="card card-pad premium-total-card" key={agent.agentId}>
               <span className="premium-card-label">{isManager ? `${agent.agentName} — Life Insurance Premium` : 'My Life Insurance Premium'} — {currentYear}</span>
-              <strong className="premium-total-value">{money(agent.currentYear)}</strong>
+              <strong className="premium-total-value">{money(agent.currentYearPremium)}</strong>
               <p className="subtle" style={{ margin: '8px 0 0' }}>
                 {isManager ? `${agent.agentName}'s` : 'Your'} total Life Insurance premium for policies effective in {currentYear}.
               </p>
             </div>
           ))}
-        </div>
-
-        <div className="card card-pad monthly-agent-premium-card">
-          <div className="monthly-agent-premium-heading">
-            <div>
-              <span className="premium-card-label">Monthly Premium by Agent</span>
-              <h2>{monthNames[currentMonth]} {currentYear}</h2>
-            </div>
-          </div>
-
-          <div className="monthly-agent-premium-list">
-            {monthlyAgentPremiumCards.map((agent) => (
-              <div className="monthly-agent-premium-row" key={agent.agentId}>
-                <span>{agent.agentId === userId ? `${agent.agentName} (Me)` : agent.agentName}</span>
-                <strong>{money(agent.currentMonth)}</strong>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -185,8 +181,8 @@ export default async function DashboardPage() {
       <section className="card card-pad" style={{ marginTop: 20 }}>
         <h2>Quick actions</h2>
         <div className="toolbar" style={{ marginBottom: 0 }}>
-          <Link prefetch={false} href="/clients/new" className="btn btn-primary">Add a client</Link>
-          <Link prefetch={false} href="/clients" className="btn btn-secondary">Search clients</Link>
+          <Link prefetch={false} href="/clients/new" className="btn btn-primary">NEW CLIENT</Link>
+          <Link prefetch={false} href="/clients" className="btn btn-secondary">CLIENT RECORDS</Link>
           <Link prefetch={false} href="/clients?turn65=1" className="btn btn-secondary">Turn 65 list</Link>
         </div>
       </section>

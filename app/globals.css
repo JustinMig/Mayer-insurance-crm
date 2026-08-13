@@ -1336,3 +1336,59 @@ tbody tr:hover { background: #f9fbfd; }
 @media (max-width: 760px) {
   .clients-stat-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Agent-specific dashboard summary panels */
+.dashboard-agent-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.dashboard-agent-panel {
+  border: 1px solid #d6dfe5;
+  background: linear-gradient(180deg, #fff 0%, #f8fafb 100%);
+}
+.dashboard-agent-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #23445d;
+  margin-bottom: 14px;
+}
+.dashboard-agent-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.dashboard-agent-stat {
+  border: 1px solid #e1e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+.dashboard-agent-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.dashboard-agent-stat strong {
+  font-size: 26px;
+  line-height: 1.05;
+}
+.dashboard-agent-stat.premium {
+  grid-column: 1 / -1;
+  background: #edf4ef;
+}
+.dashboard-monthly-premium-stat { background: #edf4ef; }
+.dashboard-personal-stats.grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+  .dashboard-personal-stats.grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .dashboard-agent-split { grid-template-columns: 1fr; }
+  .dashboard-agent-stat-grid { grid-template-columns: 1fr; }
+  .dashboard-agent-stat.premium { grid-column: auto; }
+  .dashboard-personal-stats.grid-5 { grid-template-columns: 1fr; }
+}

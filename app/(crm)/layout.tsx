@@ -21,8 +21,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="nav">
           <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
-          <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">Add Client</Link>
-          <Link prefetch={false} className="nav-link nav-clients" href="/clients">Clients</Link>
+          <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
+          <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -42,8 +42,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
       <nav className="mobile-nav">
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
-        <Link prefetch={false} href="/clients/new"><b>＋</b><span>Add</span></Link>
-        <Link prefetch={false} href="/clients"><b>⌕</b><span>Clients</span></Link>
+        <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
+        <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>
