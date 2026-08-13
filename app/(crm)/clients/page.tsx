@@ -75,6 +75,27 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const agentNames: Record<string, string> = Object.fromEntries(agents.map((agent) => [agent.id, agent.full_name]))
   if (userId && currentProfile.full_name) agentNames[userId] = currentProfile.full_name
 
+  const totalCountAgentId = canFilterByAgent ? selectedAgent : userId
+  let totalClientCount = 0
+  let totalCountError = ''
+
+  if (totalCountAgentId) {
+    const { count, error } = await supabase
+      .from('clients')
+      .select('id', { count: 'exact', head: true })
+      .eq('assigned_agent_id', totalCountAgentId)
+
+    totalClientCount = count || 0
+    totalCountError = error?.message || ''
+  } else if (canFilterByAgent) {
+    const { count, error } = await supabase
+      .from('clients')
+      .select('id', { count: 'exact', head: true })
+
+    totalClientCount = count || 0
+    totalCountError = error?.message || ''
+  }
+
   let clients: any[] = []
   let errorMessage = ''
 
@@ -195,6 +216,20 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
           <strong>Agent view:</strong> {selectedAgent ? agentNames[selectedAgent] || 'Selected agent' : 'All agents'}
           {selectedHealthCompany ? <> &nbsp;•&nbsp; <strong>Health plan:</strong> {selectedHealthCompany}</> : null}
           <> &nbsp;•&nbsp; <strong>Sort:</strong> {sort === 'first_name' ? 'First name A-Z' : sort === 'county' ? 'County A-Z' : 'Last name A-Z'}</>
+        </div>
+      ) : null}
+
+      {!totalCountError ? (
+        <div className="card" style={{ marginBottom: 14, padding: '18px 20px' }}>
+          <div className="subtle" style={{ marginBottom: 4 }}>Total clients</div>
+          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>{totalClientCount}</div>
+          <div style={{ marginTop: 6 }}>
+            {canFilterByAgent
+              ? selectedAgent
+                ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+              : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
+          </div>
         </div>
       ) : null}
 
