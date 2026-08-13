@@ -6,6 +6,15 @@ export type MutualOfOmahaBuildRow = {
   maximumWeight: number
 }
 
+
+export type PhysiciansMutualBuildRow = {
+  feet: number
+  inches: number
+  height: string
+  minimumWeight: number
+  maximumWeight: number
+}
+
 export type AmericanAmicableBuildRow = {
   feet: number
   inches: number
@@ -83,3 +92,38 @@ export const AMERICAN_AMICABLE_BUILD: AmericanAmicableBuildRow[] = [
   { feet: 6, inches: 8, height: `6' 8\"`, maximumImmediate: '397', maximumGraded: '398-418', maximumRop: '419-434', minimumImmediate: '164', minimumRop: '159-163' },
   { feet: 6, inches: 9, height: `6' 9\"`, maximumImmediate: '406', maximumGraded: '407-428', maximumRop: '429-440', minimumImmediate: '168', minimumRop: '162-167' }
 ]
+
+// Source: Physicians Life Insurance Company Product & Underwriting Guidelines
+// for Secure Essential Life Insurance (L780), revised 05/11/2026, PDF page 8 only.
+// Applicants below the minimum or above the maximum are not eligible for coverage.
+export const PHYSICIANS_MUTUAL_BUILD: PhysiciansMutualBuildRow[] = [
+  { feet: 4, inches: 8, height: `4' 8\"`, minimumWeight: 83, maximumWeight: 182 },
+  { feet: 4, inches: 9, height: `4' 9\"`, minimumWeight: 86, maximumWeight: 189 },
+  { feet: 4, inches: 10, height: `4' 10\"`, minimumWeight: 89, maximumWeight: 196 },
+  { feet: 4, inches: 11, height: `4' 11\"`, minimumWeight: 92, maximumWeight: 203 },
+  { feet: 5, inches: 0, height: `5'`, minimumWeight: 95, maximumWeight: 209 },
+  { feet: 5, inches: 1, height: `5' 1\"`, minimumWeight: 98, maximumWeight: 217 },
+  { feet: 5, inches: 2, height: `5' 2\"`, minimumWeight: 102, maximumWeight: 224 },
+  { feet: 5, inches: 3, height: `5' 3\"`, minimumWeight: 105, maximumWeight: 231 },
+  { feet: 5, inches: 4, height: `5' 4\"`, minimumWeight: 108, maximumWeight: 238 },
+  { feet: 5, inches: 5, height: `5' 5\"`, minimumWeight: 112, maximumWeight: 246 },
+  { feet: 5, inches: 6, height: `5' 6\"`, minimumWeight: 115, maximumWeight: 254 },
+  { feet: 5, inches: 7, height: `5' 7\"`, minimumWeight: 119, maximumWeight: 261 },
+  { feet: 5, inches: 8, height: `5' 8\"`, minimumWeight: 122, maximumWeight: 269 },
+  { feet: 5, inches: 9, height: `5' 9\"`, minimumWeight: 126, maximumWeight: 277 },
+  { feet: 5, inches: 10, height: `5' 10\"`, minimumWeight: 129, maximumWeight: 285 },
+  { feet: 5, inches: 11, height: `5' 11\"`, minimumWeight: 133, maximumWeight: 294 },
+  { feet: 6, inches: 0, height: `6'`, minimumWeight: 137, maximumWeight: 302 },
+  { feet: 6, inches: 1, height: `6' 1\"`, minimumWeight: 141, maximumWeight: 310 },
+  { feet: 6, inches: 2, height: `6' 2\"`, minimumWeight: 145, maximumWeight: 319 },
+  { feet: 6, inches: 3, height: `6' 3\"`, minimumWeight: 149, maximumWeight: 328 },
+  { feet: 6, inches: 4, height: `6' 4\"`, minimumWeight: 152, maximumWeight: 336 },
+  { feet: 6, inches: 5, height: `6' 5\"`, minimumWeight: 157, maximumWeight: 345 },
+  { feet: 6, inches: 6, height: `6' 6\"`, minimumWeight: 161, maximumWeight: 354 },
+  { feet: 6, inches: 7, height: `6' 7\"`, minimumWeight: 165, maximumWeight: 364 },
+  { feet: 6, inches: 8, height: `6' 8\"`, minimumWeight: 169, maximumWeight: 373 },
+  { feet: 6, inches: 9, height: `6' 9\"`, minimumWeight: 173, maximumWeight: 382 },
+  { feet: 6, inches: 10, height: `6' 10\"`, minimumWeight: 177, maximumWeight: 392 },
+  { feet: 6, inches: 11, height: `6' 11\"`, minimumWeight: 182, maximumWeight: 401 }
+]
+

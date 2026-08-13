@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, type ChangeEvent } from 'react'
-import { AMERICAN_AMICABLE_BUILD, MUTUAL_OF_OMAHA_BUILD } from '@/lib/build-charts'
+import { AMERICAN_AMICABLE_BUILD, MUTUAL_OF_OMAHA_BUILD, PHYSICIANS_MUTUAL_BUILD } from '@/lib/build-charts'
 
-type CompanyKey = 'mutual-of-omaha' | 'american-amicable'
+type CompanyKey = 'mutual-of-omaha' | 'american-amicable' | 'physicians-mutual'
 
 type CompanyOption = {
   key: CompanyKey
@@ -12,7 +12,8 @@ type CompanyOption = {
 
 const companies: CompanyOption[] = [
   { key: 'mutual-of-omaha', name: 'Mutual of Omaha' },
-  { key: 'american-amicable', name: 'American Amicable' }
+  { key: 'american-amicable', name: 'American Amicable' },
+  { key: 'physicians-mutual', name: 'Physicians Mutual' }
 ]
 
 export default function BuildChartLookup() {
@@ -27,14 +28,19 @@ export default function BuildChartLookup() {
     ? MUTUAL_OF_OMAHA_BUILD
     : exactCompany?.key === 'american-amicable'
       ? AMERICAN_AMICABLE_BUILD
-      : []
+      : exactCompany?.key === 'physicians-mutual'
+        ? PHYSICIANS_MUTUAL_BUILD
+        : []
   const mutualRow = exactCompany?.key === 'mutual-of-omaha'
     ? MUTUAL_OF_OMAHA_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
     : null
   const americanRow = exactCompany?.key === 'american-amicable'
     ? AMERICAN_AMICABLE_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
     : null
-  const hasSelectedRow = Boolean(mutualRow || americanRow)
+  const physiciansRow = exactCompany?.key === 'physicians-mutual'
+    ? PHYSICIANS_MUTUAL_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
+    : null
+  const hasSelectedRow = Boolean(mutualRow || americanRow || physiciansRow)
 
   function resetLookup() {
     setSelectedCompany('')
@@ -87,7 +93,7 @@ export default function BuildChartLookup() {
       </div>
 
       {!exactCompany ? (
-        <div className="build-lookup-empty">Choose Mutual of Omaha or American Amicable to begin.</div>
+        <div className="build-lookup-empty">Choose Mutual of Omaha, American Amicable, or Physicians Mutual to begin.</div>
       ) : !hasSelectedRow ? (
         <div className="build-lookup-empty">Select a height to see the chart values.</div>
       ) : mutualRow ? (
@@ -121,6 +127,16 @@ export default function BuildChartLookup() {
           </div>
           {americanRow.homeOfficeReferral ? <p className="build-referral-note">The source chart marks 4&apos;5&quot; through 4&apos;7&quot; as Refer to Home Office when using the mobile application decision engine.</p> : null}
           <p className="build-source-note">Source: American Amicable Senior Choice guide, PDF page 13 (printed page 14).</p>
+        </div>
+      ) : physiciansRow ? (
+        <div className="build-lookup-result">
+          <div className="build-result-title"><strong>Physicians Mutual</strong><span>{physiciansRow.height}</span></div>
+          <div className="build-result-grid build-result-grid-three">
+            <div><span>Decline if Under</span><strong>{physiciansRow.minimumWeight} lb</strong></div>
+            <div><span>Accept</span><strong>{physiciansRow.minimumWeight} - {physiciansRow.maximumWeight} lb</strong></div>
+            <div><span>Decline if Over</span><strong>{physiciansRow.maximumWeight} lb</strong></div>
+          </div>
+          <p className="build-source-note">Source: Physicians Life Insurance Company Secure Essential Life (L780) Product &amp; Underwriting Guidelines, revised 05/11/2026, PDF page 8.</p>
         </div>
       ) : null}
     </section>
