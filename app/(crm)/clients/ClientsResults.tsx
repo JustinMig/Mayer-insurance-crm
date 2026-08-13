@@ -26,18 +26,27 @@ type ExportFilters = {
   agent: string
 }
 
+type PaginationInfo = {
+  page: number
+  pageSize: number
+  total: number
+  baseParams: Record<string, string>
+}
+
 export default function ClientsResults({
   clients,
   agentNames,
   filters,
   errorMessage,
-  canBulkDelete
+  canBulkDelete,
+  pagination
 }: {
   clients: ClientRow[]
   agentNames: Record<string, string>
   filters: ExportFilters
   errorMessage: string
   canBulkDelete: boolean
+  pagination: PaginationInfo | null
 }) {
   const router = useRouter()
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
@@ -47,6 +56,14 @@ export default function ClientsResults({
   const visibleIds = useMemo(() => clients.map((client) => client.id), [clients])
   const selectedSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id))
+  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1
+
+  function pageHref(nextPage: number) {
+    if (!pagination) return '/clients'
+    const params = new URLSearchParams(pagination.baseParams)
+    params.set('page', String(nextPage))
+    return `/clients?${params.toString()}`
+  }
 
   function toggleClient(id: string) {
     setDeleteMessage('')
@@ -195,6 +212,28 @@ export default function ClientsResults({
               </tbody>
             </table>
           </div>
+
+          {pagination ? (
+            <div className="client-pagination">
+              <div className="client-pagination-summary">
+                Showing {pagination.total === 0 ? 0 : ((pagination.page - 1) * pagination.pageSize) + 1}
+                –{Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} clients
+                &nbsp;•&nbsp; Page {pagination.page} of {totalPages}
+              </div>
+              <div className="client-pagination-actions">
+                {pagination.page > 1 ? (
+                  <Link prefetch={false} className="btn btn-secondary" href={pageHref(pagination.page - 1)}>← Back</Link>
+                ) : (
+                  <span className="btn btn-secondary" style={{ opacity: .45, cursor: 'default' }}>← Back</span>
+                )}
+                {pagination.page < totalPages ? (
+                  <Link prefetch={false} className="btn btn-primary" href={pageHref(pagination.page + 1)}>Next →</Link>
+                ) : (
+                  <span className="btn btn-primary" style={{ opacity: .45, cursor: 'default' }}>Next →</span>
+                )}
+              </div>
+            </div>
+          ) : null}
         </>
       )}
     </section>

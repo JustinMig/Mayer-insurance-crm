@@ -20,11 +20,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <nav className="nav">
-          <Link prefetch={false} href="/dashboard">Dashboard</Link>
-          <Link prefetch={false} href="/clients/new">Add Client</Link>
-          <Link prefetch={false} href="/clients">Clients</Link>
-          <a href="https://mayerig.com" target="_blank" rel="noopener noreferrer">MayerIG.com ↗</a>
-          <form action="/auth/signout" method="post"><button type="submit">Sign out</button></form>
+          <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
+          <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">Add Client</Link>
+          <Link prefetch={false} className="nav-link nav-clients" href="/clients">Clients</Link>
+          <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
 

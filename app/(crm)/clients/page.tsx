@@ -12,6 +12,8 @@ type SearchParams = Promise<{
   sort?: string
   deleted?: string
   cleanup_warning?: string
+  show_all?: string
+  page?: string
 }>
 
 type AgentProfile = {
@@ -30,6 +32,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const requestedAgent = (params.agent || '').trim()
   const requestedHealthCompany = (params.health_company || '').trim()
   const sort = SORT_OPTIONS.has(params.sort || '') ? String(params.sort) : 'last_name'
+  const showAll = params.show_all === '1'
+  const requestedPage = Number.parseInt(params.page || '1', 10)
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const pageSize = 50
   const { supabase, userId, profile: currentProfile } = await getCrmSession()
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
@@ -71,29 +77,37 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     ? requestedHealthCompany
     : ''
 
-  const shouldSearch = Boolean(q || product || turn65 || selectedAgent || selectedHealthCompany || params.sort)
+  const shouldSearch = Boolean(showAll || q || product || turn65 || selectedAgent || selectedHealthCompany || params.sort)
   const agentNames: Record<string, string> = Object.fromEntries(agents.map((agent) => [agent.id, agent.full_name]))
   if (userId && currentProfile.full_name) agentNames[userId] = currentProfile.full_name
 
   const totalCountAgentId = canFilterByAgent ? selectedAgent : userId
   let totalClientCount = 0
+  let totalMedicareCount = 0
+  let totalNonMedicareCount = 0
   let totalCountError = ''
 
-  if (totalCountAgentId) {
-    const { count, error } = await supabase
-      .from('clients')
-      .select('id', { count: 'exact', head: true })
-      .eq('assigned_agent_id', totalCountAgentId)
+  if (totalCountAgentId || canFilterByAgent) {
+    let allCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true })
+    let medicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', true)
+    let nonMedicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', false)
 
-    totalClientCount = count || 0
-    totalCountError = error?.message || ''
-  } else if (canFilterByAgent) {
-    const { count, error } = await supabase
-      .from('clients')
-      .select('id', { count: 'exact', head: true })
+    if (totalCountAgentId) {
+      allCountQuery = allCountQuery.eq('assigned_agent_id', totalCountAgentId)
+      medicareCountQuery = medicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
+      nonMedicareCountQuery = nonMedicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
+    }
 
-    totalClientCount = count || 0
-    totalCountError = error?.message || ''
+    const [allResult, medicareResult, nonMedicareResult] = await Promise.all([
+      allCountQuery,
+      medicareCountQuery,
+      nonMedicareCountQuery
+    ])
+
+    totalClientCount = allResult.count || 0
+    totalMedicareCount = medicareResult.count || 0
+    totalNonMedicareCount = nonMedicareResult.count || 0
+    totalCountError = allResult.error?.message || medicareResult.error?.message || nonMedicareResult.error?.message || ''
   }
 
   let clients: any[] = []
@@ -121,7 +135,6 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       let query = supabase
         .from('clients')
         .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, county, state, is_medicare, is_life, is_retirement')
-        .limit(250)
 
       if (sort === 'first_name') {
         query = query.order('first_name', { ascending: true, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false })
@@ -131,21 +144,29 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         query = query.order('last_name', { ascending: true, nullsFirst: false }).order('first_name', { ascending: true, nullsFirst: false })
       }
 
-      if (q) {
+      if (!showAll && q) {
         const safe = q.replace(/[,%()]/g, ' ').trim()
         query = query.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`)
       }
-      if (product === 'medicare') query = query.eq('is_medicare', true)
-      if (product === 'life') query = query.eq('is_life', true)
-      if (product === 'retirement') query = query.eq('is_retirement', true)
-      if (product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
-      if (product === 'non_life') query = query.eq('is_life', false)
-      if (product === 'non_medicare') query = query.eq('is_medicare', false)
-      if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
-      if (healthClientIds) query = query.in('id', healthClientIds)
-      if (turn65) {
+      if (!showAll && product === 'medicare') query = query.eq('is_medicare', true)
+      if (!showAll && product === 'life') query = query.eq('is_life', true)
+      if (!showAll && product === 'retirement') query = query.eq('is_retirement', true)
+      if (!showAll && product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
+      if (!showAll && product === 'non_life') query = query.eq('is_life', false)
+      if (!showAll && product === 'non_medicare') query = query.eq('is_medicare', false)
+      if (showAll && totalCountAgentId) query = query.eq('assigned_agent_id', totalCountAgentId)
+      else if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
+      if (!showAll && healthClientIds) query = query.in('id', healthClientIds)
+      if (!showAll && turn65) {
         const birthYear = new Date().getFullYear() - 65
         query = query.gte('date_of_birth', `${birthYear}-01-01`).lte('date_of_birth', `${birthYear}-12-31`)
+      }
+
+      if (showAll) {
+        const from = (page - 1) * pageSize
+        query = query.range(from, from + pageSize - 1)
+      } else {
+        query = query.limit(250)
       }
 
       const result = await query
@@ -163,7 +184,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
-        <div><h1>Clients</h1><p className="subtle">Search, filter, sort, select, export, or manage clients from one screen.</p></div>
+        <div className="clients-page-heading"><h1>Clients</h1><p className="subtle">Search, filter, sort, select, export, or manage clients from one screen.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {canFilterByAgent ? <Link prefetch={false} href="/clients/import" className="btn btn-secondary">Import Clients</Link> : null}
           <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ Add Client</Link>
@@ -220,17 +241,45 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       ) : null}
 
       {!totalCountError ? (
-        <div className="card" style={{ marginBottom: 14, padding: '18px 20px' }}>
-          <div className="subtle" style={{ marginBottom: 4 }}>Total clients</div>
-          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>{totalClientCount}</div>
-          <div style={{ marginTop: 6 }}>
-            {canFilterByAgent
-              ? selectedAgent
-                ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-              : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
+        <>
+          <div className="clients-stat-grid">
+            <div className="card clients-stat-card">
+              <div className="clients-stat-label">Total clients</div>
+              <div className="clients-stat-value">{totalClientCount}</div>
+              <div style={{ marginTop: 6 }}>
+                {canFilterByAgent
+                  ? selectedAgent
+                    ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                    : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                  : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
+              </div>
+            </div>
+            <div className="card clients-stat-card medicare">
+              <div className="clients-stat-label">Medicare clients</div>
+              <div className="clients-stat-value">{totalMedicareCount}</div>
+              <div style={{ marginTop: 6 }}>Marked as Medicare.</div>
+            </div>
+            <div className="card clients-stat-card non-medicare">
+              <div className="clients-stat-label">Non-Medicare clients</div>
+              <div className="clients-stat-value">{totalNonMedicareCount}</div>
+              <div style={{ marginTop: 6 }}>Not marked as Medicare.</div>
+            </div>
           </div>
-        </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+            <Link
+              prefetch={false}
+              className="btn btn-secondary"
+              href={`/clients?${new URLSearchParams({
+                show_all: '1',
+                ...(selectedAgent ? { agent: selectedAgent } : {}),
+                ...(sort !== 'last_name' ? { sort } : {})
+              }).toString()}`}
+            >
+              Show All
+            </Link>
+            {showAll ? <span className="subtle" style={{ alignSelf: 'center' }}>Showing 50 clients per page.</span> : null}
+          </div>
+        </>
       ) : null}
 
       {!shouldSearch ? (
@@ -239,12 +288,22 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         </section>
       ) : (
         <ClientsResults
-          key={`${q}|${product}|${turn65 ? '1' : '0'}|${selectedAgent}|${selectedHealthCompany}|${sort}`}
+          key={`${q}|${product}|${turn65 ? '1' : '0'}|${selectedAgent}|${selectedHealthCompany}|${sort}|${showAll ? 'all' : 'filtered'}|${page}`}
           clients={clients}
           agentNames={agentNames}
           filters={{ q, product, turn65, agent: selectedAgent }}
           errorMessage={errorMessage}
           canBulkDelete={canBulkDelete}
+          pagination={showAll ? {
+            page,
+            pageSize,
+            total: totalClientCount,
+            baseParams: {
+              show_all: '1',
+              ...(selectedAgent ? { agent: selectedAgent } : {}),
+              ...(sort !== 'last_name' ? { sort } : {})
+            }
+          } : null}
         />
       )}
     </>

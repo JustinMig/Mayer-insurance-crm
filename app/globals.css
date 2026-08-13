@@ -1279,3 +1279,60 @@ tbody tr:hover { background: #f9fbfd; }
 @media (max-width: 600px) {
   .export-modal { min-height: 100dvh; }
 }
+
+/* Sidebar comfort-color navigation */
+.nav .nav-link,
+.nav .nav-signout {
+  border: 1px solid transparent;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.nav .nav-link:hover,
+.nav .nav-signout:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(38, 50, 57, .08);
+}
+.nav .nav-dashboard { background: #dfeaf3; border-color: #c9dae8; color: #23445d; }
+.nav .nav-dashboard:hover { background: #d3e3ef; color: #17364d; }
+.nav .nav-add-client { background: #dfeee6; border-color: #cbe1d5; color: #285344; }
+.nav .nav-add-client:hover { background: #d2e7dc; color: #1e4437; }
+.nav .nav-clients { background: #eee8dc; border-color: #e1d6c4; color: #5a4932; }
+.nav .nav-clients:hover { background: #e7dece; color: #4c3d2a; }
+.nav .nav-signout { background: #eee4e5; border-color: #dfced0; color: #6b4146; }
+.nav .nav-signout:hover { background: #e7d9db; color: #5c3439; }
+
+.clients-page-heading {
+  padding: 16px 20px;
+  border: 1px solid #cbd9e4;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e7f0f6 0%, #f2eee5 100%);
+  box-shadow: 0 8px 20px rgba(32, 53, 69, .08);
+}
+.clients-page-heading h1 { color: #1f4057; }
+
+.clients-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.clients-stat-card { padding: 18px 20px; }
+.clients-stat-label { color: var(--muted); margin-bottom: 4px; font-size: 13px; font-weight: 700; }
+.clients-stat-value { font-size: 30px; font-weight: 800; line-height: 1.05; }
+.clients-stat-card.medicare { background: #fbf5e6; }
+.clients-stat-card.non-medicare { background: #edf3f6; }
+
+.client-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.client-pagination-summary { color: var(--muted); font-size: 13px; font-weight: 700; }
+.client-pagination-actions { display: flex; gap: 8px; }
+
+@media (max-width: 760px) {
+  .clients-stat-grid { grid-template-columns: 1fr; }
+}
