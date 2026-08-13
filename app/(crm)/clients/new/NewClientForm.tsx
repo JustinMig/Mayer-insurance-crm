@@ -9,6 +9,7 @@ import HealthPlanFields from '../HealthPlanFields'
 import HospitalIndemnityFields from '../HospitalIndemnityFields'
 
 import DateOfBirthInput from '../DateOfBirthInput'
+import FileDropZone from '../../components/FileDropZone'
 type AgentOption = { id: string; full_name: string; role: string }
 
 type Props = {
@@ -443,9 +444,9 @@ export default function NewClientForm(props: Props) {
                 <div className="field-help">Choose files now. They will be placed in the client&apos;s private file folder when Save Client is pressed.</div>
               </div>
               <div className="document-action-row">
-                <label className="btn btn-secondary upload-button">Upload File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicareFile)} /></label>
+                <FileDropZone label="Upload Medicare File" onFile={(file) => setMedicareFile(file)} />
                 <label className="btn btn-secondary upload-button">Take Photo<input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicarePhoto)} /></label>
-                <label className="btn btn-secondary upload-button">Card Information<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setCardFile)} /></label>
+                <FileDropZone label="Card Information" onFile={(file) => setCardFile(file)} />
                 <button className="btn btn-primary" type="button" onClick={openSoa}>Sign Scope of Appointment</button>
               </div>
             </div>
@@ -467,7 +468,7 @@ export default function NewClientForm(props: Props) {
             <div className="medicare-documents-heading">
               <div><strong>Medication Files</strong><div className="field-help">Upload a medication list or take a picture of medication bottles. The file will save to the client&apos;s private folder when Save Client is pressed.</div></div>
               <div className="document-action-row">
-                <label className="btn btn-secondary upload-button">Upload Medications<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setMedicationsFile)} /></label>
+                <FileDropZone label="Upload Medications" onFile={(file) => setMedicationsFile(file)} />
                 <label className="btn btn-secondary upload-button">Take Medication Photo<input type="file" hidden accept="image/*" capture="environment" onChange={event => selectedFile(event, setMedicationsPhoto)} /></label>
               </div>
             </div>
@@ -489,7 +490,7 @@ export default function NewClientForm(props: Props) {
           <div className="intake-group intake-group-files">
             <div className="medicare-documents-heading">
               <div><strong>Life Insurance Files</strong><div className="field-help">Choose a policy, application, illustration, or other life insurance file now. It will be saved to the client&apos;s private folder when Save Client is pressed.</div></div>
-              <div className="document-action-row"><label className="btn btn-secondary upload-button">Upload Life Insurance File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setLifeInsuranceFile)} /></label></div>
+              <div className="document-action-row"><FileDropZone label="Upload Life Insurance File" onFile={(file) => setLifeInsuranceFile(file)} /></div>
             </div>
             <div className="intake-file-list">{lifeInsuranceFile ? <div className="document-row"><div><strong>Life Insurance File</strong><div className="field-help">{lifeInsuranceFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setLifeInsuranceFile(null)}>Remove</button></div> : null}</div>
           </div>
@@ -506,7 +507,7 @@ export default function NewClientForm(props: Props) {
           <div className="intake-group intake-group-files">
             <div className="medicare-documents-heading">
               <div><strong>Health Plan Files</strong><div className="field-help">Choose an insurance card, plan summary, enrollment document, or other health plan file. It will be saved to the client&apos;s private folder when Save Client is pressed.</div></div>
-              <div className="document-action-row"><label className="btn btn-secondary upload-button">Upload Health Plan File<input type="file" hidden accept="image/*,.pdf,.txt,.doc,.docx" onChange={event => selectedFile(event, setHealthPlanFile)} /></label></div>
+              <div className="document-action-row"><FileDropZone label="Upload Health Plan File" onFile={(file) => setHealthPlanFile(file)} /></div>
             </div>
             <div className="intake-file-list">{healthPlanFile ? <div className="document-row"><div><strong>Health Plan File</strong><div className="field-help">{healthPlanFile.name}</div></div><button className="btn btn-secondary btn-small" type="button" onClick={() => setHealthPlanFile(null)}>Remove</button></div> : null}</div>
           </div>

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, type ChangeEvent, type PointerEvent } from 'react'
 import DocumentActions from './DocumentActions'
+import FileDropZone from '../../components/FileDropZone'
 
 type DocumentRow = {
   id: string
@@ -293,16 +294,7 @@ export default function MedicareDocuments(props: Props) {
           <div className="field-help">Upload a document, take a photo, or capture a signed Scope of Appointment.</div>
         </div>
         <div className="document-action-row">
-          <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
-            Upload File
-            <input
-              type="file"
-              hidden
-              disabled={uploading}
-              accept="image/*,.pdf,.txt,.doc,.docx"
-              onChange={event => handlePicker(event, 'medicare_document')}
-            />
-          </label>
+          <FileDropZone label="Upload Medicare File" disabled={uploading} onFile={(file) => uploadFile(file, 'medicare_document')} />
           <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
             Take Photo
             <input
@@ -314,16 +306,7 @@ export default function MedicareDocuments(props: Props) {
               onChange={event => handlePicker(event, 'medicare_photo')}
             />
           </label>
-          <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
-            Card Information
-            <input
-              type="file"
-              hidden
-              disabled={uploading}
-              accept="image/*,.pdf,.txt,.doc,.docx"
-              onChange={event => handlePicker(event, 'card_information')}
-            />
-          </label>
+          <FileDropZone label="Card Information" disabled={uploading} onFile={(file) => uploadFile(file, 'card_information')} />
           <button className="btn btn-primary" type="button" onClick={() => { setStatus(''); setSoaOpen(true) }}>
             Sign Scope of Appointment
           </button>

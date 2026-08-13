@@ -1232,3 +1232,23 @@ tbody tr:hover { background: #f9fbfd; }
 @media (max-width: 800px) {
   .monthly-agent-premium-row { align-items: flex-start; }
 }
+
+/* Cross-device file drop zones */
+.file-drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 260px);
+  padding: 14px 16px;
+  border: 2px dashed rgba(60, 96, 126, .35);
+  border-radius: 12px;
+  background: rgba(255,255,255,.72);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.file-drop-zone strong { color: #173856; font-size: 14px; }
+.file-drop-zone span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.file-drop-zone.is-dragging { border-color: #2c678e; background: rgba(221,239,250,.9); transform: translateY(-1px); }
+.file-drop-zone.is-disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
+@media (max-width: 700px) { .file-drop-zone { width: 100%; min-width: 0; } }

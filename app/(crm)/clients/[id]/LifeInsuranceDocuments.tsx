@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState } from 'react'
 import DocumentActions from './DocumentActions'
+import FileDropZone from '../../components/FileDropZone'
 
 type DocumentRow = {
   id: string
@@ -46,11 +47,6 @@ export default function LifeInsuranceDocuments({ clientId, initialDocuments }: P
     }
   }
 
-  async function handlePicker(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (file) await uploadFile(file)
-  }
 
   return (
     <div className="medicare-documents-panel">
@@ -60,10 +56,7 @@ export default function LifeInsuranceDocuments({ clientId, initialDocuments }: P
           <div className="field-help">Upload a policy, application, illustration, or other life insurance document.</div>
         </div>
         <div className="document-action-row">
-          <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
-            Upload Life Insurance File
-            <input type="file" hidden disabled={uploading} accept="image/*,.pdf,.txt,.doc,.docx" onChange={handlePicker} />
-          </label>
+          <FileDropZone label="Upload Life Insurance File" disabled={uploading} onFile={uploadFile} />
         </div>
       </div>
 

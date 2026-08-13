@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ChangeEvent } from 'react'
 import DocumentActions from './DocumentActions'
+import FileDropZone from '../../components/FileDropZone'
 
 type DocumentRow = {
   id: string
@@ -60,10 +61,7 @@ export default function MedicationDocuments({ clientId, initialDocuments }: Prop
           <div className="field-help">Upload a medication list or take a picture of medication bottles.</div>
         </div>
         <div className="document-action-row">
-          <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
-            Upload Medications
-            <input type="file" hidden disabled={uploading} accept="image/*,.pdf,.txt,.doc,.docx" onChange={handlePicker} />
-          </label>
+          <FileDropZone label="Upload Medications" disabled={uploading} onFile={uploadFile} />
           <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
             Take Medication Photo
             <input type="file" hidden disabled={uploading} accept="image/*" capture="environment" onChange={handlePicker} />

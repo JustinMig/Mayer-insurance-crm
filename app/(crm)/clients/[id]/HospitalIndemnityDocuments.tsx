@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState } from 'react'
 import DocumentActions from './DocumentActions'
+import FileDropZone from '../../components/FileDropZone'
 
 type DocumentRow = {
   id: string
@@ -37,11 +38,6 @@ export default function HospitalIndemnityDocuments({ clientId, initialDocuments 
     }
   }
 
-  async function handlePicker(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (file) await uploadFile(file)
-  }
 
   return (
     <div className="medicare-documents-panel">
@@ -51,10 +47,7 @@ export default function HospitalIndemnityDocuments({ clientId, initialDocuments 
           <div className="field-help">Imported hospital plan documents are matched here. You can also add a file manually.</div>
         </div>
         <div className="document-action-row">
-          <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
-            Upload Hospital File
-            <input type="file" hidden disabled={uploading} accept="image/*,.pdf,.txt,.doc,.docx" onChange={handlePicker} />
-          </label>
+          <FileDropZone label="Upload Hospital File" disabled={uploading} onFile={uploadFile} />
         </div>
       </div>
       {status ? <div className="document-status">{status}</div> : null}
