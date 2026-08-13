@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import ClientExportControls from './ClientExportControls'
 
 type ClientRow = {
@@ -29,26 +30,33 @@ export default function ClientsResults({
   clients,
   agentNames,
   filters,
-  errorMessage
+  errorMessage,
+  canBulkDelete
 }: {
   clients: ClientRow[]
   agentNames: Record<string, string>
   filters: ExportFilters
   errorMessage: string
+  canBulkDelete: boolean
 }) {
+  const router = useRouter()
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [deleting, setDeleting] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState('')
 
   const visibleIds = useMemo(() => clients.map((client) => client.id), [clients])
   const selectedSet = useMemo(() => new Set(selectedClientIds), [selectedClientIds])
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id))
 
   function toggleClient(id: string) {
+    setDeleteMessage('')
     setSelectedClientIds((current) => current.includes(id)
       ? current.filter((clientId) => clientId !== id)
       : [...current, id])
   }
 
   function toggleAllVisible() {
+    setDeleteMessage('')
     if (allSelected) {
       setSelectedClientIds([])
       return
@@ -56,9 +64,45 @@ export default function ClientsResults({
     setSelectedClientIds(visibleIds)
   }
 
+  async function deleteSelectedClients() {
+    if (!canBulkDelete || selectedClientIds.length === 0 || deleting) return
+
+    const count = selectedClientIds.length
+    const confirmed = window.confirm(
+      `Permanently delete ${count} selected client${count === 1 ? '' : 's'}?\n\n` +
+      'This deletes the client records and their uploaded CRM files. This cannot be undone.'
+    )
+    if (!confirmed) return
+
+    setDeleting(true)
+    setDeleteMessage('')
+
+    try {
+      const response = await fetch('/api/clients/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_ids: selectedClientIds })
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || `Delete failed with HTTP ${response.status}.`)
+
+      setSelectedClientIds([])
+      setDeleteMessage(
+        `${payload?.deleted_count || count} client${(payload?.deleted_count || count) === 1 ? '' : 's'} deleted.` +
+        (payload?.storage_warning ? ' One or more stored file objects could not be cleaned up automatically.' : '')
+      )
+      router.refresh()
+    } catch (deleteError) {
+      setDeleteMessage(deleteError instanceof Error ? deleteError.message : 'Unable to delete the selected clients.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <section className="card">
       {errorMessage ? <div className="notice notice-error" style={{ margin: 16 }}>{errorMessage}</div> : null}
+      {deleteMessage ? <div className="notice" style={{ margin: 16 }}>{deleteMessage}</div> : null}
 
       {clients.length === 0 ? (
         <div className="empty">No matching clients found.</div>
@@ -70,9 +114,9 @@ export default function ClientsResults({
                 type="checkbox"
                 checked={allSelected}
                 onChange={toggleAllVisible}
-                aria-label="Select all clients on this page"
+                aria-label="Select all matching clients"
               />
-              <span>Select all on this page</span>
+              <span>Select all clients</span>
             </label>
 
             <div className="client-selection-actions">
@@ -83,6 +127,16 @@ export default function ClientsResults({
                 filters={filters}
                 selectedClientIds={selectedClientIds}
               />
+              {canBulkDelete ? (
+                <button
+                  className="btn btn-danger"
+                  type="button"
+                  disabled={selectedClientIds.length === 0 || deleting}
+                  onClick={deleteSelectedClients}
+                >
+                  {deleting ? 'Deleting…' : `Delete Selected${selectedClientIds.length ? ` (${selectedClientIds.length})` : ''}`}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -95,7 +149,7 @@ export default function ClientsResults({
                       type="checkbox"
                       checked={allSelected}
                       onChange={toggleAllVisible}
-                      aria-label="Select all clients on this page"
+                      aria-label="Select all matching clients"
                     />
                   </th>
                   <th>Client Name</th>
