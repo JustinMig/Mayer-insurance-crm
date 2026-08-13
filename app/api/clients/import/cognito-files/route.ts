@@ -6,7 +6,11 @@ export const runtime = 'nodejs'
 
 const BUCKET = 'client-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-const COGNITO_FORM_ID = process.env.COGNITO_FORM_ID?.trim() || '9'
+const COGNITO_FORMS = {
+  mayer: { id: '9', label: 'Mayer Insurance Group' },
+  isaiah: { id: '17', label: 'Isaiah Hernandez' }
+} as const
+type CognitoSource = keyof typeof COGNITO_FORMS
 const SOURCE_ID_PATTERN = /^\d+$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_MIME_TYPES = new Set([
@@ -133,6 +137,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null)
     const clientId = String(body?.client_id || '').trim()
     const sourceId = String(body?.source_id || '').trim()
+    const cognitoSource = String(body?.cognito_source || 'mayer').trim() as CognitoSource
+    const cognitoForm = COGNITO_FORMS[cognitoSource]
+    if (!cognitoForm) {
+      return NextResponse.json({ error: 'Choose a valid Cognito source form.' }, { status: 400 })
+    }
     if (!UUID_PATTERN.test(clientId) || !SOURCE_ID_PATTERN.test(sourceId)) {
       return NextResponse.json({ error: 'A valid CRM client and Cognito Entry ID are required.' }, { status: 400 })
     }
@@ -149,7 +158,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'COGNITO_API_KEY is not configured in the production environment.' }, { status: 503 })
     }
 
-    const entryResponse = await fetch(`https://www.cognitoforms.com/api/forms/${encodeURIComponent(COGNITO_FORM_ID)}/entries/${encodeURIComponent(sourceId)}`, {
+    const entryResponse = await fetch(`https://www.cognitoforms.com/api/forms/${encodeURIComponent(cognitoForm.id)}/entries/${encodeURIComponent(sourceId)}`, {
       method: 'GET',
       headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
       cache: 'no-store'
@@ -158,8 +167,8 @@ export async function POST(request: NextRequest) {
     if (!entryResponse.ok) {
       return NextResponse.json({
         error: entryResponse.status === 404
-          ? `Cognito Entry ${sourceId} was not found.`
-          : `Cognito entry lookup failed with HTTP ${entryResponse.status}. Check the API key Entry Read permission and form access.`
+          ? `${cognitoForm.label} Cognito Entry ${sourceId} was not found.`
+          : `${cognitoForm.label} Cognito entry lookup failed with HTTP ${entryResponse.status}. Check the API key Entry Read permission and form access.`
       }, { status: entryResponse.status === 401 || entryResponse.status === 403 ? 502 : 400 })
     }
 
@@ -242,6 +251,8 @@ export async function POST(request: NextRequest) {
             document_type: cognitoFile.document_type,
             file_name: fileName,
             cognito_entry_id: sourceId,
+            cognito_form_id: cognitoForm.id,
+            cognito_source: cognitoSource,
             cognito_file_id: cognitoFile.id,
             cognito_field: cognitoFile.field_name
           }
@@ -252,7 +263,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ source_id: sourceId, files_found: files.length, uploaded, skipped, errors }, {
+    return NextResponse.json({ source_id: sourceId, cognito_source: cognitoSource, cognito_form_id: cognitoForm.id, files_found: files.length, uploaded, skipped, errors }, {
       headers: { 'Cache-Control': 'private, no-store' }
     })
   } catch (error) {

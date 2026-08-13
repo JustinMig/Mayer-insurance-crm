@@ -58,6 +58,12 @@ const MAX_ALL_FILES_TOTAL_SIZE = 2 * 1024 * 1024 * 1024
 
 const DOCUMENT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.pdf', '.txt', '.doc', '.docx']
 const DIRECTORY_INPUT_PROPS = { webkitdirectory: '', directory: '' } as Record<string, string>
+type CognitoSource = 'mayer' | 'isaiah'
+
+const COGNITO_SOURCE_OPTIONS: Array<{ value: CognitoSource; label: string }> = [
+  { value: 'mayer', label: 'Mayer Insurance Group' },
+  { value: 'isaiah', label: 'Isaiah Hernandez' }
+]
 
 function fileLooksLikeCsv(file: File) {
   return file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel'
@@ -99,11 +105,11 @@ function classify(headers: string[]): FileReport['kind'] {
 
 
 
-async function pullCognitoDocuments(clientId: string, sourceId: string) {
+async function pullCognitoDocuments(clientId: string, sourceId: string, cognitoSource: CognitoSource) {
   const response = await fetch('/api/clients/import/cognito-files', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, source_id: sourceId })
+    body: JSON.stringify({ client_id: clientId, source_id: sourceId, cognito_source: cognitoSource })
   })
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error(payload?.error || `Cognito file pull stopped with HTTP ${response.status}.`)
@@ -149,6 +155,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const [unmatchedDocumentCount, setUnmatchedDocumentCount] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [agentId, setAgentId] = useState('')
+  const [cognitoSource, setCognitoSource] = useState<CognitoSource>('mayer')
   const [page, setPage] = useState(0)
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
@@ -395,7 +402,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           const errors: string[] = []
           let shouldUseFolderFallback = false
           try {
-            const direct = await pullCognitoDocuments(result.client_id, result.source_id)
+            const direct = await pullCognitoDocuments(result.client_id, result.source_id, cognitoSource)
             result.cognito_files_found = direct.filesFound
             result.documents_uploaded = direct.uploaded
             result.documents_skipped = direct.skipped
@@ -441,7 +448,21 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
         <h2>Import Clients + Pull Cognito Files</h2>
-        <p className="subtle">Choose the main Mayer Insurance Group CSV. For every selected client with a MayerInsuranceGroup_Id, the CRM will securely pull the current files directly from Cognito on the server and place them in the correct CRM section. The old Cognito export folder is optional and is used only as a fallback.</p>
+        <p className="subtle">Choose which Cognito form these clients came from, then load the client CSV. For every selected client with a MayerInsuranceGroup_Id, the CRM securely pulls the current files directly from that Cognito form and places them in the correct CRM section. The old Cognito export folder is optional and used only as a fallback.</p>
+
+        <label className="field">
+          <span>Cognito source</span>
+          <select
+            className="input"
+            value={cognitoSource}
+            disabled={importing}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) => setCognitoSource(event.target.value as CognitoSource)}
+          >
+            {COGNITO_SOURCE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
 
         <div
           className={`import-drop-zone${dragging ? ' is-dragging' : ''}`}
@@ -450,7 +471,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           onDragLeave={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false) }}
           onDrop={onDrop}
         >
-          <strong>Drop or choose the client CSV here</strong>
+          <strong>Drop or choose the {cognitoSource === 'isaiah' ? 'Isaiah Hernandez' : 'Mayer Insurance Group'} client CSV here</strong>
           <span>No Cognito ZIP or folder is required. This works the same on iPhone, iPad, Android, Mac, and Windows.</span>
           <input
             className="input"
