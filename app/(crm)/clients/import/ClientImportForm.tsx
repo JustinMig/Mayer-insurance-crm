@@ -77,9 +77,16 @@ function fileLooksLikeSupportedDocument(file: File) {
 
 
 function sourceId(row: CsvRow) {
-  const allowed = new Set(['mayerinsurancegroupid', 'isaiahhernandezid'])
-  const entry = Object.entries(row).find(([key]) => allowed.has(key.trim().toLowerCase().replace(/[^a-z0-9]/g, '')))
-  return String(entry?.[1] || '').trim()
+  const preferred = new Set([
+    'mayerinsurancegroupid',
+    'isaiahhernandezid',
+    'entryid',
+    'entrynumber'
+  ])
+  const entry = Object.entries(row).find(([key]) => preferred.has(key.trim().toLowerCase().replace(/[^a-z0-9]/g, '')))
+  const raw = String(entry?.[1] || '').trim()
+  if (/^\d+$/.test(raw)) return raw
+  return raw.match(/(?:^|-)\s*(\d+)\s*$/)?.[1] || ''
 }
 
 function mergeNonEmpty(target: CsvRow, incoming: CsvRow) {

@@ -75,6 +75,35 @@ function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function cognitoEntryNumber(row: CsvRow) {
+  const preferred = [
+    'MayerInsuranceGroup_Id',
+    'IsaiahHernandez_Id',
+    'Entry_Id',
+    'Entry ID',
+    'EntryId',
+    'Entry_Number',
+    'Entry Number',
+    'EntryNumber'
+  ]
+
+  let value = pick(row, ...preferred)
+
+  if (!value) {
+    const match = Object.entries(row).find(([key]) => {
+      const normalized = normalizeHeader(key)
+      return normalized === 'entryid' || normalized === 'entrynumber' || normalized.endsWith('id') && (normalized.includes('mayerinsurancegroup') || normalized.includes('isaiahhernandez'))
+    })
+    value = match ? String(match[1] ?? '').trim() : null
+  }
+
+  if (!value) return null
+  const clean = String(value).trim()
+  if (/^\d+$/.test(clean)) return clean
+  const compound = clean.match(/(?:^|-)\s*(\d+)\s*$/)
+  return compound?.[1] || null
+}
+
 // Only columns that map to fields currently available on the Mayer CRM client intake form
 // are sent to the import API. Legacy-only fields are intentionally ignored rather than
 // being copied into Notes or another unrelated field.
@@ -318,7 +347,7 @@ export function normalizeImportRow(row: CsvRow): NormalizedImportClient {
   const retirementFlag = yesNo(retirementInfo) === true || Boolean(retirementInfo && !['no', 'none', 'n/a', 'na'].includes(retirementInfo.toLowerCase()))
 
   return {
-    source_id: pick(row, 'MayerInsuranceGroup_Id', 'IsaiahHernandez_Id'),
+    source_id: cognitoEntryNumber(row),
     first_name: pick(row, 'FirstName', 'First Name', 'first_name') || '',
     last_name: pick(row, 'LastName', 'Last Name', 'last_name') || '',
     date_of_birth: parseImportDate(pick(row, 'DateOfBirthDOB2', 'DateOfBirth', 'DOB', 'date_of_birth')),

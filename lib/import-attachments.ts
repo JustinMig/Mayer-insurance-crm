@@ -127,6 +127,31 @@ function normalize(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function cognitoEntryNumber(row: CsvRow) {
+  let value = pick(
+    row,
+    'MayerInsuranceGroup_Id',
+    'IsaiahHernandez_Id',
+    'Entry_Id',
+    'Entry ID',
+    'EntryId',
+    'Entry_Number',
+    'Entry Number',
+    'EntryNumber'
+  )
+  if (!value) {
+    const entry = Object.entries(row).find(([key]) => {
+      const normalized = normalize(key)
+      return normalized === 'entryid' || normalized === 'entrynumber' || normalized === 'mayerinsurancegroupid' || normalized === 'isaiahhernandezid'
+    })
+    value = entry ? String(entry[1] ?? '').trim() : null
+  }
+  if (!value) return null
+  const clean = String(value).trim()
+  if (/^\d+$/.test(clean)) return clean
+  return clean.match(/(?:^|-)\s*(\d+)\s*$/)?.[1] || null
+}
+
 function clean(value: unknown) {
   const text = String(value ?? '').trim()
   return text || null
@@ -144,7 +169,7 @@ function pick(row: CsvRow, ...keys: string[]) {
 
 export function looksLikeAttachmentExportHeaders(headers: string[]) {
   const set = new Set(headers.map(normalize))
-  return (set.has('mayerinsurancegroupid') || set.has('isaiahhernandezid')) && (set.has('name') || set.has('filename')) && (set.has('contenttype') || set.has('storageurl') || set.has('id'))
+  return (set.has('mayerinsurancegroupid') || set.has('isaiahhernandezid') || set.has('entryid') || set.has('entrynumber')) && (set.has('name') || set.has('filename')) && (set.has('contenttype') || set.has('storageurl') || set.has('id'))
 }
 
 export function attachmentRule(sourceCsv: string, headers: string[]): Pick<ImportAttachmentMeta, 'document_type' | 'section_label'> | null {
@@ -158,7 +183,7 @@ export function attachmentMetadataFromRows(sourceCsv: string, headers: string[],
   if (!rule) return []
 
   return rows.flatMap((row) => {
-    const sourceId = pick(row, 'MayerInsuranceGroup_Id', 'IsaiahHernandez_Id')
+    const sourceId = cognitoEntryNumber(row)
     const name = pick(row, 'Name', 'File_Name', 'FileName')
     if (!sourceId || !name) return []
 
