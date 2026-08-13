@@ -32,6 +32,7 @@ type ResultRow = {
   documents_uploaded?: number
   documents_skipped?: number
   document_errors?: string[]
+  cognito_files_found?: number
 }
 type FileReport = {
   name: string
@@ -97,6 +98,22 @@ function classify(headers: string[]): FileReport['kind'] {
 }
 
 
+
+async function pullCognitoDocuments(clientId: string, sourceId: string) {
+  const response = await fetch('/api/clients/import/cognito-files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, source_id: sourceId })
+  })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(payload?.error || `Cognito file pull stopped with HTTP ${response.status}.`)
+  return {
+    filesFound: Number(payload?.files_found || 0),
+    uploaded: Number(payload?.uploaded || 0),
+    skipped: Number(payload?.skipped || 0),
+    errors: Array.isArray(payload?.errors) ? payload.errors.map((item: unknown) => String(item)) : []
+  }
+}
 
 async function uploadMatchedDocuments(clientId: string, matches: ImportAttachmentMatch[]) {
   let uploaded = 0
@@ -352,10 +369,10 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     }
 
     const selectedSourceIds = new Set(indexes.map((index) => summaries[index]?.source_id).filter(Boolean))
-    const selectedDocumentMatches = attachmentMatches.filter((item) => item.status === 'matched' && selectedSourceIds.has(item.meta.source_id))
+    const directCognitoTotal = Array.from(selectedSourceIds).length
 
     setImporting(true)
-    setProgress({ done: 0, total: indexes.length, documentsDone: 0, documentsTotal: selectedDocumentMatches.length })
+    setProgress({ done: 0, total: indexes.length, documentsDone: 0, documentsTotal: directCognitoTotal })
     const allResults: ResultRow[] = []
     let documentsDone = 0
 
@@ -374,19 +391,36 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         const batchResults: ResultRow[] = Array.isArray(payload?.results) ? payload.results : []
         for (const result of batchResults) {
           if (!['imported', 'merged'].includes(result.status) || !result.client_id || !result.source_id) continue
+
+          const errors: string[] = []
+          let shouldUseFolderFallback = false
+          try {
+            const direct = await pullCognitoDocuments(result.client_id, result.source_id)
+            result.cognito_files_found = direct.filesFound
+            result.documents_uploaded = direct.uploaded
+            result.documents_skipped = direct.skipped
+            errors.push(...direct.errors)
+            shouldUseFolderFallback = direct.filesFound === 0 || direct.errors.length > 0
+          } catch (directError) {
+            errors.push(`Direct Cognito pull: ${directError instanceof Error ? directError.message : 'Failed.'}`)
+            shouldUseFolderFallback = true
+          }
+
           const clientMatches = attachmentMatches.filter((item) => item.status === 'matched' && item.meta.source_id === result.source_id)
-          if (!clientMatches.length) continue
-          const upload = await uploadMatchedDocuments(result.client_id, clientMatches)
-          result.documents_uploaded = upload.uploaded
-          result.documents_skipped = upload.skipped
-          result.document_errors = upload.errors
-          documentsDone += clientMatches.length
-          setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: selectedDocumentMatches.length })
+          if (shouldUseFolderFallback && clientMatches.length) {
+            const upload = await uploadMatchedDocuments(result.client_id, clientMatches)
+            result.documents_uploaded = (result.documents_uploaded || 0) + upload.uploaded
+            result.documents_skipped = (result.documents_skipped || 0) + upload.skipped
+            errors.push(...upload.errors)
+          }
+          result.document_errors = errors
+          documentsDone += 1
+          setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: directCognitoTotal })
         }
 
         allResults.push(...batchResults)
         setResults([...allResults])
-        setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: selectedDocumentMatches.length })
+        setProgress({ done: Math.min(offset + batchIndexes.length, indexes.length), total: indexes.length, documentsDone, documentsTotal: directCognitoTotal })
       }
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'The import could not be completed.')
@@ -406,8 +440,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
     <div className="import-layout">
       <section className="card card-pad import-settings-card">
         <div className="import-step-number">1</div>
-        <h2>Drop CSVs + Cognito Client Files</h2>
-        <p className="subtle">Include the main Mayer Insurance Group CSV and the files from Cognito’s unzipped bulk file download. The CRM recognizes Cognito names such as 91_1_filename.pdf, matches 91 to MayerInsuranceGroup_Id, and uses the Cognito folder name to place the file in the correct CRM section.</p>
+        <h2>Import Clients + Pull Cognito Files</h2>
+        <p className="subtle">Choose the main Mayer Insurance Group CSV. For every selected client with a MayerInsuranceGroup_Id, the CRM will securely pull the current files directly from Cognito on the server and place them in the correct CRM section. The old Cognito export folder is optional and is used only as a fallback.</p>
 
         <div
           className={`import-drop-zone${dragging ? ' is-dragging' : ''}`}
@@ -416,8 +450,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           onDragLeave={(event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false) }}
           onDrop={onDrop}
         >
-          <strong>Drop the client CSV and Cognito export folder here</strong>
-          <span>On iPhone/iPad/Android, you can choose the client CSV first and then add the unzipped Cognito folder; the selections are combined.</span>
+          <strong>Drop or choose the client CSV here</strong>
+          <span>No Cognito ZIP or folder is required. This works the same on iPhone, iPad, Android, Mac, and Windows.</span>
           <input
             className="input"
             type="file"
@@ -427,7 +461,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
             onChange={(event: ChangeEvent<HTMLInputElement>) => void handleFiles(event.target.files, true)}
           />
           <label className={`btn btn-secondary upload-button ${importing ? 'is-disabled' : ''}`}>
-            Choose Cognito Export Folder
+            Optional: Add Cognito Export Folder
             <input
               type="file"
               hidden
@@ -486,7 +520,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
           <strong>Import protections</strong>
           <span>CSV Level is mapped directly to Medicaid Level and standardized to QMB, SLMB, QI, FBDE, or Other.</span>
           <span>Only client data fields that exist on the current intake form are imported.</span>
-          <span>Actual client files are uploaded only when their attachment CSV record and client ID match.</span>
+          <span>Cognito files are pulled directly on the server by Cognito Entry ID; the optional export folder is only a fallback.</span>
           <span>SSN, Medicare/Medicaid numbers, health member ID, routing/account/card numbers are encrypted before storage.</span>
           <span>CVV and Medicare.gov credentials are never stored or imported.</span>
           <span>Existing clients are matched by email, phone, or name + DOB. Blank CRM fields are filled, existing values are never overwritten.</span>
@@ -499,7 +533,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         <div className="import-actions">
           <button className="btn btn-primary" type="button" onClick={startImport} disabled={importing || selectedCount === 0}>
             {importing
-              ? `Importing ${progress.done} of ${progress.total} clients${progress.documentsTotal ? ` · ${progress.documentsDone} of ${progress.documentsTotal} files` : ''}…`
+              ? `Importing ${progress.done} of ${progress.total} clients${progress.documentsTotal ? ` · ${progress.documentsDone} of ${progress.documentsTotal} Cognito entries checked` : ''}…`
               : `Import ${selectedCount.toLocaleString()} Selected Clients`}
           </button>
           <Link prefetch={false} className="btn btn-secondary" href="/clients">Back to Clients</Link>
@@ -528,7 +562,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         </div>
 
         {!summaries.length ? (
-          <div className="empty">Drop in the CSV export files and any actual client documents to preview clients that will be created or matched to existing CRM records.</div>
+          <div className="empty">Choose the main client CSV to preview clients. Cognito files will be pulled directly during import using each client’s Cognito ID.</div>
         ) : (
           <>
             <div className="import-summary-strip">
@@ -576,7 +610,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
                           ? <span className="import-invalid">0 matched — check Cognito export</span>
                           : clientFiles.length
                             ? `${matchedFiles}/${clientFiles.length} matched${missingFiles ? ` · ${missingFiles} missing` : ''}`
-                            : '—'}</td>
+                            : item.source_id ? 'Direct from Cognito' : '—'}</td>
                         <td>{item.valid ? (noMatchedCognitoFiles ? <span className="import-invalid">Review files</span> : 'Ready') : <span className="import-invalid">Needs first + last name</span>}</td>
                       </tr>
                     )
