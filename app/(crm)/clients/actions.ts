@@ -13,6 +13,42 @@ function nullable(form: FormData, key: string) {
   return v || null
 }
 
+
+function normalizedDateOfBirth(form: FormData) {
+  const raw = value(form, 'date_of_birth')
+  if (!raw) return null
+
+  let year: number
+  let month: number
+  let day: number
+
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+
+  if (slashMatch) {
+    month = Number(slashMatch[1])
+    day = Number(slashMatch[2])
+    year = Number(slashMatch[3])
+  } else if (isoMatch) {
+    year = Number(isoMatch[1])
+    month = Number(isoMatch[2])
+    day = Number(isoMatch[3])
+  } else {
+    throw new Error('Enter the date of birth as MM/DD/YYYY.')
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error('Enter a valid date of birth.')
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 function checked(form: FormData, key: string) {
   return form.get(key) === 'on'
 }
@@ -327,7 +363,7 @@ async function createClientRecord(form: FormData) {
       assigned_agent_id: assignedAgentId,
       first_name: firstName,
       last_name: lastName,
-      date_of_birth: nullable(form, 'date_of_birth'),
+      date_of_birth: normalizedDateOfBirth(form),
       height_inches: clientHeightInches(form),
       weight_lbs: clientWeightLbs(form),
       gender: nullable(form, 'gender'),
@@ -431,7 +467,7 @@ export async function updateClient(form: FormData) {
   const clientUpdates: Record<string, unknown> = {
     first_name: firstName,
     last_name: lastName,
-    date_of_birth: nullable(form, 'date_of_birth'),
+    date_of_birth: normalizedDateOfBirth(form),
     height_inches: clientHeightInches(form),
     weight_lbs: clientWeightLbs(form),
     gender: nullable(form, 'gender'),

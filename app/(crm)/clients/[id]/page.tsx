@@ -15,6 +15,7 @@ import HospitalIndemnityFields from '../HospitalIndemnityFields'
 import HospitalIndemnityDocuments from './HospitalIndemnityDocuments'
 import OtherCoverageDocuments from './OtherCoverageDocuments'
 import DeleteClientButton from './DeleteClientButton'
+import DateOfBirthInput from '../DateOfBirthInput'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -132,7 +133,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               <div className="form-grid">
                 <label className="label">First name<input className="input" name="first_name" required defaultValue={client.first_name || ''} /></label>
                 <label className="label">Last name<input className="input" name="last_name" required defaultValue={client.last_name || ''} /></label>
-                <label className="label">Date of birth<input className="input" type="date" name="date_of_birth" defaultValue={client.date_of_birth || ''} /></label>
+                <label className="label">Date of birth<DateOfBirthInput defaultValue={client.date_of_birth} /></label>
                 <label className="label">Gender<select className="select" name="gender" defaultValue={client.gender || ''}><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></label>
                 <label className="label">Height - feet<input className="input" type="number" name="height_feet" inputMode="numeric" min={1} max={8} defaultValue={heightFeet(client.height_inches)} /></label>
                 <label className="label">Height - inches<input className="input" type="number" name="height_in" inputMode="numeric" min={0} max={11} defaultValue={heightInchesPart(client.height_inches)} /></label>
