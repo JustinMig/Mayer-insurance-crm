@@ -36,29 +36,30 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const canFilterByAgent = currentProfile.role === 'admin' || currentProfile.role === 'manager'
   const canBulkDelete = canFilterByAgent
 
-  let agents: AgentProfile[] = []
-  if (canFilterByAgent) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, role')
-      .eq('agency_id', currentProfile.agency_id)
-      .eq('active', true)
-      .in('role', ['admin', 'agent'])
-      .order('full_name', { ascending: true })
+  const agentsPromise = canFilterByAgent
+    ? supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('agency_id', currentProfile.agency_id)
+        .eq('active', true)
+        .in('role', ['admin', 'agent'])
+        .order('full_name', { ascending: true })
+    : Promise.resolve({ data: [] as AgentProfile[], error: null })
 
-    agents = (data || []) as AgentProfile[]
-  }
-
-  const selectedAgent = canFilterByAgent && agents.some((agent) => agent.id === requestedAgent)
-    ? requestedAgent
-    : ''
-
-  const { data: healthPlanRows } = await supabase
+  const healthCompaniesPromise = supabase
     .from('client_health_plan_info')
     .select('company_name')
     .eq('agency_id', currentProfile.agency_id)
     .not('company_name', 'is', null)
     .order('company_name', { ascending: true })
+
+  const [agentsResult, healthCompaniesResult] = await Promise.all([agentsPromise, healthCompaniesPromise])
+  const agents = ((agentsResult.data || []) as AgentProfile[])
+  const healthPlanRows = healthCompaniesResult.data || []
+
+  const selectedAgent = canFilterByAgent && agents.some((agent) => agent.id === requestedAgent)
+    ? requestedAgent
+    : ''
 
   const healthCompanies = Array.from(new Set(
     (healthPlanRows || [])

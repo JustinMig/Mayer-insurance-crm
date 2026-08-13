@@ -1252,3 +1252,30 @@ tbody tr:hover { background: #f9fbfd; }
 .file-drop-zone.is-dragging { border-color: #2c678e; background: rgba(221,239,250,.9); transform: translateY(-1px); }
 .file-drop-zone.is-disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
 @media (max-width: 700px) { .file-drop-zone { width: 100%; min-width: 0; } }
+
+/* Cross-platform performance: dynamic viewport sizing avoids Safari/Chrome mobile toolbar relayouts. */
+.page-shell, .crm-shell, .login-shell { min-height: 100dvh; }
+.sidebar { height: 100dvh; }
+.soa-modal, .export-modal { max-height: calc(100dvh - 36px); }
+
+/* Cards are already nearly opaque; avoiding per-card backdrop compositing reduces GPU work. */
+.card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+@media (max-width: 1024px), (pointer: coarse) {
+  html, body { background-attachment: scroll; }
+  .topbar,
+  .mobile-nav,
+  .sticky-save-bar,
+  .login-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .soa-modal { min-height: 100dvh; }
+}
+
+@media (max-width: 600px) {
+  .export-modal { min-height: 100dvh; }
+}

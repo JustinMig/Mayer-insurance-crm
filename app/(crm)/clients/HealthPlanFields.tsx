@@ -55,13 +55,13 @@ export default function HealthPlanFields({ healthPlan = null, clientId, memberMa
       {clientId ? (
         <div className="label">Member ID
           <SensitiveReveal clientId={clientId} field="health_member_id" masked={memberMasked} />
-          <input className="input" name="health_member_id" type="password" autoComplete="new-password" placeholder="Enter a new Member ID only to replace the saved value" />
+          <input className="input" name="health_member_id" type="text" autoComplete="off" placeholder="Enter a new Member ID only to replace the saved value" />
           <span className="field-help">The box above is only for replacing the saved Member ID.</span>
           <span className="clear-sensitive"><input type="checkbox" name="clear_health_member_id" /> Clear saved Member ID</span>
         </div>
       ) : (
         <label className="label">Member ID
-          <input className="input" name="health_member_id" type="password" autoComplete="off" placeholder="Encrypted before storage" />
+          <input className="input" name="health_member_id" type="text" autoComplete="off" placeholder="Encrypted before storage" />
         </label>
       )}
 

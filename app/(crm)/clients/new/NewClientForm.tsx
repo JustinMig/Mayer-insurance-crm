@@ -399,8 +399,8 @@ export default function NewClientForm(props: Props) {
           <div className="intake-group intake-group-sensitive">
             <div className="intake-group-heading"><div><strong>Identification</strong><span>Sensitive values are encrypted before storage.</span></div></div>
             <div className="form-grid">
-              <label className="label">Social Security number<input className="input" name="ssn" type="password" autoComplete="off" inputMode="numeric" placeholder="Encrypted before storage" /></label>
-              <label className="label">Driver&apos;s license number<input className="input" name="drivers_license" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Social Security number<input className="input" name="ssn" type="text" autoComplete="off" inputMode="numeric" placeholder="Encrypted before storage" /></label>
+              <label className="label">Driver&apos;s license number<input className="input" name="drivers_license" type="text" autoComplete="off" placeholder="Encrypted before storage" /></label>
               <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} placeholder="MS" /></label>
               <label className="label">License expiration<input className="input" type="date" name="drivers_license_expiration" /></label>
             </div>
@@ -423,8 +423,8 @@ export default function NewClientForm(props: Props) {
           <div className="intake-group">
             <div className="intake-group-heading"><div><strong>Coverage Identification</strong><span>Medicare and Medicaid information.</span></div></div>
             <div className="form-grid">
-              <label className="label">Medicare number<input className="input" name="medicare_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
-              <label className="label">Medicaid number<input className="input" name="medicaid_number" type="password" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Medicare number<input className="input" name="medicare_number" type="text" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Medicaid number<input className="input" name="medicaid_number" type="text" autoComplete="off" placeholder="Encrypted before storage" /></label>
               <label className="label">Medicaid level<select className="select" name="medicaid_level" defaultValue=""><option value="">Select</option><option>QMB</option><option>SLMB</option><option>QI</option><option>FBDE</option><option>Other</option></select></label>
             </div>
           </div>
@@ -531,14 +531,14 @@ export default function NewClientForm(props: Props) {
             <div className="intake-group-heading"><div><strong>Bank Account</strong><span>Financial account numbers are encrypted before storage.</span></div></div>
             <div className="form-grid">
               <label className="label">Bank name<input className="input" name="bank_name" autoComplete="off" /></label>
-              <label className="label">Routing number<input className="input" name="bank_routing_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
-              <label className="label">Account number<input className="input" name="bank_account_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Routing number<input className="input" name="bank_routing_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Account number<input className="input" name="bank_account_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
             </div>
           </div>
           <div className="intake-group intake-group-sensitive">
             <div className="intake-group-heading"><div><strong>Debit Card</strong><span>Card number is encrypted. CVV is never stored.</span></div></div>
             <div className="form-grid">
-              <label className="label">Debit card number<input className="input" name="bank_debit_card_number" type="password" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
+              <label className="label">Debit card number<input className="input" name="bank_debit_card_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Encrypted before storage" /></label>
               <label className="label">Expiration date<input className="input" name="bank_debit_card_expiration" inputMode="numeric" autoComplete="off" placeholder="MM/YY" maxLength={7} /></label>
               <label className="label">CVV code<input className="input" value="Not stored for security" disabled readOnly /><span className="field-help">CVV codes are intentionally not saved in the CRM.</span></label>
             </div>

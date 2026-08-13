@@ -173,12 +173,12 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               <div className="form-grid">
                 <div className="label">Social Security number
                   <SensitiveReveal clientId={client.id} field="ssn" masked={ssnMasked} />
-                  <input className="input" name="ssn" type="password" autoComplete="new-password" inputMode="numeric" placeholder="Enter a new SSN only to replace the saved value" />
+                  <input className="input" name="ssn" type="text" autoComplete="off" inputMode="numeric" placeholder="Enter a new SSN only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_ssn" /> Clear saved SSN</span>
                 </div>
                 <div className="label">Driver&apos;s license number
                   <SensitiveReveal clientId={client.id} field="drivers_license" masked={dlMasked} />
-                  <input className="input" name="drivers_license" type="password" autoComplete="new-password" placeholder="Enter a new license number only to replace the saved value" />
+                  <input className="input" name="drivers_license" type="text" autoComplete="off" placeholder="Enter a new license number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_drivers_license" /> Clear saved license number</span>
                 </div>
                 <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} defaultValue={client.drivers_license_state || ''} /></label>
@@ -205,12 +205,12 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               <div className="form-grid">
                 <div className="label">Medicare number
                   <SensitiveReveal clientId={client.id} field="medicare_number" masked={mbiMasked} />
-                  <input className="input" name="medicare_number" type="password" autoComplete="new-password" placeholder="Enter a new Medicare number only to replace the saved value" />
+                  <input className="input" name="medicare_number" type="text" autoComplete="off" placeholder="Enter a new Medicare number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_medicare_number" /> Clear saved Medicare number</span>
                 </div>
                 <div className="label">Medicaid number
                   <SensitiveReveal clientId={client.id} field="medicaid_number" masked={medicaidMasked} />
-                  <input className="input" name="medicaid_number" type="password" autoComplete="new-password" placeholder="Enter a new Medicaid number only to replace the saved value" />
+                  <input className="input" name="medicaid_number" type="text" autoComplete="off" placeholder="Enter a new Medicaid number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_medicaid_number" /> Clear saved Medicaid number</span>
                 </div>
                 <label className="label">Medicaid level<select className="select" name="medicaid_level" defaultValue={medicare?.medicaid_level || ''}><option value="">Select</option><option>QMB</option><option>SLMB</option><option>QI</option><option>FBDE</option><option>Other</option></select></label>
@@ -278,12 +278,12 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 <label className="label">Bank name<input className="input" name="bank_name" defaultValue={banking?.bank_name || ''} autoComplete="off" /></label>
                 <div className="label">Routing number
                   <SensitiveReveal clientId={client.id} field="bank_routing_number" masked={routingMasked} />
-                  <input className="input" name="bank_routing_number" type="password" inputMode="numeric" autoComplete="new-password" placeholder="Enter a new routing number only to replace the saved value" />
+                  <input className="input" name="bank_routing_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Enter a new routing number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_bank_routing_number" /> Clear saved routing number</span>
                 </div>
                 <div className="label">Account number
                   <SensitiveReveal clientId={client.id} field="bank_account_number" masked={accountMasked} />
-                  <input className="input" name="bank_account_number" type="password" inputMode="numeric" autoComplete="new-password" placeholder="Enter a new account number only to replace the saved value" />
+                  <input className="input" name="bank_account_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Enter a new account number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_bank_account_number" /> Clear saved account number</span>
                 </div>
               </div>
@@ -293,7 +293,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
               <div className="form-grid">
                 <div className="label">Debit card number
                   <SensitiveReveal clientId={client.id} field="bank_debit_card_number" masked={debitCardMasked} />
-                  <input className="input" name="bank_debit_card_number" type="password" inputMode="numeric" autoComplete="new-password" placeholder="Enter a new card number only to replace the saved value" />
+                  <input className="input" name="bank_debit_card_number" type="text" inputMode="numeric" autoComplete="off" placeholder="Enter a new card number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_bank_debit_card_number" /> Clear saved debit card number</span>
                 </div>
                 <label className="label">Expiration date<input className="input" name="bank_debit_card_expiration" inputMode="numeric" autoComplete="off" placeholder="MM/YY" maxLength={7} defaultValue={banking?.debit_card_expiration || ''} /></label>
