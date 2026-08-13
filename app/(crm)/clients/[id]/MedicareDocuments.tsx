@@ -294,7 +294,7 @@ export default function MedicareDocuments(props: Props) {
           <div className="field-help">Upload a document, take a photo, or capture a signed Scope of Appointment.</div>
         </div>
         <div className="document-action-row">
-          <FileDropZone label="Upload Medicare File" disabled={uploading} onFile={(file) => uploadFile(file, 'medicare_document')} />
+          <FileDropZone label="Upload Medicare File" disabled={uploading} onFile={async (file) => { await uploadFile(file, 'medicare_document') }} />
           <label className={`btn btn-secondary upload-button ${uploading ? 'is-disabled' : ''}`}>
             Take Photo
             <input
@@ -306,7 +306,7 @@ export default function MedicareDocuments(props: Props) {
               onChange={event => handlePicker(event, 'medicare_photo')}
             />
           </label>
-          <FileDropZone label="Card Information" disabled={uploading} onFile={(file) => uploadFile(file, 'card_information')} />
+          <FileDropZone label="Card Information" disabled={uploading} onFile={async (file) => { await uploadFile(file, 'card_information') }} />
           <button className="btn btn-primary" type="button" onClick={() => { setStatus(''); setSoaOpen(true) }}>
             Sign Scope of Appointment
           </button>
