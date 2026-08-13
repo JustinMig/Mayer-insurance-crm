@@ -126,6 +126,12 @@ export default async function DashboardPage() {
 
   const monthlyAgentPremiumCards = canSeeAllAgents ? allAgentPremiumCards : [myPremiumStats]
 
+  const isManager = currentProfile.role === 'manager'
+  const managerYearlyPremiumCards = allAgentPremiumCards.filter((agent) =>
+    ['justin mayer', 'isaiah hernandez'].includes(agent.agentName.trim().toLowerCase())
+  )
+  const yearlyPremiumCards = isManager ? managerYearlyPremiumCards : [myPremiumStats]
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
@@ -141,12 +147,16 @@ export default async function DashboardPage() {
       </section>
 
       <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
-        <div className="card card-pad premium-total-card">
-          <span className="premium-card-label">My Life Insurance Premium — {currentYear}</span>
-          <strong className="premium-total-value">{money(myPremiumStats.currentYear)}</strong>
-          <p className="subtle" style={{ margin: '8px 0 0' }}>
-            Your total Life Insurance premium for policies effective in {currentYear}.
-          </p>
+        <div style={{ display: 'grid', gap: 14 }}>
+          {yearlyPremiumCards.map((agent) => (
+            <div className="card card-pad premium-total-card" key={agent.agentId}>
+              <span className="premium-card-label">{isManager ? `${agent.agentName} — Life Insurance Premium` : 'My Life Insurance Premium'} — {currentYear}</span>
+              <strong className="premium-total-value">{money(agent.currentYear)}</strong>
+              <p className="subtle" style={{ margin: '8px 0 0' }}>
+                {isManager ? `${agent.agentName}'s` : 'Your'} total Life Insurance premium for policies effective in {currentYear}.
+              </p>
+            </div>
+          ))}
         </div>
 
         <div className="card card-pad monthly-agent-premium-card">

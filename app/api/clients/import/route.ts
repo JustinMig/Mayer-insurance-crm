@@ -9,6 +9,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 type ExistingClient = {
   id: string
+  assigned_agent_id: string | null
   first_name: string | null
   last_name: string | null
   date_of_birth: string | null
@@ -65,7 +66,7 @@ async function findExistingCandidates(supabase: SupabaseClient, clients: Normali
   const dates = Array.from(new Set(clients.map((client) => client.date_of_birth).filter((item): item is string => Boolean(item))))
 
   const queries: Array<PromiseLike<{ data: ExistingClient[] | null; error: { message: string } | null }>> = []
-  const select = 'id,first_name,last_name,date_of_birth,phone,email,gender,address_line1,city,state,zip_code,county,ssn_ciphertext,drivers_license_ciphertext,drivers_license_state,drivers_license_expiration,is_medicare,is_life,is_retirement,is_veteran,is_smoker,notes'
+  const select = 'id,assigned_agent_id,first_name,last_name,date_of_birth,phone,email,gender,address_line1,city,state,zip_code,county,ssn_ciphertext,drivers_license_ciphertext,drivers_license_state,drivers_license_expiration,is_medicare,is_life,is_retirement,is_veteran,is_smoker,notes'
 
   if (emails.length) queries.push(supabase.from('clients').select(select).in('email', emails))
   if (phones.length) queries.push(supabase.from('clients').select(select).in('phone', phones))
@@ -83,14 +84,34 @@ async function findExistingCandidates(supabase: SupabaseClient, clients: Normali
 
 function matchExistingClient(imported: NormalizedImportClient, existing: ExistingClient[]): MatchResult {
   const ids = new Set<string>()
-  const email = normalizedEmail(imported.email)
-  const phone = normalizedPhone(imported.phone)
-  const nameDob = duplicateKey({ first_name: imported.first_name, last_name: imported.last_name, date_of_birth: imported.date_of_birth })
+  const importedEmail = normalizedEmail(imported.email)
+  const importedPhone = normalizedPhone(imported.phone)
+  const importedFirst = normalizedName(imported.first_name)
+  const importedLast = normalizedName(imported.last_name)
+  const importedDob = imported.date_of_birth || ''
+  const importedNameDob = duplicateKey({ first_name: imported.first_name, last_name: imported.last_name, date_of_birth: imported.date_of_birth })
 
   for (const client of existing) {
-    if (email && normalizedEmail(client.email) === email) ids.add(client.id)
-    if (phone && normalizedPhone(client.phone) === phone) ids.add(client.id)
-    if (nameDob && duplicateKey(client) === nameDob) ids.add(client.id)
+    const clientEmail = normalizedEmail(client.email)
+    const clientPhone = normalizedPhone(client.phone)
+    const clientFirst = normalizedName(client.first_name)
+    const clientLast = normalizedName(client.last_name)
+    const clientDob = client.date_of_birth || ''
+
+    // A shared household phone number is NOT enough to merge two people.
+    // Require identity agreement as well so spouses/family members cannot cross over.
+    const exactNameDob = Boolean(importedNameDob && duplicateKey(client) === importedNameDob)
+    const exactFullNameWithContact = Boolean(
+      importedFirst && importedLast && clientFirst === importedFirst && clientLast === importedLast &&
+      ((importedEmail && clientEmail === importedEmail) || (importedPhone && clientPhone === importedPhone))
+    )
+    const emailAndDob = Boolean(importedEmail && clientEmail === importedEmail && importedDob && clientDob === importedDob)
+    const phoneDobAndLastName = Boolean(
+      importedPhone && clientPhone === importedPhone && importedDob && clientDob === importedDob &&
+      importedLast && clientLast === importedLast
+    )
+
+    if (exactNameDob || exactFullNameWithContact || emailAndDob || phoneDobAndLastName) ids.add(client.id)
   }
 
   if (ids.size === 0) return { client: null, ambiguous: false }
@@ -257,9 +278,11 @@ async function mergeMedications(supabase: SupabaseClient, agencyId: string, clie
   return additions.map((item) => `Medication: ${item.medication_name}`)
 }
 
-async function mergeExistingClient(supabase: SupabaseClient, agencyId: string, actorId: string, existing: ExistingClient, client: NormalizedImportClient): Promise<ImportResult> {
+async function mergeExistingClient(supabase: SupabaseClient, agencyId: string, actorId: string, assignedAgentId: string, existing: ExistingClient, client: NormalizedImportClient): Promise<ImportResult> {
   const added: string[] = []
   const updates: Record<string, unknown> = {}
+
+  if (existing.assigned_agent_id !== assignedAgentId) { updates.assigned_agent_id = assignedAgentId; added.push('Assigned agent') }
 
   addMissing(updates, added, existing.date_of_birth, client.date_of_birth, 'date_of_birth', 'Date of birth')
   addMissing(updates, added, existing.gender, client.gender, 'gender', 'Gender')
@@ -354,6 +377,7 @@ async function mergeExistingClient(supabase: SupabaseClient, agencyId: string, a
       source_id: client.source_id,
       fields_added: added,
       overwrite_existing: false,
+      assigned_agent_id: assignedAgentId,
       skipped_sensitive_fields: client.skipped_sensitive_fields
     }
   })
@@ -468,13 +492,14 @@ export async function POST(request: NextRequest) {
 
     try {
       if (match.client) {
-        results.push(await mergeExistingClient(supabase, profile.agency_id, userId, match.client, client))
+        results.push(await mergeExistingClient(supabase, profile.agency_id, userId, assignedAgent.id, match.client, client))
       } else {
         const result = await importNewClient(supabase, profile.agency_id, userId, assignedAgent.id, client)
         results.push(result)
         if (result.status === 'imported' && result.client_id) {
           existing.push({
             id: result.client_id,
+            assigned_agent_id: assignedAgent.id,
             first_name: client.first_name,
             last_name: client.last_name,
             date_of_birth: client.date_of_birth,
