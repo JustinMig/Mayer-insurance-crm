@@ -153,6 +153,10 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
   const matchedAttachmentCount = attachmentMatches.filter((item) => item.status === 'matched').length
   const missingAttachmentCount = attachmentMatches.filter((item) => item.status === 'missing').length
   const ambiguousAttachmentCount = attachmentMatches.filter((item) => item.status === 'ambiguous').length
+  const selectedDocumentFileCount = files.filter((file) => !fileLooksLikeCsv(file) && fileLooksLikeSupportedDocument(file)).length
+  const clientsWithNoMatchedFiles = selectedDocumentFileCount
+    ? summaries.filter((item) => item.source_id && !attachmentMatches.some((match) => match.meta.source_id === item.source_id && match.status === 'matched')).length
+    : 0
 
   async function handleFiles(input: FileList | File[] | null, append = false) {
     setFiles([])
@@ -290,6 +294,8 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
         messages.push('Some attachment CSV records do not have a matching PDF/image/document in the selected files. Those are marked below and cannot be recreated from CSV metadata alone.')
       }
       if (documentFiles.some((file) => !usedFiles.has(file))) messages.push('Some selected documents could not be tied to an attachment CSV record and will not be uploaded.')
+      const zeroFileClients = mapped.filter((item) => item.source_id && !matched.some((match) => match.meta.source_id === item.source_id && match.status === 'matched')).length
+      if (documentFiles.length && zeroFileClients) messages.push(`${zeroFileClients} client${zeroFileClients === 1 ? '' : 's'} have no Cognito files matched from the selected folder. Review the Files column before importing.`)
       if (parsedUploads.some((item) => item.kind === 'ignored')) messages.push('CSV files with no current intake fields or recognized file mapping were accepted but ignored.')
       messages.push('Only data that has a matching field on the current client intake form will be imported. The CSV field Level is normalized into Medicaid Level (QMB, SLMB, QI, FBDE, or Other).')
       setWarning(messages.join(' '))
@@ -530,6 +536,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
               <span>{validSummaries.length.toLocaleString()} valid</span>
               <span>{selectedCount.toLocaleString()} selected</span>
               <span>{(summaries.length - validSummaries.length).toLocaleString()} missing name</span>
+              {selectedDocumentFileCount ? <span><strong>{clientsWithNoMatchedFiles}</strong> with no matched Cognito files</span> : null}
             </div>
             <div className="table-wrap">
               <table>
@@ -537,6 +544,7 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
                   <tr>
                     <th className="client-select-cell"><input type="checkbox" checked={allPageSelected} onChange={togglePage} aria-label="Select all valid clients on this preview page" /></th>
                     <th>Client</th>
+                    <th>Cognito ID</th>
                     <th>DOB</th>
                     <th>Phone</th>
                     <th>County</th>
@@ -550,19 +558,26 @@ export default function ClientImportForm({ agents }: { agents: Agent[] }) {
                   {pageRows.map((item) => {
                     const clientFiles = item.source_id ? attachmentMatches.filter((match) => match.meta.source_id === item.source_id) : []
                     const matchedFiles = clientFiles.filter((match) => match.status === 'matched').length
+                    const missingFiles = clientFiles.filter((match) => match.status !== 'matched').length
+                    const noMatchedCognitoFiles = Boolean(selectedDocumentFileCount && item.source_id && matchedFiles === 0)
                     return (
                       <tr key={item.rowIndex} className={selected.has(item.rowIndex) ? 'client-row-selected' : undefined}>
                         <td className="client-select-cell">
                           <input type="checkbox" checked={selected.has(item.rowIndex)} disabled={!item.valid || importing} onChange={() => toggle(item.rowIndex)} />
                         </td>
                         <td><strong>{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Missing name'}</strong></td>
+                        <td>{item.source_id || '—'}</td>
                         <td>{item.date_of_birth || '—'}</td>
                         <td>{item.phone || '—'}</td>
                         <td>{item.county || '—'}</td>
                         <td>{item.state || '—'}</td>
                         <td>{item.products || '—'}</td>
-                        <td>{clientFiles.length ? `${matchedFiles}/${clientFiles.length} matched` : '—'}</td>
-                        <td>{item.valid ? 'Ready' : <span className="import-invalid">Needs first + last name</span>}</td>
+                        <td>{noMatchedCognitoFiles
+                          ? <span className="import-invalid">0 matched — check Cognito export</span>
+                          : clientFiles.length
+                            ? `${matchedFiles}/${clientFiles.length} matched${missingFiles ? ` · ${missingFiles} missing` : ''}`
+                            : '—'}</td>
+                        <td>{item.valid ? (noMatchedCognitoFiles ? <span className="import-invalid">Review files</span> : 'Ready') : <span className="import-invalid">Needs first + last name</span>}</td>
                       </tr>
                     )
                   })}
