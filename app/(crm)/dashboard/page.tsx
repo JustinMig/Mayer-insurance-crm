@@ -18,6 +18,7 @@ type AgentProfile = {
 
 type PremiumRollupRow = {
   assigned_agent_id: string | null
+  effective_year: number | null
   effective_month: number | null
   premium_total: number | string | null
 }
@@ -52,14 +53,20 @@ const monthNames = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const { supabase, userId, profile: currentProfile } = await getCrmSession()
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const isManager = currentProfile.role === 'manager'
+  const isIsaiahPortal = currentProfile.full_name?.trim().toLowerCase() === 'isaiah hernandez'
+  const params = searchParams ? await searchParams : {}
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth()
+  const requestedYear = Number(Array.isArray(params.premium_year) ? params.premium_year[0] : params.premium_year)
+  const requestedMonth = Number(Array.isArray(params.premium_month) ? params.premium_month[0] : params.premium_month)
+  const selectedPremiumYear = isIsaiahPortal && Number.isInteger(requestedYear) && requestedYear >= 2020 && requestedYear <= currentYear + 1 ? requestedYear : currentYear
+  const selectedPremiumMonth = isIsaiahPortal && Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12 ? requestedMonth - 1 : currentMonth
   const turn65Year = currentYear - 65
 
   let targetAgents: AgentProfile[] = []
@@ -88,11 +95,15 @@ export default async function DashboardPage() {
 
   const targetAgentIds = targetAgents.map((agent) => agent.id)
 
+  const premiumQuery = supabase
+    .from('life_premium_dashboard_rollup')
+    .select('assigned_agent_id,effective_year,effective_month,premium_total')
+
+  if (!isIsaiahPortal) premiumQuery.eq('effective_year', currentYear)
+  if (isIsaiahPortal) premiumQuery.eq('assigned_agent_id', userId)
+
   const [premiumRollupResult, clientStatsResult] = await Promise.all([
-    supabase
-      .from('life_premium_dashboard_rollup')
-      .select('assigned_agent_id,effective_month,premium_total')
-      .eq('effective_year', currentYear),
+    premiumQuery,
     targetAgentIds.length
       ? supabase
           .from('clients')
@@ -135,8 +146,12 @@ export default async function DashboardPage() {
     for (const row of premiumRows) {
       if (row.assigned_agent_id !== agent.id) continue
       const amount = numeric(row.premium_total)
+      const rowYear = Number(row.effective_year || currentYear)
+      const targetYear = isIsaiahPortal ? selectedPremiumYear : currentYear
+      const targetMonth = isIsaiahPortal ? selectedPremiumMonth : currentMonth
+      if (rowYear !== targetYear) continue
       currentYearPremium += amount
-      if (Number(row.effective_month) - 1 === currentMonth) currentMonthPremium += amount
+      if (Number(row.effective_month) - 1 === targetMonth) currentMonthPremium += amount
     }
 
     return {
@@ -179,23 +194,56 @@ export default async function DashboardPage() {
           <div className="card card-pad stat"><span>Medicare Clients</span><strong>{dashboardStats[0]?.medicareClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Life Clients</span><strong>{dashboardStats[0]?.lifeClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0}</strong></div>
-          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[currentMonth]}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[isIsaiahPortal ? selectedPremiumMonth : currentMonth]} {isIsaiahPortal ? selectedPremiumYear : ''}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
         </section>
       )}
 
-      <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
-        <div style={{ display: 'grid', gap: 14 }}>
-          {dashboardStats.map((agent) => (
-            <div className="card card-pad premium-total-card" key={agent.agentId}>
-              <span className="premium-card-label">{isManager ? `${agent.agentName} — Life Insurance Premium` : 'My Life Insurance Premium'} — {currentYear}</span>
-              <strong className="premium-total-value">{money(agent.currentYearPremium)}</strong>
-              <p className="subtle" style={{ margin: '8px 0 0' }}>
-                {isManager ? `${agent.agentName}'s` : 'Your'} total Life Insurance premium for policies effective in {currentYear}.
-              </p>
+      {isIsaiahPortal && !isManager ? (
+        <section className="dashboard-premium-grid isaiah-premium-tools" style={{ marginTop: 20 }}>
+          <form method="get" className="card card-pad premium-period-card">
+            <div>
+              <span className="premium-card-label">Premium Sales Period</span>
+              <p className="subtle" style={{ margin: '5px 0 0' }}>Choose a month and year to review what was sold.</p>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="premium-period-controls">
+              <select name="premium_month" defaultValue={String(selectedPremiumMonth + 1)} aria-label="Premium month">
+                {monthNames.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}
+              </select>
+              <select name="premium_year" defaultValue={String(selectedPremiumYear)} aria-label="Premium year">
+                {Array.from({ length: 7 }, (_, index) => currentYear + 1 - index).map((year) => <option value={year} key={year}>{year}</option>)}
+              </select>
+              <button className="btn btn-primary" type="submit">View</button>
+            </div>
+          </form>
+
+          <div className="isaiah-premium-summary">
+            <div className="card card-pad premium-total-card">
+              <span className="premium-card-label">Monthly Premium Sold · {monthNames[selectedPremiumMonth]} {selectedPremiumYear}</span>
+              <strong className="premium-total-value">{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong>
+              <p className="subtle" style={{ margin: '8px 0 0' }}>Monthly premium on Life Insurance policies effective in the selected month.</p>
+            </div>
+            <div className="card card-pad premium-total-card annualized-premium-card">
+              <span className="premium-card-label">Annualized Premium · {selectedPremiumYear}</span>
+              <strong className="premium-total-value">{money((dashboardStats[0]?.currentYearPremium || 0) * 12)}</strong>
+              <p className="subtle" style={{ margin: '8px 0 0' }}>Monthly premium sold in {selectedPremiumYear}: {money(dashboardStats[0]?.currentYearPremium || 0)} × 12.</p>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
+          <div style={{ display: 'grid', gap: 14 }}>
+            {dashboardStats.map((agent) => (
+              <div className="card card-pad premium-total-card" key={agent.agentId}>
+                <span className="premium-card-label">{isManager ? `${agent.agentName} — Life Insurance Premium` : 'My Life Insurance Premium'} — {currentYear}</span>
+                <strong className="premium-total-value">{money(agent.currentYearPremium)}</strong>
+                <p className="subtle" style={{ margin: '8px 0 0' }}>
+                  {isManager ? `${agent.agentName}'s` : 'Your'} total Life Insurance premium for policies effective in {currentYear}.
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
 

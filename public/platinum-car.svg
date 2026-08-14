@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 72" role="img" aria-labelledby="title">
+  <title id="title">Platinum Financial car outline</title>
+  <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 47h12l10-19c3-6 9-10 16-10h51c8 0 15 3 20 9l13 15 19 4c6 1 9 5 9 10v2h-14"/>
+    <path d="M49 18l-8 24h80l-19-24"/>
+    <path d="M66 19l-4 23M100 19l8 23"/>
+    <circle cx="49" cy="55" r="10"/>
+    <circle cx="132" cy="55" r="10"/>
+    <path d="M59 55h63M15 55h24M142 55h23"/>
+  </g>
+</svg>

@@ -5,18 +5,21 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const { profile } = await getCrmSession()
 
   const isAgentPortal = profile?.role === 'agent'
-  const portalBrand = isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
+  const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
+  const portalBrand = isIsaiahPortal ? 'Platinum Financial' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
+  const brandLogo = isIsaiahPortal ? '/platinum-car.svg' : '/mayer-bear.png'
+  const brandLogoAlt = isIsaiahPortal ? 'Platinum Financial car' : 'Mayer Insurance Group bear'
 
   return (
     <div className="crm-shell">
       <aside className="sidebar">
         <div className="brand">
           <Link prefetch={false} className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard">
-            <img className="brand-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+            <img className={`brand-bear${isIsaiahPortal ? ' brand-car' : ''}`} src={brandLogo} alt={brandLogoAlt} />
           </Link>
           <div className="brand-text">
             <strong>{portalBrand}</strong>
-            <span>{isAgentPortal ? 'Agent Portal' : 'CRM'}</span>
+            <span>{isIsaiahPortal ? 'Agent Portal' : isAgentPortal ? 'Agent Portal' : 'CRM'}</span>
           </div>
         </div>
         <nav className="nav">
@@ -31,7 +34,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <header className="topbar">
           <div className="topbar-brand">
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard">
-              <img className="topbar-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
+              <img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} />
             </Link>
             <strong>{portalBrand}</strong>
           </div>
