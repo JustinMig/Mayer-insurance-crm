@@ -145,8 +145,16 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       }
 
       if (!showAll && q) {
-        const safe = q.replace(/[,%()]/g, ' ').trim()
-        query = query.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`)
+        const searchTerms = q
+          .replace(/[,%()]/g, ' ')
+          .split(/\s+/)
+          .map((term) => term.trim())
+          .filter(Boolean)
+          .slice(0, 8)
+
+        for (const term of searchTerms) {
+          query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`)
+        }
       }
       if (!showAll && product === 'medicare') query = query.eq('is_medicare', true)
       if (!showAll && product === 'life') query = query.eq('is_life', true)
