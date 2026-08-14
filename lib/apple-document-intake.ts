@@ -415,9 +415,11 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
   }
 
   let policyType = ''
-  if (/Senior Choice Immediate/i.test(text)) policyType = 'Senior Choice Immediate'
-  else if (/Indexed Universal Life Express/i.test(text)) policyType = 'Indexed Universal Life Express'
-  else if (/Term Life Express/i.test(text)) policyType = 'Term Life Express'
+  // Database policy_type is intentionally constrained to: Term, Whole Life, IUL.
+  // Carrier/product names are normalized into those CRM categories.
+  if (/Senior Choice Immediate|final expense|whole life/i.test(text)) policyType = 'Whole Life'
+  else if (/Indexed Universal Life Express|indexed universal life|\bIUL\b/i.test(text)) policyType = 'IUL'
+  else if (/Term Life Express|\bterm life\b/i.test(text)) policyType = 'Term'
 
   let premiumFrequency = ''
   const premiumInfo = near(/Frequency of Modal Premium/i, text, 250)

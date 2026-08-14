@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClientIntake } from '../actions'
+import { createClientIntake, saveImportedLifeInsurance } from '../actions'
 import {
   classifyDocument,
   emptyClientDocumentDraft,
@@ -308,6 +308,16 @@ export default function DocumentClientImport(props: Props) {
 
       const result = await createClientIntake(form)
       if (!result.clientId) throw new Error(result.error || 'Could not create client.')
+
+      setScanStatus('Saving life insurance information…')
+      const lifeResult = await saveImportedLifeInsurance(result.clientId, {
+        company_name: draft.life_company_choice,
+        face_amount: draft.life_face_amount_custom,
+        premium_amount: draft.life_premium_amount,
+        policy_type: draft.life_policy_type,
+        effective_date: draft.life_effective_date
+      })
+      if (lifeResult.error) throw new Error(lifeResult.error)
 
       setScanStatus('Saving client documents…')
       let failures = 0

@@ -211,6 +211,19 @@ async function saveDoctorsAndMedications(
 }
 
 
+function normalizedLifePolicyType(form: FormData): 'Term' | 'Whole Life' | 'IUL' | null {
+  const raw = String(form.get('life_policy_type') || '').trim()
+  if (!raw) return null
+
+  if (/^Term$/i.test(raw) || /Term Life/i.test(raw)) return 'Term'
+  if (/^IUL$/i.test(raw) || /Indexed Universal Life/i.test(raw)) return 'IUL'
+  if (/^Whole Life$/i.test(raw) || /Senior Choice/i.test(raw) || /Final Expense/i.test(raw) || /Whole Life/i.test(raw)) return 'Whole Life'
+
+  // Never send an unsupported value into the database check constraint.
+  return null
+}
+
+
 async function saveLifeInsurance(
   supabase: Awaited<ReturnType<typeof createSupabaseClient>>,
   agencyId: string,
@@ -223,7 +236,7 @@ async function saveLifeInsurance(
     company_name: resolvedLifeCompany(form),
     face_amount: resolvedLifeFaceAmount(form),
     premium_amount: optionalMoney(form, 'life_premium_amount'),
-    policy_type: nullable(form, 'life_policy_type'),
+    policy_type: normalizedLifePolicyType(form),
     effective_date: normalizedDate(form, 'life_effective_date', 'Life effective date')
   }
 
@@ -440,6 +453,70 @@ export async function createClientIntake(form: FormData): Promise<{ clientId: st
     return { clientId, error: null }
   } catch (error) {
     return { clientId: null, error: error instanceof Error ? error.message : 'Unable to save client.' }
+  }
+}
+
+export async function saveImportedLifeInsurance(
+  clientId: string,
+  input: {
+    company_name?: string
+    face_amount?: string
+    premium_amount?: string
+    policy_type?: string
+    effective_date?: string
+  }
+): Promise<{ error: string | null }> {
+  try {
+    const { supabase, profile } = await getProfile()
+
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, agency_id')
+      .eq('id', clientId)
+      .eq('agency_id', profile.agency_id)
+      .maybeSingle()
+
+    if (clientError || !client) throw new Error('Client could not be loaded or you do not have permission to edit it.')
+
+    const moneyValue = (raw?: string) => {
+      const cleaned = String(raw || '').replace(/[$,\s]/g, '').trim()
+      if (!cleaned) return null
+      const number = Number(cleaned)
+      if (!Number.isFinite(number) || number < 0) throw new Error('Enter a valid non-negative dollar amount.')
+      return number
+    }
+
+    const policyRaw = String(input.policy_type || '').trim()
+    let policyType: 'Term' | 'Whole Life' | 'IUL' | null = null
+    if (/^Term$/i.test(policyRaw) || /Term Life/i.test(policyRaw)) policyType = 'Term'
+    else if (/^IUL$/i.test(policyRaw) || /Indexed Universal Life/i.test(policyRaw)) policyType = 'IUL'
+    else if (/^Whole Life$/i.test(policyRaw) || /Senior Choice/i.test(policyRaw) || /Final Expense/i.test(policyRaw) || /Whole Life/i.test(policyRaw)) policyType = 'Whole Life'
+
+    const dateForm = new FormData()
+    if (String(input.effective_date || '').trim()) dateForm.set('life_effective_date', String(input.effective_date).trim())
+
+    const record = {
+      agency_id: profile.agency_id,
+      client_id: clientId,
+      company_name: String(input.company_name || '').trim() || null,
+      face_amount: moneyValue(input.face_amount),
+      premium_amount: moneyValue(input.premium_amount),
+      policy_type: policyType,
+      effective_date: normalizedDate(dateForm, 'life_effective_date', 'Life effective date')
+    }
+
+    const { error } = await supabase
+      .from('client_life_insurance')
+      .upsert(record, { onConflict: 'client_id' })
+
+    if (error) throw new Error(error.message)
+
+    // Keep the client's Life flag in sync with the explicitly imported policy record.
+    await supabase.from('clients').update({ is_life: true }).eq('id', clientId).eq('agency_id', profile.agency_id)
+
+    return { error: null }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Unable to save imported life insurance information.' }
   }
 }
 
