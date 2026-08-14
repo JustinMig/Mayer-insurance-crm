@@ -1398,3 +1398,138 @@ tbody tr:hover { background: #f9fbfd; }
 
 /* Medical qualifications carrier result badges */
 .medical-result{display:inline-block;padding:5px 9px;border-radius:999px;font-size:.78rem;font-weight:900;line-height:1.25;max-width:220px}.medical-result-positive{background:#edf8f1;border:1px solid #bedfc9;color:#25623a}.medical-result-caution{background:#fff8e7;border:1px solid #ead59d;color:#755b18}.medical-result-neutral{background:#eef5f8;border:1px solid #d7e4ea;color:#526773}
+
+
+/* Phone-first medication entry + dashboard compaction */
+.medication-add-dock {
+  position: sticky;
+  bottom: 8px;
+  z-index: 6;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #d9e3ea;
+  border-radius: 14px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 8px 24px rgba(16,38,63,.12);
+  backdrop-filter: blur(8px);
+}
+.medication-add-button { min-width: 170px; justify-content: center; }
+.medical-source-details { margin-top: 12px; }
+.medical-source-details > summary {
+  cursor: pointer;
+  color: #60717d;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.medical-source-details .medical-source-note { margin-top: 8px; }
+
+@media (max-width: 760px) {
+  .medication-add-dock {
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    margin-left: -4px;
+    margin-right: -4px;
+    padding: 8px;
+  }
+  .medication-add-button { width: 100%; min-width: 0; }
+
+  /* Dashboard header and cards use the phone width efficiently. */
+  .clients-page-heading { width: 100%; }
+  .clients-page-heading h1 { font-size: 1.55rem; }
+  .dashboard-personal-stats.grid-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dashboard-personal-stats .card,
+  .dashboard-agent-stat {
+    padding: 10px;
+    border-radius: 12px;
+  }
+  .dashboard-personal-stats .stat span,
+  .dashboard-agent-stat span { font-size: 10px; line-height: 1.25; }
+  .dashboard-personal-stats .stat strong,
+  .dashboard-agent-stat strong { font-size: 20px; }
+  .dashboard-monthly-premium-stat { grid-column: 1 / -1; }
+
+  .dashboard-agent-panel { padding: 12px; }
+  .dashboard-agent-title { font-size: 17px; margin-bottom: 9px; }
+  .dashboard-agent-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dashboard-agent-stat.premium { grid-column: 1 / -1; }
+  .premium-total-card { padding: 12px; }
+  .premium-total-value { font-size: 1.45rem; }
+
+  .company-directory-card,
+  .medical-lookup-card { padding: 14px; }
+  .build-lookup-heading { gap: 8px; }
+  .build-lookup-heading h2 { font-size: 1.15rem; }
+  .build-lookup-actions { width: 100%; justify-content: space-between; }
+  .build-lookup-badge { font-size: .72rem; padding: 5px 8px; }
+  .medical-lookup-intro { font-size: .82rem; line-height: 1.3; }
+  .medical-lookup-controls { gap: 9px; margin-top: 11px; }
+  .medical-lookup-controls .label { font-size: .78rem; }
+  .medical-lookup-controls .select,
+  .medical-lookup-controls .input { min-height: 42px; }
+  .build-lookup-empty { margin-top: 10px; padding: 11px 12px; font-size: .82rem; }
+
+  /* Replace the wide medical table with compact stacked result cards. */
+  .medical-table-wrap {
+    margin-top: 12px;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .medical-qualifications-table,
+  .medical-qualifications-table tbody,
+  .medical-qualifications-table tr,
+  .medical-qualifications-table td { display: block; width: 100%; min-width: 0; }
+  .medical-qualifications-table { min-width: 0; }
+  .medical-qualifications-table thead { display: none; }
+  .medical-qualifications-table tbody { display: grid; gap: 9px; }
+  .medical-qualifications-table tr {
+    border: 1px solid #dce6eb;
+    border-radius: 13px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(21,43,58,.05);
+  }
+  .medical-qualifications-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #edf1f4;
+    line-height: 1.32;
+    font-size: .84rem;
+  }
+  .medical-qualifications-table td:last-child { border-bottom: 0; }
+  .medical-qualifications-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    color: #71818c;
+    font-size: .63rem;
+    font-weight: 900;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+  }
+  .medical-qualifications-table td:nth-child(1) { float: left; width: 38%; border-bottom: 0; }
+  .medical-qualifications-table td:nth-child(3) { float: right; width: 62%; text-align: right; border-bottom: 0; }
+  .medical-qualifications-table td:nth-child(1)::after,
+  .medical-qualifications-table td:nth-child(3)::after { content: ''; display: table; clear: both; }
+  .medical-qualifications-table td:nth-child(2) { clear: both; border-top: 1px solid #edf1f4; }
+  .medical-qualifications-table td:nth-child(3)::before { text-align: right; }
+  .medical-result,
+  .medical-result-decline { font-size: .72rem; padding: 4px 7px; max-width: 100%; }
+  .medical-type-badge { font-size: .68rem; padding: 3px 7px; }
+  .medical-associated { font-size: .74rem; }
+  .medical-source-details { margin-top: 9px; }
+  .medical-source-details .medical-source-note { padding: 9px 10px; font-size: .74rem; }
+}
+
+@media (max-width: 390px) {
+  .dashboard-personal-stats.grid-5,
+  .dashboard-agent-stat-grid { gap: 6px; }
+  .dashboard-personal-stats .card,
+  .dashboard-agent-stat { padding: 9px; }
+}

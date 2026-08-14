@@ -66,7 +66,7 @@ export default function MedicalQualificationsLookup() {
       <div className="build-lookup-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Medical Qualifications</h2>
-          <p className="subtle" style={{ margin: 0 }}>Choose the carrier/product, then search a medical condition or medication.</p>
+          <p className="subtle medical-lookup-intro" style={{ margin: 0 }}>Choose a carrier, then search a condition or medication.</p>
         </div>
         <div className="build-lookup-actions">
           <span className="build-lookup-badge">Life underwriting</span>
@@ -123,14 +123,14 @@ export default function MedicalQualificationsLookup() {
             <tbody>
               {results.map((entry, index) => (
                 <tr key={`${entry.carrier}-${entry.type}-${entry.name}-${entry.timeframe}-${index}`}>
-                  <td><span className="medical-type-badge">{entry.type}</span></td>
-                  <td>
+                  <td data-label="Type"><span className="medical-type-badge">{entry.type}</span></td>
+                  <td data-label="Condition / Medication">
                     <strong>{entry.name}</strong>
                     {entry.associatedDiagnosis ? <span className="medical-associated">Guide use / associated condition: {entry.associatedDiagnosis}</span> : null}
                   </td>
-                  <td><span className={resultClass(entry.outcome)}>{entry.outcome}</span></td>
-                  <td><strong>{entry.timeframe}</strong></td>
-                  <td>{entry.notes}</td>
+                  <td data-label="Result"><span className={resultClass(entry.outcome)}>{entry.outcome}</span></td>
+                  <td data-label="Time / Criteria"><strong>{entry.timeframe}</strong></td>
+                  <td data-label="Underwriting Note">{entry.notes}</td>
                 </tr>
               ))}
             </tbody>
@@ -138,9 +138,12 @@ export default function MedicalQualificationsLookup() {
         </div>
       )}
 
-      <p className="build-source-note medical-source-note">
-        Source for selected carrier: {selectedCarrier?.source || 'Select a carrier'}. This lookup is an agent reference built from the supplied underwriting guides; carrier underwriting, application health questions, electronic data, and state-specific rules control the final decision.
-      </p>
+      <details className="medical-source-details">
+        <summary>Source &amp; underwriting note</summary>
+        <p className="build-source-note medical-source-note">
+          Source for selected carrier: {selectedCarrier?.source || 'Select a carrier'}. This lookup is an agent reference built from the supplied underwriting guides; carrier underwriting, application health questions, electronic data, and state-specific rules control the final decision.
+        </p>
+      </details>
     </section>
   )
 }

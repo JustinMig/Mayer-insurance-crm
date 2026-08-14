@@ -144,7 +144,6 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
             <strong>Medication List</strong>
             <div className="field-help">Add as many medications as needed.</div>
           </div>
-          <button className="btn btn-secondary btn-small" type="button" onClick={addMedication}>+ Add Medication</button>
         </div>
 
         <div className="medication-list">
@@ -173,6 +172,10 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="medication-add-dock">
+          <button className="btn btn-primary medication-add-button" type="button" onClick={addMedication}>+ Add Medication</button>
         </div>
       </div>
     </div>
