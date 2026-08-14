@@ -1,0 +1,23 @@
+{
+  "name": "PLATINUM - Financial Group -",
+  "short_name": "PLATINUM",
+  "description": "PLATINUM - Financial Group - client relationship management portal.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d3157",
+  "icons": [
+    {
+      "src": "/platinum-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/platinum-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

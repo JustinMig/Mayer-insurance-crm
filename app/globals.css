@@ -1576,8 +1576,8 @@ tbody tr:hover { background: #f9fbfd; }
   color: #0d3157;
   object-fit: contain;
 }
-.brand-car { width: 76px; height: 44px; }
-.topbar-car { width: 62px; height: 34px; }
+.brand-car { width: 58px; height: 58px; }
+.topbar-car { width: 42px; height: 42px; }
 
 .isaiah-premium-tools { display: grid; gap: 14px; }
 .premium-period-card {
@@ -1609,8 +1609,8 @@ tbody tr:hover { background: #f9fbfd; }
 .annualized-premium-card { background: linear-gradient(145deg, #edf7f0, #f8fbf8); }
 
 @media (max-width: 680px) {
-  .brand-car { width: 64px; height: 38px; }
-  .topbar-car { width: 54px; height: 30px; }
+  .brand-car { width: 52px; height: 52px; }
+  .topbar-car { width: 38px; height: 38px; }
   .premium-period-card { align-items: stretch; }
   .premium-period-controls { grid-template-columns: 1fr 1fr; width: 100%; }
   .premium-period-controls .btn { grid-column: 1 / -1; width: 100%; }

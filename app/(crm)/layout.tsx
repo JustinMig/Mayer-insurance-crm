@@ -1,14 +1,40 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { profile } = await getCrmSession()
+  const isIsaiahPortal = profile?.role === 'agent' && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
+
+  if (!isIsaiahPortal) return {}
+
+  return {
+    title: 'PLATINUM - Financial Group -',
+    applicationName: 'PLATINUM - Financial Group -',
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'default',
+      title: 'PLATINUM'
+    },
+    manifest: '/platinum.webmanifest',
+    icons: {
+      icon: [
+        { url: '/platinum-icon-192.png', sizes: '192x192', type: 'image/png' },
+        { url: '/platinum-icon.png', sizes: '512x512', type: 'image/png' }
+      ],
+      apple: [{ url: '/platinum-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }]
+    }
+  }
+}
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await getCrmSession()
 
   const isAgentPortal = profile?.role === 'agent'
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
-  const portalBrand = isIsaiahPortal ? 'Platinum Financial' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
-  const brandLogo = isIsaiahPortal ? '/platinum-car.svg' : '/mayer-bear.png'
-  const brandLogoAlt = isIsaiahPortal ? 'Platinum Financial car' : 'Mayer Insurance Group bear'
+  const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
+  const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
+  const brandLogoAlt = isIsaiahPortal ? 'PLATINUM - Financial Group - PF logo' : 'Mayer Insurance Group bear'
 
   return (
     <div className="crm-shell">
