@@ -1,7 +1,14 @@
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
 
 export async function proxy(request: NextRequest) {
+  // This endpoint is intentionally public so the MayerIG Squarespace form can
+  // submit leads without being redirected to the CRM login page.
+  if (request.nextUrl.pathname === '/api/website-leads') {
+    return NextResponse.next()
+  }
+
   return updateSession(request)
 }
 
