@@ -243,6 +243,20 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     }
   }
 
+  // American-Amicable repeats the actual insured name in its bank authorization / receipt pages.
+  // This is a safe fallback when PDF text coordinates place the filled name outside the Proposed Insured row.
+  if (americanAmicable && (!firstName || !lastName)) {
+    const insuredFallback = text.match(/(?:^|\n)\s*Insured[^\n]*\n\s*([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\b/im)
+      || text.match(/(?:^|\n)\s*([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s*\n\s*Received of/im)
+      || text.match(/Received of[^\n]*?([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\b/im)
+      || text.match(/\bM\d{6,10}\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\b/)
+    if (insuredFallback) {
+      const formatName = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+      firstName = firstName || formatName(insuredFallback[1])
+      lastName = lastName || formatName(insuredFallback[2])
+    }
+  }
+
   const dobRaw = firstMatch(proposed, [
     /(?:Date of Birth|DOB|Birth Date)[^\n]*\n?[^\n]*?(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i,
     /\b(\d{2}\/\d{2}\/\d{4})\b/
@@ -298,15 +312,27 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
   if (!weight) weight = firstMatch(proposed, [/(?:Weight|Wt)[^\n]*\n?[^\n]*?\b(\d{2,3})\s*(?:lb|lbs|pounds)?\b/i])
 
   let dl = '', dlState = ''
-  const dlWindow = near(/Driver'?s? License No\.?/i, proposed, 300)
+  const dlHeading = /Driver['’]s License No\.?/i
+  const dlWindow = near(dlHeading, proposed, 420)
   if (dlWindow) {
-    const m = dlWindow.match(/\b([A-Z0-9]{6,20})\s+([A-Z]{2})\b(?=[^\n]*(?:See overflow|Occupation|Employer)|\s*$)/i)
-    if (m) { dl = m[1]; dlState = m[2].toUpperCase() }
+    // Mutual/United layout: the number and state are the first two filled values on the row immediately following the DL headings.
+    const rowPair = dlWindow.match(/Driver['’]s License No\.?[^\n]*Driver['’]s License State[^\n]*\n\s*([A-Z0-9-]{5,20})\s+([A-Z]{2})\b/i)
+      || dlWindow.match(/\b(\d{7,12})\s+([A-Z]{2})\s+(?:See overflow|[A-Za-z][A-Za-z /-]{2,40})/i)
+    if (rowPair) { dl = rowPair[1]; dlState = rowPair[2].toUpperCase() }
   }
   if (!dl) {
-    dl = firstMatch(proposed, [/(?:Driver'?s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)[^\n]*\n?[^\n]*?\b([A-Z0-9-]{5,20})\b/i])
-    dlState = firstMatch(proposed, [/(?:Driver'?s? License State|DL State)[^\n]*\n?[^\n]*?\b([A-Z]{2})\b/i]).toUpperCase()
+    dl = firstMatch(proposed, [
+      /(?:Driver['’]s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)[^\n]*\n\s*([A-Z0-9-]{5,20})\b/i,
+      /(?:Driver['’]s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)[^\n]{0,120}?\b([A-Z0-9-]{5,20})\b/i
+    ])
   }
+  if (!dlState) {
+    dlState = firstMatch(proposed, [
+      /Driver['’]s License State[^\n]*\n\s*(?:[A-Z0-9-]{5,20}\s+)?([A-Z]{2})\b/i,
+      /Driver['’]s License State[^\n]{0,120}?\b([A-Z]{2})\b/i
+    ]).toUpperCase()
+  }
+
 
   const lifeCompany = americanAmicable
     ? 'American-Amicable Life Insurance Company of Texas'
@@ -350,9 +376,11 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     /Requested Policy Date\s*:\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i,
     /(?:Effective Date|Start Date|Policy Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i
   ])
-  if (!effectiveRaw && unitedOmaha) {
-    const paymentSection = section(/PAYMENT AUTHORIZATION FORM/i, /(?:Premium Allocation|CONDITIONAL RECEIPT|Authorization and Agreement)/i)
-    effectiveRaw = firstMatch(paymentSection, [/\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/])
+  if (unitedOmaha) {
+    // Mutual/United places the selected date on the next visual row under this label.
+    const mutualInitialDate = text.match(/Deduct initial premium on or after:[^\n]*\n\s*(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
+      || text.match(/Deduct initial premium on or after:[\s\S]{0,180}?\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
+    if (mutualInitialDate) effectiveRaw = mutualInitialDate[1]
   }
 
   let policyType = ''
@@ -367,47 +395,71 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
   else if (/\bX\s*Semi-Annual/i.test(premiumInfo)) premiumFrequency = 'Semi-Annual'
   else if (/\bX\s*Quarterly/i.test(premiumInfo)) premiumFrequency = 'Quarterly'
 
-  // Banking is read only from payment/bank authorization sections.
-  const banking = americanAmicable
-    ? section(/PREAUTHORIZATION CHECK PLAN/i, /ATTACH VOIDED CHECK OR DEPOSIT SLIP/i)
-    : unitedOmaha
-      ? section(/PAYMENT AUTHORIZATION FORM/i, /(?:Premium Allocation|COMPANY COPY|APPLICANT COPY)/i)
-      : section(/(?:PAYMENT AUTHORIZATION FORM|Bank Draft Authorization|PREAUTHORIZATION CHECK PLAN)/i)
-  const bankFlat = banking.replace(/\s+/g, ' ')
-
+  // Banking uses form-layout-aware rules instead of relying on text-section order.
+  // PDF text streams often emit the filled value on a row above or beside its printed label.
   let bankName = '', routing = '', account = '', accountType = '', draftDay = ''
-  if (banking) {
-    // In both sample carriers, the real routing/account pair is the first banking-number pair in the authorization section.
-    // This deliberately ignores the example check diagram that can contain fake numbers such as 123456789 later in the form.
-    const numericTokens = Array.from(banking.matchAll(/\b\d{6,17}\b/g)).map(m => m[0])
-    const routingIndex = numericTokens.findIndex(value => value.length === 9)
-    if (routingIndex >= 0) {
-      routing = numericTokens[routingIndex]
-      account = numericTokens.slice(routingIndex + 1).find(value => value.length >= 6 && value.length <= 17 && value !== routing) || ''
+
+  if (unitedOmaha) {
+    const paymentAnchor = text.search(/PAYMENT AUTHORIZATION FORM/i)
+    const paymentText = paymentAnchor >= 0 ? text.slice(paymentAnchor, Math.min(text.length, paymentAnchor + 12000)) : text
+
+    // Sample layout: "trustmark" is the filled institution value adjacent to / immediately above the institution label.
+    const institution = paymentText.match(/\b([A-Za-z][A-Za-z .&'-]{2,45})\s*\n\s*2\.\s*Name of Financial Institution/i)
+      || paymentText.match(/2\.\s*Name of Financial Institution[^\n]*\n\s*([A-Za-z][A-Za-z .&'-]{2,45})\b/i)
+      || paymentText.match(/\b(trustmark)\b/i)
+    if (institution) bankName = institution[1].replace(/\s+/g, ' ').trim().replace(/\b\w/g, ch => ch.toUpperCase())
+
+    // Mutual sample layout:
+    // 065300279
+    // Bank Routing Number: _______        8403321436
+    //                                  Bank Account Number: _______
+    const bankPair = paymentText.match(/\b(\d{9})\b[\s\S]{0,140}?Bank Routing Number[^\n]*?\b(\d{6,17})\b[\s\S]{0,100}?Bank Account Number/i)
+      || paymentText.match(/Bank Routing Number[^\n]*\n\s*(\d{9})\b[\s\S]{0,180}?Bank Account Number[^\n]*\n\s*(\d{6,17})\b/i)
+    if (bankPair) { routing = bankPair[1]; account = bankPair[2] }
+
+    if (!routing) {
+      const routingMatch = paymentText.match(/\b(\d{9})\b\s*\n\s*Bank Routing Number/i)
+        || paymentText.match(/Bank Routing Number[\s\S]{0,120}?\b(\d{9})\b/i)
+      if (routingMatch) routing = routingMatch[1]
+    }
+    if (!account) {
+      const accountMatch = paymentText.match(/Bank Routing Number[^\n]*?\b\d{9}\b[^\n]*?\b(\d{6,17})\b/i)
+        || paymentText.match(/\b(\d{6,17})\b\s*\n\s*Bank Account Number/i)
+        || paymentText.match(/Bank Account Number[\s\S]{0,120}?\b(\d{6,17})\b/i)
+      if (accountMatch && accountMatch[1] !== routing && accountMatch[1] !== '12345678' && accountMatch[1] !== '123456789') account = accountMatch[1]
     }
 
-    if (unitedOmaha) {
-      const bankLines = banking.split('\n').map(line => line.trim()).filter(Boolean)
-      const institutionIndex = bankLines.findIndex(line => /Name of Financial Institution/i.test(line))
-      if (institutionIndex >= 0) {
-        const nearbyInstitution = bankLines.slice(Math.max(0, institutionIndex - 2), institutionIndex + 3)
-        bankName = nearbyInstitution.find(line => /^[A-Za-z][A-Za-z .&'-]{2,40}$/.test(line) && !/name|financial|institution|payor|account|checking|savings|payment|authorization/i.test(line)) || ''
-      }
-      if (!bankName && /\btrustmark\b/i.test(banking)) bankName = 'Trustmark'
-      if (/Account Type[^\n]{0,100}?(?:X|☒)[^\n]{0,20}?Checking/i.test(banking) || /Account Type[^\n]*Checking/i.test(banking)) accountType = 'Checking'
-      else if (/Account Type[^\n]{0,100}?(?:X|☒)[^\n]{0,20}?Savings/i.test(banking)) accountType = 'Savings'
-      const dayWindow = near(/Choose the day payments will be deducted/i, banking, 220)
-      const dayCandidates = Array.from(dayWindow.matchAll(/\b([1-9]|1\d|2[0-8])\b/g)).map(m => m[1])
-      if (dayCandidates.length) draftDay = dayCandidates[dayCandidates.length - 1]
-    } else if (americanAmicable) {
-      const inst = near(/Financial Institution/i, banking, 160)
-      const m = inst.match(/\b([A-Z][A-Z .&'-]{2,40}(?:BANK|CREDIT UNION))\b/)
-      if (m) bankName = m[1].replace(/\s+/g, ' ').trim().replace(/\b([A-Z])([A-Z]+)\b/g, x => x[0] + x.slice(1).toLowerCase())
-      if (/\bX\s*Checking|Checking\s+Savings/i.test(bankFlat)) accountType = 'Checking'
-      const d = banking.match(/Requested Draft Day[^\n]*\n?[^\n]*?\b([1-9]|1\d|2[0-8])\b/i)
-      if (d) draftDay = d[1]
-    }
+    if (/1\.\s*Account Type[^\n]*(?:X|☒)[^\n]*Checking/i.test(paymentText)) accountType = 'Checking'
+    else if (/1\.\s*Account Type[^\n]*(?:X|☒)[^\n]*Savings/i.test(paymentText)) accountType = 'Savings'
+
+    const selectedDay = paymentText.match(/Choose the day payments will be deducted every month from your bank account:[^\n]*\n\s*(\d{1,2})\b/i)
+      || paymentText.match(/Choose the day payments will be deducted every month from your bank account:[\s\S]{0,100}?\n\s*(\d{1,2})\b/i)
+    if (selectedDay && Number(selectedDay[1]) >= 1 && Number(selectedDay[1]) <= 28) draftDay = selectedDay[1]
   }
+
+  if (americanAmicable) {
+    const preauthAnchor = text.search(/PREAUTHORIZATION CHECK PLAN/i)
+    const bankDraftAnchor = text.search(/Bank Draft Authorization/i)
+    const anchor = preauthAnchor >= 0 ? preauthAnchor : bankDraftAnchor
+    const paymentText = anchor >= 0 ? text.slice(anchor, Math.min(text.length, anchor + 9000)) : text
+
+    const institution = paymentText.match(/Financial Institution[^\n]*\n\s*([A-Z][A-Z .&'-]{2,45}(?:BANK|CREDIT UNION))\b/i)
+      || paymentText.match(/Bank Name[^\n]*\n\s*([A-Z][A-Z .&'-]{2,45}(?:BANK|CREDIT UNION))\b/i)
+      || paymentText.match(/\b([A-Z][A-Z .&'-]{2,45}(?:BANK|CREDIT UNION))\b/)
+    if (institution) bankName = institution[1].replace(/\s+/g, ' ').trim().toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase())
+
+    const aaPair = paymentText.match(/Transit\/ABA Number[^\n]*\n?\s*(\d{9})\b[\s\S]{0,120}?\b(\d{6,17})\b/i)
+      || paymentText.match(/\b(\d{9})\b[\s\S]{0,90}?Number[_\s]*\b(\d{6,17})\b[\s\S]{0,160}?Checking/i)
+    if (aaPair) { routing = aaPair[1]; account = aaPair[2] }
+
+    if (/\bX\s*Checking\b/i.test(paymentText) || /\bChecking\s+Savings\b/i.test(paymentText)) accountType = 'Checking'
+    else if (/\bX\s*Savings\b/i.test(paymentText)) accountType = 'Savings'
+
+    const aaDay = paymentText.match(/Requested Draft Day\s*\(1st-28th\)[^\n]*?\b([1-9]|1\d|2[0-8])\b/i)
+      || paymentText.match(/Requested Draft Day\s*\(1st-28th\)[^\n]*\n\s*([1-9]|1\d|2[0-8])\b/i)
+    if (aaDay) draftDay = aaDay[1]
+  }
+
 
   return {
     first_name: firstName,
