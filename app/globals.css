@@ -1533,3 +1533,39 @@ tbody tr:hover { background: #f9fbfd; }
   .dashboard-personal-stats .card,
   .dashboard-agent-stat { padding: 9px; }
 }
+
+/* Cross-platform input/session performance hardening */
+@media (max-width: 760px) {
+  /* iOS Safari zooms focused controls when their text is below 16px. */
+  input,
+  select,
+  textarea,
+  .input,
+  .select,
+  .textarea {
+    font-size: 16px;
+  }
+
+  /* Avoid continuous backdrop compositing while the sticky medication dock scrolls. */
+  .medication-add-dock {
+    background: rgba(255,255,255,.985);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .medical-search-status {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  button,
+  .btn,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}

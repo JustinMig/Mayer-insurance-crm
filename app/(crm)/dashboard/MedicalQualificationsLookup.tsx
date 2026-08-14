@@ -1,12 +1,17 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
-import {
-  ALL_MEDICAL_QUALIFICATIONS,
-  MEDICAL_CARRIER_OPTIONS,
-  type MedicalCarrierKey,
-  type MedicalQualificationEntry
-} from '@/lib/medical-qualifications'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import type { MedicalCarrierKey, MedicalQualificationEntry } from '@/lib/medical-qualifications'
+
+type CarrierOption = {
+  key: MedicalCarrierKey
+  name: string
+  source: string
+}
+
+type Props = {
+  carrierOptions: CarrierOption[]
+}
 
 function normalize(value: string) {
   return value
@@ -17,10 +22,6 @@ function normalize(value: string) {
     .trim()
 }
 
-function searchableValues(entry: MedicalQualificationEntry) {
-  return [entry.name, ...(entry.aliases || []), entry.associatedDiagnosis || ''].map(normalize).filter(Boolean)
-}
-
 function resultClass(outcome: string) {
   const value = normalize(outcome)
   if (value.includes('decline') || value.includes('no coverage')) return 'medical-result medical-result-decline'
@@ -29,36 +30,71 @@ function resultClass(outcome: string) {
   return 'medical-result medical-result-neutral'
 }
 
-export default function MedicalQualificationsLookup() {
+export default function MedicalQualificationsLookup({ carrierOptions }: Props) {
   const [carrier, setCarrier] = useState<MedicalCarrierKey | ''>('physicians-mutual')
   const [query, setQuery] = useState('')
+  const [results, setResults] = useState<MedicalQualificationEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
 
-  const selectedCarrier = MEDICAL_CARRIER_OPTIONS.find((item) => item.key === carrier)
+  const selectedCarrier = useMemo(
+    () => carrierOptions.find((item) => item.key === carrier),
+    [carrier, carrierOptions]
+  )
 
-  const results = useMemo(() => {
-    const needle = normalize(query)
-    if (!carrier || !needle) return []
+  useEffect(() => {
+    const cleanedQuery = query.trim()
+    if (!carrier || !cleanedQuery) {
+      setResults([])
+      setLoading(false)
+      setSearchError('')
+      return
+    }
 
-    const words = needle.split(/\s+/).filter(Boolean)
-    const matches = ALL_MEDICAL_QUALIFICATIONS
-      .filter((entry) => entry.carrier === carrier)
-      .map((entry) => {
-        const values = searchableValues(entry)
-        const joined = values.join(' ')
-        const exact = values.some((value) => value === needle)
-        const starts = values.some((value) => value.startsWith(needle))
-        const contains = words.every((word) => joined.includes(word))
-        return { entry, exact, starts, contains }
-      })
-      .filter((match) => match.contains)
-      .sort((a, b) => Number(b.exact) - Number(a.exact) || Number(b.starts) - Number(a.starts) || a.entry.name.localeCompare(b.entry.name))
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      setSearchError('')
 
-    return matches.slice(0, 30).map((match) => match.entry)
+      try {
+        const params = new URLSearchParams({ carrier, q: cleanedQuery })
+        const response = await fetch(`/api/medical-qualifications?${params.toString()}`, {
+          signal: controller.signal,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        })
+
+        if (response.redirected && new URL(response.url).pathname === '/login') {
+          window.location.assign('/login')
+          return
+        }
+
+        if (!response.ok) {
+          throw new Error(`Search failed (${response.status})`)
+        }
+
+        const payload = await response.json() as { results?: MedicalQualificationEntry[] }
+        setResults(Array.isArray(payload.results) ? payload.results : [])
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setResults([])
+        setSearchError('Unable to search underwriting rules right now. Try again.')
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }, 180)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
   }, [carrier, query])
 
   function resetLookup() {
     setCarrier('physicians-mutual')
     setQuery('')
+    setResults([])
+    setSearchError('')
   }
 
   return (
@@ -82,10 +118,12 @@ export default function MedicalQualificationsLookup() {
             onChange={(event: ChangeEvent<HTMLSelectElement>) => {
               setCarrier(event.target.value as MedicalCarrierKey | '')
               setQuery('')
+              setResults([])
+              setSearchError('')
             }}
           >
             <option value="">Select carrier</option>
-            {MEDICAL_CARRIER_OPTIONS.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+            {carrierOptions.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
           </select>
         </label>
 
@@ -98,6 +136,7 @@ export default function MedicalQualificationsLookup() {
             placeholder={carrier ? 'Example: AIDS, COPD, cancer, Eliquis, Humira' : 'Choose carrier first'}
             disabled={!carrier}
             autoComplete="off"
+            enterKeyHint="search"
           />
         </label>
       </div>
@@ -106,6 +145,10 @@ export default function MedicalQualificationsLookup() {
         <div className="build-lookup-empty">Choose a carrier/product to begin.</div>
       ) : !query.trim() ? (
         <div className="build-lookup-empty">Type a condition or medication. Results use each carrier’s own terminology, such as Immediate, Select, Preferred, Standard, Graded, Return of Premium, table ratings, Refer, or Decline.</div>
+      ) : loading ? (
+        <div className="build-lookup-empty medical-search-status">Searching underwriting rules…</div>
+      ) : searchError ? (
+        <div className="build-lookup-empty"><strong>{searchError}</strong></div>
       ) : results.length === 0 ? (
         <div className="build-lookup-empty"><strong>No matching rule was found in the supplied guide for {selectedCarrier?.name || 'this carrier'}.</strong><br />Do not assume eligibility. Use the carrier’s underwriting/risk-assessment process for conditions or medications not listed.</div>
       ) : (

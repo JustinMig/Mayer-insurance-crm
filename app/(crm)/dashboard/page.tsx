@@ -5,6 +5,7 @@ import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
 import MedicalQualificationsLookup from './MedicalQualificationsLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
+import { MEDICAL_CARRIER_OPTIONS } from '@/lib/medical-qualifications'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -85,30 +86,51 @@ export default async function DashboardPage() {
     }]
   }
 
-  const premiumRollupResult = await supabase
-    .from('life_premium_dashboard_rollup')
-    .select('assigned_agent_id,effective_month,premium_total')
-    .eq('effective_year', currentYear)
+  const targetAgentIds = targetAgents.map((agent) => agent.id)
+
+  const [premiumRollupResult, clientStatsResult] = await Promise.all([
+    supabase
+      .from('life_premium_dashboard_rollup')
+      .select('assigned_agent_id,effective_month,premium_total')
+      .eq('effective_year', currentYear),
+    targetAgentIds.length
+      ? supabase
+          .from('clients')
+          .select('assigned_agent_id,is_medicare,is_life,date_of_birth')
+          .in('assigned_agent_id', targetAgentIds)
+      : Promise.resolve({ data: [], error: null })
+  ])
 
   if (premiumRollupResult.error) {
     throw new Error(`Unable to load Life Insurance premium totals: ${premiumRollupResult.error.message}`)
   }
+  if (clientStatsResult.error) {
+    throw new Error(`Unable to load dashboard client totals: ${clientStatsResult.error.message}`)
+  }
 
   const premiumRows = (premiumRollupResult.data || []) as PremiumRollupRow[]
+  const clientRows = (clientStatsResult.data || []) as Array<{
+    assigned_agent_id: string | null
+    is_medicare: boolean | null
+    is_life: boolean | null
+    date_of_birth: string | null
+  }>
 
-  const dashboardStats = await Promise.all(targetAgents.map(async (agent): Promise<AgentDashboardStats> => {
-    const [clients, medicare, life, turn65] = await Promise.all([
-      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id),
-      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).eq('is_medicare', true),
-      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).eq('is_life', true),
-      supabase.from('clients').select('*', { count: 'exact', head: true }).eq('assigned_agent_id', agent.id).gte('date_of_birth', `${turn65Year}-01-01`).lte('date_of_birth', `${turn65Year}-12-31`)
-    ])
-
-    const clientErrors = [clients.error, medicare.error, life.error, turn65.error].filter(Boolean)
-    if (clientErrors.length) throw new Error(`Unable to load dashboard client totals: ${clientErrors[0]?.message}`)
-
+  const dashboardStats = targetAgents.map((agent): AgentDashboardStats => {
+    let totalClients = 0
+    let medicareClients = 0
+    let lifeClients = 0
+    let turning65 = 0
     let currentMonthPremium = 0
     let currentYearPremium = 0
+
+    for (const client of clientRows) {
+      if (client.assigned_agent_id !== agent.id) continue
+      totalClients += 1
+      if (client.is_medicare) medicareClients += 1
+      if (client.is_life) lifeClients += 1
+      if (client.date_of_birth?.startsWith(`${turn65Year}-`)) turning65 += 1
+    }
 
     for (const row of premiumRows) {
       if (row.assigned_agent_id !== agent.id) continue
@@ -120,14 +142,14 @@ export default async function DashboardPage() {
     return {
       agentId: agent.id,
       agentName: agent.full_name || 'Agent',
-      totalClients: clients.count || 0,
-      medicareClients: medicare.count || 0,
-      lifeClients: life.count || 0,
-      turning65: turn65.count || 0,
+      totalClients,
+      medicareClients,
+      lifeClients,
+      turning65,
       currentMonthPremium,
       currentYearPremium
     }
-  }))
+  })
 
   return (
     <>
@@ -179,7 +201,7 @@ export default async function DashboardPage() {
 
       <BuildChartLookup />
 
-      <MedicalQualificationsLookup />
+      <MedicalQualificationsLookup carrierOptions={MEDICAL_CARRIER_OPTIONS} />
 
       <section className="card card-pad" style={{ marginTop: 20 }}>
         <h2>Quick actions</h2>
