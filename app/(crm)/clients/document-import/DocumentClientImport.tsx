@@ -118,7 +118,7 @@ async function imageFileToCanvas(file: File) {
 async function extractPdf(file: File, onProgress: (message: string) => void) {
   const pdfjs = await ensurePdfJs()
   const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
-  const pages = Math.min(pdf.numPages, 20)
+  const pages = Math.min(pdf.numPages, 50)
   const chunks: string[] = []
 
   for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {

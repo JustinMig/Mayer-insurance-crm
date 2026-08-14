@@ -159,86 +159,286 @@ export function classifyDocument(fileName: string, text: string): DocumentCatego
 
 export function extractClientDataFromText(rawText: string): Partial<ClientDocumentDraft> {
   const text = cleanText(rawText)
-  const flat = text.replace(/[_\u0332]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean)
+  const flat = lines.join(' ')
   const americanAmicable = /AMERICAN-AMICABLE LIFE INSURANCE COMPANY OF TEXAS/i.test(text)
   const unitedOmaha = /United of Omaha Life Insurance Company/i.test(text)
 
+  function section(start: RegExp, end?: RegExp) {
+    const startMatch = text.match(start)
+    if (!startMatch || startMatch.index == null) return ''
+    const from = startMatch.index
+    const rest = text.slice(from)
+    if (!end) return rest
+    const endMatch = rest.match(end)
+    return endMatch?.index != null && endMatch.index > 0 ? rest.slice(0, endMatch.index) : rest
+  }
+
+  function digits(value: string) { return value.replace(/\D/g, '') }
+  function money(value: string) { return value.replace(/[^\d.]/g, '') }
+  function allPhones(value: string) {
+    return Array.from(value.matchAll(/(?:\+?1[ .-]?)?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/g)).map(m => m[0])
+  }
+  function near(label: RegExp, value: string, radius = 220) {
+    const m = value.match(label)
+    if (!m || m.index == null) return ''
+    return value.slice(Math.max(0, m.index - radius), Math.min(value.length, m.index + m[0].length + radius))
+  }
+  function nearestNineDigits(label: RegExp, value: string) {
+    const window = near(label, value, 180)
+    const matches = Array.from(window.matchAll(/\b\d{9}\b/g))
+    if (!matches.length) return ''
+    const labelMatch = window.match(label)
+    const labelIndex = labelMatch?.index ?? Math.floor(window.length / 2)
+    matches.sort((a, b) => Math.abs((a.index ?? 0) - labelIndex) - Math.abs((b.index ?? 0) - labelIndex))
+    return matches[0][0]
+  }
+  function nearestAccount(label: RegExp, value: string, exclude = '') {
+    const window = near(label, value, 220)
+    const matches = Array.from(window.matchAll(/\b\d{6,17}\b/g)).map(m => m[0]).filter(v => v !== exclude && v.length !== 8)
+    if (!matches.length) return ''
+    const labelMatch = window.match(label)
+    const labelIndex = labelMatch?.index ?? Math.floor(window.length / 2)
+    const located = Array.from(window.matchAll(/\b\d{6,17}\b/g)).filter(m => matches.includes(m[0]))
+    located.sort((a, b) => Math.abs((a.index ?? 0) - labelIndex) - Math.abs((b.index ?? 0) - labelIndex))
+    return located[0]?.[0] || ''
+  }
+
+  // Only use the Proposed Insured portion for identity/contact fields. This prevents producer/agent data later in a PDF from being imported.
+  const proposed = americanAmicable
+    ? section(/Proposed Insured/i, /HEALTH INFORMATION/i)
+    : unitedOmaha
+      ? section(/Proposed Insured/i, /Plan Information/i)
+      : section(/Proposed Insured/i, /(?:Plan Information|Policy Information|Beneficiary|Underwriting)/i)
+  const proposedFlat = proposed.replace(/\s+/g, ' ')
+  const proposedLines = proposed.split('\n').map(line => line.trim()).filter(Boolean)
+
   let firstName = ''
   let lastName = ''
-  const proposedNamed = flat.match(/Proposed Insured(?:\/Insured)?\s*[:_-]*\s*([A-Z][A-Za-z' -]{1,35})\s+([A-Z][A-Za-z' -]{1,35})(?=\s+(?:Telephone|Policy|Date|Owner|$))/i)
-  if (proposedNamed) {
-    firstName = proposedNamed[1].trim().split(/\s+/)[0]
-    lastName = proposedNamed[2].trim().split(/\s+/).slice(-1)[0]
-  }
-  if (!firstName || !lastName) {
-    const esigned = flat.match(/eSigned by\s+([A-Z][A-Za-z'-]+)\s+([A-Z][A-Za-z'-]+)/i)
-    if (esigned) { firstName = firstName || esigned[1]; lastName = lastName || esigned[2] }
-  }
-  if ((!firstName || !lastName) && americanAmicable) {
-    const aaName = flat.match(/Proposed Insured\s+([A-Z][A-Z' -]{1,25})\s+([A-Z][A-Z' -]{1,25})\s+Telephone/i)
-    if (aaName) { firstName = aaName[1].replace(/\s+/g, ' ').trim().split(/\s+/)[0]; lastName = aaName[2].replace(/\s+/g, ' ').trim().split(/\s+/).slice(-1)[0] }
-  }
-  if ((!firstName || !lastName) && unitedOmaha) {
-    const mutualName = flat.match(/\b(Joan)\b[\s\S]{0,100}\b(Sloan)\b/i)
-    if (mutualName) { firstName = mutualName[1]; lastName = mutualName[2] }
+
+  // Mutual/United: the filled name and SSN are on the same visual row.
+  for (const line of proposedLines) {
+    const m = line.match(/^([A-Za-z][A-Za-z'’-]{1,30})\s+([A-Za-z][A-Za-z'’-]{1,30})\s+(\d{3}-\d{2}-\d{4})\b/)
+    if (m) { firstName = m[1]; lastName = m[2]; break }
   }
 
-  const dobRaw = firstMatch(text, [
-    /(?:Date of Birth|DOB|Birth Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i,
-    /\b(\d{2}\/\d{2}\/\d{4})\b(?=[\s\S]{0,80}(?:Social Security|SSN|Height|Weight))/i
-  ]) || (unitedOmaha ? firstMatch(flat, [/\b(08\/18\/1957)\b/]) : '')
-  const ssn = firstMatch(text, [/(?:SSN|Social Security(?: No\.?| Number)?)\s*[:#-]?\s*(\d{3}[- ]?\d{2}[- ]?\d{4})/i, /\b(\d{3}-\d{2}-\d{4})\b/])
-  let phone = firstMatch(text, [/(?:Phone Number|Phone|Mobile|Cell)\s*[:#-]?\s*(\+?1?[ .-]?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4})/i, /(\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4})/])
-  if (americanAmicable) { const m = flat.match(/Telephone interview completed[\s\S]{0,80}?(\(?\d{3}\)?\s*\d{3}-\d{4})/i); if (m) phone = m[1] }
-  const email = firstMatch(text, [/\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i])
+  // American-Amicable: the name is printed immediately above / beside the Proposed Insured line.
+  if (!firstName || !lastName) {
+    const proposedIndex = lines.findIndex(line => /Proposed Insured/i.test(line))
+    const nearby = proposedIndex >= 0 ? lines.slice(Math.max(0, proposedIndex - 3), proposedIndex + 5) : proposedLines.slice(0, 8)
+    const blocked = /proposed|insured|first|middle|last|telephone|interview|completed|address|phone|individual|life|insurance|application|male|female|senior|choice|immediate|final|expense/i
+    for (const line of nearby) {
+      if (blocked.test(line)) continue
+      // American-Amicable prints the insured name in all caps immediately above the Proposed Insured label.
+      const m = line.match(/^([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})(?:\s|$)/)
+      if (m) { firstName = m[1][0] + m[1].slice(1).toLowerCase(); lastName = m[2][0] + m[2].slice(1).toLowerCase(); break }
+    }
+  }
+
+  // Last structured fallback: a two-name row close to SSN/DOB/height in the Proposed Insured section only.
+  if (!firstName || !lastName) {
+    const m = proposedFlat.match(/\b([A-Z][A-Za-z'’-]{1,30})\s+([A-Z][A-Za-z'’-]{1,30})\s+(?:\d{3}-\d{2}-\d{4}|\d{1,2}\/\d{1,2}\/\d{4})\b/)
+    if (m && !/^(Is|The|First|Last|Male|Female)$/i.test(m[1]) && !/^(Is|The|First|Last|Male|Female)$/i.test(m[2])) {
+      firstName = m[1]; lastName = m[2]
+    }
+  }
+
+  const dobRaw = firstMatch(proposed, [
+    /(?:Date of Birth|DOB|Birth Date)[^\n]*\n?[^\n]*?(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i,
+    /\b(\d{2}\/\d{2}\/\d{4})\b/
+  ])
+  const ssn = firstMatch(proposed, [
+    /(?:SSN|Social Security(?: No\.?| Number)?)[^\n]*\n?[^\n]*?(\d{3}[- ]?\d{2}[- ]?\d{4})/i,
+    /\b(\d{3}-\d{2}-\d{4})\b/
+  ])
+
+  // First phone in the Proposed Insured block is the applicant's phone; producer/physician phones occur later and are ignored.
+  let phone = ''
+  if (unitedOmaha) {
+    const w = near(/Phone Number/i, proposed, 240)
+    const phones = allPhones(w)
+    if (phones.length) phone = phones[0]
+  }
+  if (!phone && americanAmicable) {
+    const w = near(/Telephone interview completed/i, proposed, 260)
+    const phones = allPhones(w)
+    if (phones.length) phone = phones[0]
+  }
+  if (!phone) phone = allPhones(proposed)[0] || ''
+
+  // Email must be physically in the Proposed Insured block. If the applicant field is blank, leave it blank rather than grabbing the agent email later in the PDF.
+  const email = firstMatch(proposed, [/\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i])
 
   let addressLine = '', city = '', state = '', zipCode = ''
-  const fullAddress = flat.match(/\b(\d{1,6}\s+[A-Za-z0-9 .'-]{3,70}?)\s+([A-Za-z .'-]{2,35}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/)
-  if (fullAddress) { addressLine = fullAddress[1].trim(); city = fullAddress[2].trim(); state = fullAddress[3]; zipCode = fullAddress[4] }
   if (americanAmicable) {
-    const a = flat.match(/Address\s+(.+?)\s+\(No\.?\s*&?\s*Street\)/i); if (a) addressLine = a[1].trim()
-    const c = flat.match(/City\s+([A-Za-z .'-]+?)\s+State\s+([A-Z]{2})\s+Zip Code\s+(\d{5}(?:-\d{4})?)/i); if (c) { city=c[1].trim(); state=c[2]; zipCode=c[3] }
+    const addressWindow = near(/Address \(No\.?\s*&?\s*Street\)/i, proposed, 260)
+    const addressMatch = addressWindow.match(/\b(\d{1,6}\s+[A-Za-z0-9 .'-]{3,70}?)(?=\s+(?:Address|City|Phone|State|Zip|$))/i)
+    if (addressMatch) addressLine = addressMatch[1].trim()
+    const cityMatch = proposedFlat.match(/City\s+([A-Za-z .'-]+?)\s+State\s+([A-Z]{2})\s+Zip Code\s+(\d{5}(?:-\d{4})?)/i)
+    if (cityMatch) { city = cityMatch[1].trim(); state = cityMatch[2]; zipCode = cityMatch[3] }
+  } else {
+    // Filled Mutual/United forms commonly render the full street/city/state/ZIP on one row.
+    const m = proposedFlat.match(/\b(\d{1,6}\s+[A-Za-z0-9 .'-]{2,60}?)\s+([A-Za-z .'-]{2,35}),\s*([A-Z]{2})\s+(\d{5})(?:-?(\d{4}))?\b/)
+    if (m) { addressLine = m[1].trim(); city = m[2].trim(); state = m[3]; zipCode = m[5] ? `${m[4]}-${m[5]}` : m[4] }
   }
-  const agentAddress = flat.match(/Agent Provided Address:\s*(\d{1,6}\s+[^,]{3,60}),\s*([^,]{2,40}),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)/i)
-  if (agentAddress) { addressLine=agentAddress[1].trim(); city=agentAddress[2].trim(); state=agentAddress[3]; zipCode=agentAddress[4] }
+  const agentProvided = text.match(/Agent Provided Address:\s*(\d{1,6}\s+[^,]{3,60}),\s*([^,]{2,40}),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)/i)
+  if (agentProvided && americanAmicable) { addressLine = agentProvided[1].trim(); city = agentProvided[2].trim(); state = agentProvided[3]; zipCode = agentProvided[4] }
 
-  let gender = firstMatch(text, [/(?:Gender|Sex)\s*[:#-]?\s*(Male|Female|M|F)\b/i])
-  if (!gender) { if (/Male\s+X\s+Female/i.test(flat) || /\bFemale,\s*Age\b/i.test(flat)) gender='Female'; else if (/X\s+Male\s+Female/i.test(flat) || /\bMale,\s*Age\b/i.test(flat)) gender='Male' }
-  gender = /^m(?:ale)?$/i.test(gender) ? 'Male' : /^f(?:emale)?$/i.test(gender) ? 'Female' : gender
+  let gender = ''
+  if (/\bFemale\b/i.test(proposed) && (/\bX\s*(?:Female|Q\s*Female)/i.test(proposed) || /Female,\s*Age/i.test(text))) gender = 'Female'
+  if (!gender && /\bMale\b/i.test(proposed) && /\bX\s*(?:Male|Q\s*Male)/i.test(proposed)) gender = 'Male'
+  if (!gender && americanAmicable) {
+    const sexRow = proposedFlat.match(/Male\s+(?:X\s+)?Female/i)?.[0] || ''
+    if (/Male\s+X\s+Female/i.test(sexRow)) gender = 'Female'
+  }
 
-  let heightFeet='', heightIn=''
-  const height = flat.match(/(?:Height\s*)?(\d)\s*(?:ft|feet|'|′)\s*(\d{1,2})\s*(?:in|inches|"|″)?/i)
-  if (height) { heightFeet=height[1]; heightIn=height[2] }
-  const weight = firstMatch(flat, [/(?:Weight|Wt)\s*[:#-]?\s*(\d{2,3})\s*(?:lb|lbs|pounds)?/i, /(?:\d)\s*(?:'|′)\s*\d{1,2}\s*(?:"|″)?\s+(\d{2,3})\s*(?:lbs?)?/i])
+  let heightFeet = '', heightIn = '', weight = ''
+  const hw = proposedFlat.match(/\b(\d)\s*['′]\s*(\d{1,2})\s*(?:["″])?\s+(\d{2,3})\b/)
+  if (hw) { heightFeet = hw[1]; heightIn = hw[2]; weight = hw[3] }
+  if (!weight) weight = firstMatch(proposed, [/(?:Weight|Wt)[^\n]*\n?[^\n]*?\b(\d{2,3})\s*(?:lb|lbs|pounds)?\b/i])
 
-  let dl = firstMatch(text, [/(?:Driver'?s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)\s*[:#-]?\s*([A-Z0-9-]{5,20})/i])
-  let dlState = firstMatch(text, [/(?:Driver'?s? License State|DL State)\s*[:#-]?\s*([A-Z]{2})\b/i])
-  if (unitedOmaha && !dl) { const m = flat.match(/\b(\d{8,10})\s+(MS|AL|TN|AR|LA)\s+See overflow/i); if (m) { dl=m[1]; dlState=m[2] } }
+  let dl = '', dlState = ''
+  const dlWindow = near(/Driver'?s? License No\.?/i, proposed, 300)
+  if (dlWindow) {
+    const m = dlWindow.match(/\b([A-Z0-9]{6,20})\s+([A-Z]{2})\b(?=[^\n]*(?:See overflow|Occupation|Employer)|\s*$)/i)
+    if (m) { dl = m[1]; dlState = m[2].toUpperCase() }
+  }
+  if (!dl) {
+    dl = firstMatch(proposed, [/(?:Driver'?s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)[^\n]*\n?[^\n]*?\b([A-Z0-9-]{5,20})\b/i])
+    dlState = firstMatch(proposed, [/(?:Driver'?s? License State|DL State)[^\n]*\n?[^\n]*?\b([A-Z]{2})\b/i]).toUpperCase()
+  }
 
-  let lifeCompany = americanAmicable ? 'American-Amicable Life Insurance Company of Texas' : unitedOmaha ? 'United of Omaha Life Insurance Company' : firstMatch(text, [/(?:Insurance Company|Carrier|Company)\s*[:#-]?\s*([^\n]{3,70})/i])
-  let faceAmount = firstMatch(flat, [/Face Amount of Insurance\s*\$?\s*([0-9][0-9_, .]{2,20})/i, /Amount of Insurance Applied for\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Total Initial Death Benefit\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i]).replace(/[^\d.]/g, '')
-  if (americanAmicable && !faceAmount) { const m=flat.match(/Face Amount of Insurance\s*\$?\s*([0-9_ ,]+)/i); if (m) faceAmount=m[1].replace(/[^\d]/g,'') }
-  let premium = firstMatch(flat, [/Modal Prem(?:ium)?\s*\$?\s*([0-9_ .,$]{2,20})/i, /Modal Premium\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Initial Premium Outlay\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Amount Quoted\s*\$?\s*\$?\s*([0-9_ .,$]{2,20})/i]).replace(/[^\d.]/g, '')
-  let effectiveRaw = firstMatch(flat, [/Requested Policy Date\s*:\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i, /(?:Effective Date|Start Date|Policy Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i, /Deduct initial premium on or after:[\s\S]{0,80}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i])
-  if (!effectiveRaw && unitedOmaha) { const m=flat.match(/Deduct initial premium on or after:[\s\S]{0,100}?(\d{1,2})\D+(\d{1,2})\D+(20\d{2})/i); if (m) effectiveRaw=`${m[1]}/${m[2]}/${m[3]}`; if (!effectiveRaw && /06\/10\/2024/.test(flat)) effectiveRaw='06/10/2024' }
-  let policyType = /Senior Choice Immediate/i.test(flat) ? 'Senior Choice Immediate' : /Indexed Universal Life Express/i.test(flat) ? 'Indexed Universal Life Express' : /Term Life Express/i.test(flat) ? 'Term Life Express' : firstMatch(text, [/(?:Policy Type|Product|Plan)\s*[:#-]?\s*([^\n]{3,70})/i])
-  let premiumFrequency = /Premium Mode\s+Monthly|Frequency of Modal Premium[\s\S]{0,80}\bMonthly\b|\bPremium Mode Monthly\b/i.test(flat) ? 'Monthly' : /\bSemi-Annual\b/i.test(flat) ? 'Semi-Annual' : /\bQuarterly\b/i.test(flat) ? 'Quarterly' : /\bAnnual\b/i.test(flat) ? 'Annual' : ''
+  const lifeCompany = americanAmicable
+    ? 'American-Amicable Life Insurance Company of Texas'
+    : unitedOmaha
+      ? 'United of Omaha Life Insurance Company'
+      : firstMatch(text, [/(?:Insurance Company|Carrier|Company)\s*[:#-]?\s*([^\n]{3,70})/i])
 
-  let bankName='', routing='', account='', accountType='', draftDay=''
-  const bankTriple = flat.match(/\b([A-Za-z][A-Za-z &.'-]{2,40}(?:BANK|Bank|bank|trustmark|TRUSTMARK))\s+(\d{9})\s+(\d{6,17})\b/)
-  if (bankTriple) { bankName=bankTriple[1].trim(); routing=bankTriple[2]; account=bankTriple[3] }
-  if (americanAmicable && !bankName) { const m=flat.match(/\b(SUTTON BANK)\s+(\d{9})\s+(\d{6,17})\b/i); if (m) { bankName='Sutton Bank'; routing=m[2]; account=m[3] } }
-  if (unitedOmaha) { const m=flat.match(/\b(trustmark)\s+(\d{9})\s+(\d{6,17})\b/i); if (m) { bankName='Trustmark'; routing=m[2]; account=m[3] }; if (/Account Type[\s\S]{0,50}?Checking/i.test(flat) || /\bX\s+trustmark\b/i.test(flat)) accountType='Checking'; const d=flat.match(/Choose the day payments will be deducted[\s\S]{0,100}?\b(\d{1,2})\b/i); if (d) draftDay=d[1]; if (!draftDay && /\bJoan Sloan\s+10\s+AIS\b/i.test(flat)) draftDay='10' }
-  if (americanAmicable) { if (/\bSUTTON BANK\b/i.test(flat)) accountType='Checking'; const d=flat.match(/Requested Draft Day[\s\S]{0,70}?\b(\d{1,2})\b/i); if (d) draftDay=d[1] }
+  let faceAmount = ''
+  if (unitedOmaha) {
+    const iul = near(/Indexed Universal Life Express Amount of Insurance Applied for/i, text, 220)
+    const term = near(/Term Life Express Amount of Insurance Applied for/i, text, 220)
+    const candidates = [iul, term].filter(Boolean)
+    for (const w of candidates) {
+      const amounts = Array.from(w.matchAll(/\$\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,7})(?:\.\d{2})?/g)).map(m => m[1])
+      if (amounts.length) { faceAmount = money(amounts[0]); break }
+    }
+    if (!faceAmount) faceAmount = money(firstMatch(text, [/Total Initial Death Benefit\s*\$\s*([0-9,]+(?:\.\d{2})?)/i]))
+  } else if (americanAmicable) {
+    const w = near(/Face Amount of Insurance/i, text, 180)
+    const amounts = Array.from(w.matchAll(/\b([1-9]\d{3,6})\b/g)).map(m => m[1]).filter(v => !/^20\d{2}$/.test(v))
+    if (amounts.length) faceAmount = money(amounts[0])
+  }
+
+  let premium = ''
+  if (unitedOmaha) {
+    const premiumSection = section(/Premium Information/i, /(?:Owner \(|Beneficiary|Underwriting)/i)
+    const amounts = Array.from(premiumSection.matchAll(/\$\s*([0-9]{1,5}(?:\.\d{2}))/g)).map(m => m[1])
+    if (amounts.length) premium = money(amounts[0])
+    if (!premium) {
+      const quoted = section(/PAYMENT AUTHORIZATION FORM/i, /Payment Information For Ongoing Payments/i)
+      premium = money(firstMatch(quoted, [/Amount Quoted[^\n]*\$?[^\n]*?([0-9]{1,5}\.\d{2})/i, /\$\s*([0-9]{1,5}\.\d{2})/]))
+    }
+    if (!premium) premium = money(firstMatch(text, [/Initial Premium Outlay\s*\$\s*([0-9,]+\.\d{2})/i]))
+  } else {
+    const premiumWindow = near(/Modal Prem(?:ium)?/i, text, 220)
+    const m = premiumWindow.match(/\$\s*([0-9]{1,5}(?:\.\d{2}))/) || premiumWindow.match(/\b([0-9]{1,5}\.\d{2})\b/)
+    if (m) premium = money(m[1])
+  }
+
+  let effectiveRaw = firstMatch(text, [
+    /Requested Policy Date\s*:\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i,
+    /(?:Effective Date|Start Date|Policy Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i
+  ])
+  if (!effectiveRaw && unitedOmaha) {
+    const paymentSection = section(/PAYMENT AUTHORIZATION FORM/i, /(?:Premium Allocation|CONDITIONAL RECEIPT|Authorization and Agreement)/i)
+    effectiveRaw = firstMatch(paymentSection, [/\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/])
+  }
+
+  let policyType = ''
+  if (/Senior Choice Immediate/i.test(text)) policyType = 'Senior Choice Immediate'
+  else if (/Indexed Universal Life Express/i.test(text)) policyType = 'Indexed Universal Life Express'
+  else if (/Term Life Express/i.test(text)) policyType = 'Term Life Express'
+
+  let premiumFrequency = ''
+  const premiumInfo = near(/Frequency of Modal Premium/i, text, 250)
+  if (/\bX\s*Monthly|Monthly\s*\(Bank Draft Only\)/i.test(premiumInfo) || /Premium Mode\s+Monthly/i.test(text)) premiumFrequency = 'Monthly'
+  else if (/\bX\s*Annual/i.test(premiumInfo)) premiumFrequency = 'Annual'
+  else if (/\bX\s*Semi-Annual/i.test(premiumInfo)) premiumFrequency = 'Semi-Annual'
+  else if (/\bX\s*Quarterly/i.test(premiumInfo)) premiumFrequency = 'Quarterly'
+
+  // Banking is read only from payment/bank authorization sections.
+  const banking = americanAmicable
+    ? section(/PREAUTHORIZATION CHECK PLAN/i, /ATTACH VOIDED CHECK OR DEPOSIT SLIP/i)
+    : unitedOmaha
+      ? section(/PAYMENT AUTHORIZATION FORM/i, /(?:Premium Allocation|COMPANY COPY|APPLICANT COPY)/i)
+      : section(/(?:PAYMENT AUTHORIZATION FORM|Bank Draft Authorization|PREAUTHORIZATION CHECK PLAN)/i)
+  const bankFlat = banking.replace(/\s+/g, ' ')
+
+  let bankName = '', routing = '', account = '', accountType = '', draftDay = ''
+  if (banking) {
+    // In both sample carriers, the real routing/account pair is the first banking-number pair in the authorization section.
+    // This deliberately ignores the example check diagram that can contain fake numbers such as 123456789 later in the form.
+    const numericTokens = Array.from(banking.matchAll(/\b\d{6,17}\b/g)).map(m => m[0])
+    const routingIndex = numericTokens.findIndex(value => value.length === 9)
+    if (routingIndex >= 0) {
+      routing = numericTokens[routingIndex]
+      account = numericTokens.slice(routingIndex + 1).find(value => value.length >= 6 && value.length <= 17 && value !== routing) || ''
+    }
+
+    if (unitedOmaha) {
+      const bankLines = banking.split('\n').map(line => line.trim()).filter(Boolean)
+      const institutionIndex = bankLines.findIndex(line => /Name of Financial Institution/i.test(line))
+      if (institutionIndex >= 0) {
+        const nearbyInstitution = bankLines.slice(Math.max(0, institutionIndex - 2), institutionIndex + 3)
+        bankName = nearbyInstitution.find(line => /^[A-Za-z][A-Za-z .&'-]{2,40}$/.test(line) && !/name|financial|institution|payor|account|checking|savings|payment|authorization/i.test(line)) || ''
+      }
+      if (!bankName && /\btrustmark\b/i.test(banking)) bankName = 'Trustmark'
+      if (/Account Type[^\n]{0,100}?(?:X|☒)[^\n]{0,20}?Checking/i.test(banking) || /Account Type[^\n]*Checking/i.test(banking)) accountType = 'Checking'
+      else if (/Account Type[^\n]{0,100}?(?:X|☒)[^\n]{0,20}?Savings/i.test(banking)) accountType = 'Savings'
+      const dayWindow = near(/Choose the day payments will be deducted/i, banking, 220)
+      const dayCandidates = Array.from(dayWindow.matchAll(/\b([1-9]|1\d|2[0-8])\b/g)).map(m => m[1])
+      if (dayCandidates.length) draftDay = dayCandidates[dayCandidates.length - 1]
+    } else if (americanAmicable) {
+      const inst = near(/Financial Institution/i, banking, 160)
+      const m = inst.match(/\b([A-Z][A-Z .&'-]{2,40}(?:BANK|CREDIT UNION))\b/)
+      if (m) bankName = m[1].replace(/\s+/g, ' ').trim().replace(/\b([A-Z])([A-Z]+)\b/g, x => x[0] + x.slice(1).toLowerCase())
+      if (/\bX\s*Checking|Checking\s+Savings/i.test(bankFlat)) accountType = 'Checking'
+      const d = banking.match(/Requested Draft Day[^\n]*\n?[^\n]*?\b([1-9]|1\d|2[0-8])\b/i)
+      if (d) draftDay = d[1]
+    }
+  }
 
   return {
-    first_name: firstName, last_name: lastName, date_of_birth: dobRaw ? normalizedDate(dobRaw) : '', phone: phone.replace(/[^\d+]/g, ''), email, ssn,
-    drivers_license: dl, drivers_license_state: dlState.toUpperCase(), height_feet: heightFeet, height_in: heightIn, weight_lbs: weight, gender,
-    address_line1: addressLine, city, state, zip_code: zipCode,
-    life_company_choice: lifeCompany, life_face_amount_choice: faceAmount ? '__custom__' : '', life_face_amount_custom: faceAmount, life_premium_amount: premium,
-    life_policy_type: policyType, life_effective_date: effectiveRaw ? normalizedDate(effectiveRaw) : '',
-    bank_name: bankName, bank_routing_number: routing, bank_account_number: account, bank_account_type: accountType, bank_draft_day: draftDay, life_premium_frequency: premiumFrequency,
-    notes: 'Imported from a life insurance document. Review all scanned values before saving.'
+    first_name: firstName,
+    last_name: lastName,
+    date_of_birth: dobRaw ? normalizedDate(dobRaw) : '',
+    phone: digits(phone),
+    email,
+    ssn,
+    drivers_license: dl,
+    drivers_license_state: dlState,
+    height_feet: heightFeet,
+    height_in: heightIn,
+    weight_lbs: weight,
+    gender,
+    address_line1: addressLine,
+    city,
+    state,
+    zip_code: zipCode,
+    life_company_choice: lifeCompany,
+    life_face_amount_choice: faceAmount ? '__custom__' : '',
+    life_face_amount_custom: faceAmount,
+    life_premium_amount: premium,
+    life_policy_type: policyType,
+    life_effective_date: effectiveRaw ? normalizedDate(effectiveRaw) : '',
+    bank_name: bankName,
+    bank_routing_number: routing,
+    bank_account_number: account,
+    bank_account_type: accountType,
+    bank_draft_day: draftDay,
+    life_premium_frequency: premiumFrequency,
+    notes: 'Imported from a life insurance document. Proposed Insured, life-policy, and banking sections are scanned separately. Review all values before saving.'
   }
 }
 
