@@ -1924,3 +1924,71 @@ tbody tr:hover { background: #f9fbfd; }
   box-shadow: 0 2px 10px rgba(16, 38, 63, .055);
 }
 
+
+/* Professional low-saturation section-tab palette.
+   Keeps major client-form sections visually distinct without heavy/dark color. */
+.add-client-form .section-details > summary,
+.client-profile-form .section-details > summary {
+  color: #203247;
+  border: 1px solid rgba(36, 58, 78, .12);
+  box-shadow: 0 1px 2px rgba(24, 42, 58, .04);
+  transition: filter .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.add-client-form .section-details > summary:hover,
+.client-profile-form .section-details > summary:hover {
+  filter: saturate(1.03) brightness(.992);
+  box-shadow: 0 3px 10px rgba(24, 42, 58, .07);
+}
+
+.add-client-form .section-details > summary small,
+.client-profile-form .section-details > summary small {
+  opacity: .72;
+  color: #40566b;
+}
+
+.add-client-form .section-client > summary,
+.client-profile-form .section-client > summary {
+  background: linear-gradient(135deg, #edf3f8, #dce8f2);
+}
+
+.add-client-form .section-medicare > summary,
+.client-profile-form .section-medicare > summary {
+  background: linear-gradient(135deg, #eaf4f0, #d9eae4);
+}
+
+.add-client-form .section-care > summary,
+.client-profile-form .section-care > summary {
+  background: linear-gradient(135deg, #f1eef6, #e4dfee);
+}
+
+.add-client-form .section-life > summary,
+.client-profile-form .section-life > summary {
+  background: linear-gradient(135deg, #f7f1e7, #ecdfcb);
+}
+
+.add-client-form .section-health > summary,
+.client-profile-form .section-health > summary {
+  background: linear-gradient(135deg, #eaf3ee, #d8e7df);
+}
+
+.add-client-form .section-hospital > summary,
+.client-profile-form .section-hospital > summary {
+  background: linear-gradient(135deg, #f6edef, #eadbdf);
+}
+
+.add-client-form .section-banking > summary,
+.client-profile-form .section-banking > summary {
+  background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+}
+
+.add-client-form .section-notes > summary,
+.client-profile-form .section-notes > summary {
+  background: linear-gradient(135deg, #f3f4f5, #e5e8eb);
+}
+
+.add-client-form .section-details[open] > summary,
+.client-profile-form .section-details[open] > summary {
+  border-bottom-color: rgba(36, 58, 78, .08);
+  box-shadow: none;
+}
