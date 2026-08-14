@@ -6,6 +6,7 @@ import BuildChartLookup from './BuildChartLookup'
 import MedicalQualificationsLookup from './MedicalQualificationsLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
 import { MEDICAL_CARRIER_OPTIONS } from '@/lib/medical-qualifications'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -59,6 +60,18 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const isManager = currentProfile.role === 'manager'
+  const isJustinPortal = isJustinWebsiteLeadUser(userId)
+  let unreadWebsiteLeadCount = 0
+
+  if (isJustinPortal) {
+    const { count, error: websiteLeadCountError } = await supabase
+      .from('website_leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('assigned_agent_id', userId)
+      .is('read_at', null)
+    if (websiteLeadCountError) throw new Error(`Unable to load website form notifications: ${websiteLeadCountError.message}`)
+    unreadWebsiteLeadCount = count || 0
+  }
   const isIsaiahPortal = currentProfile.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const params = searchParams ? await searchParams : {}
   const now = new Date()
@@ -185,6 +198,17 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <div className="clients-page-heading"><h1>Dashboard</h1><p className="subtle">Your client database at a glance.</p></div>
         <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link>
       </div>
+
+      {isJustinPortal && unreadWebsiteLeadCount > 0 && (
+        <section className="card card-pad dashboard-form-alert" style={{ marginTop: 18 }}>
+          <div>
+            <span className="website-lead-new-badge">NEW FORM</span>
+            <strong style={{ marginTop: 8 }}>{unreadWebsiteLeadCount} new website {unreadWebsiteLeadCount === 1 ? 'submission' : 'submissions'}</strong>
+            <p className="subtle">A visitor submitted the MayerIG.com contact form.</p>
+          </div>
+          <Link prefetch={false} href="/website-leads" className="btn btn-primary">OPEN SUBMISSIONS</Link>
+        </section>
+      )}
 
       {isManager ? (
         <section className="dashboard-agent-split" style={{ marginTop: 22 }}>

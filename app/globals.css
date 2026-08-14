@@ -1640,3 +1640,64 @@ tbody tr:hover { background: #f9fbfd; }
 @media (max-width: 700px) {
   .isaiah-premium-inline-results { grid-template-columns: 1fr; }
 }
+
+/* Justin-only website form submissions */
+.nav-leads { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; }
+.nav-leads-count {
+  min-width: 24px; height: 24px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: #a73737; color: #fff; font-size: 11px; font-weight: 900;
+}
+.dashboard-form-alert {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border: 1px solid rgba(167,55,55,.24); background: rgba(255,247,245,.96);
+}
+.dashboard-form-alert strong { display: block; font-size: 18px; margin-bottom: 4px; }
+.dashboard-form-alert .website-lead-new-badge { margin-left: 0; }
+.website-leads-summary { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.website-leads-summary > div { padding: 4px 0; }
+.website-leads-summary span { display: block; font-size: 13px; }
+.website-leads-summary strong { display: block; font-size: 30px; margin-top: 6px; }
+.website-leads-list { display: grid; }
+.website-lead-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 17px 20px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.38);
+}
+.website-lead-row:last-child { border-bottom: 0; }
+.website-lead-row:hover { background: #f9fbfd; }
+.website-lead-row.is-new { background: #fff8f6; border-left: 4px solid #a73737; padding-left: 16px; }
+.website-lead-main { min-width: 0; display: grid; gap: 5px; }
+.website-lead-main > span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.website-lead-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.website-lead-title strong { font-size: 16px; }
+.website-lead-new-badge {
+  display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px;
+  background: #a73737; color: #fff; font-size: 10px; line-height: 1; font-weight: 900; letter-spacing: .05em;
+}
+.website-lead-meta { flex: 0 0 auto; display: grid; justify-items: end; gap: 7px; color: var(--muted); font-size: 12px; }
+.website-lead-meta b { color: var(--navy); font-size: 13px; }
+.website-lead-detail-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.website-lead-back { display: inline-block; margin-bottom: 10px; color: var(--navy); font-size: 12px; font-weight: 900; letter-spacing: .04em; }
+.website-lead-detail-card .definition { grid-template-columns: 170px 1fr; }
+.website-lead-detail-card .definition a { color: #0011b8; text-decoration: underline; text-underline-offset: 2px; }
+.website-lead-message { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.website-lead-message > span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.website-lead-message p { margin: 0; white-space: pre-wrap; line-height: 1.55; }
+.mobile-leads-count {
+  position: absolute; top: 4px; right: calc(50% - 24px); min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #a73737; color: #fff; font-size: 9px; font-weight: 900;
+}
+.mobile-nav .mobile-leads-link { position: relative; }
+
+@media (max-width: 760px) {
+  .dashboard-form-alert { align-items: stretch; flex-direction: column; }
+  .dashboard-form-alert .btn { width: 100%; text-align: center; }
+  .website-leads-summary { grid-template-columns: 1fr 1fr; }
+  .website-lead-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .website-lead-meta { width: 100%; display: flex; justify-content: space-between; }
+  .website-lead-detail-card .definition { grid-template-columns: 1fr; gap: 3px; }
+}
+@media (max-width: 760px) {
+  .mobile-nav.mobile-nav-five { grid-template-columns: repeat(5, 1fr); }
+}
+
+.mobile-leads-count { font-style: normal; }

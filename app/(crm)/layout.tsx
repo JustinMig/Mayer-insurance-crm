@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -29,9 +30,20 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
-  const { profile } = await getCrmSession()
+  const { supabase, userId, profile } = await getCrmSession()
 
   const isAgentPortal = profile?.role === 'agent'
+  const isJustinPortal = isJustinWebsiteLeadUser(userId)
+  let unreadWebsiteLeadCount = 0
+
+  if (isJustinPortal) {
+    const { count } = await supabase
+      .from('website_leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('assigned_agent_id', userId)
+      .is('read_at', null)
+    unreadWebsiteLeadCount = count || 0
+  }
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
@@ -53,6 +65,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
+          {isJustinPortal && (
+            <Link prefetch={false} className="nav-link nav-leads" href="/website-leads">
+              <span>FORM SUBMISSIONS</span>
+              {unreadWebsiteLeadCount > 0 && <span className="nav-leads-count">{unreadWebsiteLeadCount}</span>}
+            </Link>
+          )}
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -70,10 +88,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <main className="content">{children}</main>
       </div>
 
-      <nav className="mobile-nav">
+      <nav className={`mobile-nav${isJustinPortal ? ' mobile-nav-five' : ''}`}>
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
+        {isJustinPortal && (
+          <Link prefetch={false} className="mobile-leads-link" href="/website-leads"><b>✉</b><span>FORMS</span>{unreadWebsiteLeadCount > 0 && <i className="mobile-leads-count">{unreadWebsiteLeadCount}</i>}</Link>
+        )}
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>
