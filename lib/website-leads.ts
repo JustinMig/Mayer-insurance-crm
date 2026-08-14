@@ -14,6 +14,10 @@ export type WebsiteLead = {
   read_at: string | null
   created_at: string
   updated_at: string
+  sms_consent: boolean
+  sms_consent_at?: string | null
+  sms_consent_source?: string | null
+  sms_consent_text?: string | null
 }
 
 export function isJustinWebsiteLeadUser(userId: string) {

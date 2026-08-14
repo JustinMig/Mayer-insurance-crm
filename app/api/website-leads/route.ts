@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic'
 
 type Payload = Record<string, unknown>
 
+
+const SMS_CONSENT_DISCLOSURE = 'I agree to receive SMS/text messages from Mayer Insurance Group at the mobile number provided regarding my insurance inquiry, requested insurance information, appointment confirmations and reminders, and policy or application follow-up. Message frequency varies. Message and data rates may apply. Reply STOP to opt out at any time or HELP for help. Consent to receive text messages is not a condition of purchasing any goods or services.'
+
 const ALLOWED_ORIGINS = new Set([
   'https://mayerig.com',
   'https://www.mayerig.com',
@@ -190,6 +193,16 @@ export async function POST(request: NextRequest) {
       'Preferred Contact Method',
     ])
     const comments = field(payload, ['comments', 'message', 'Questions or Comments'])
+    const smsConsentValue = field(payload, [
+      'SMS Consent',
+      'smsConsent',
+      'sms_consent',
+      'Text Message Consent',
+    ])
+    const smsConsent = Boolean(
+      smsConsentValue && !['false', 'no', '0', 'off', 'unchecked'].includes(smsConsentValue.toLowerCase())
+    )
+    const smsConsentAt = smsConsent ? new Date().toISOString() : null
 
     if (!firstName || !lastName || !phone || !email) {
       return NextResponse.json(
@@ -273,6 +286,10 @@ export async function POST(request: NextRequest) {
         comments: comments || null,
         status: 'new',
         source: 'mayerig.com',
+        sms_consent: smsConsent,
+        sms_consent_at: smsConsentAt,
+        sms_consent_source: smsConsent ? 'mayerig.com website form' : null,
+        sms_consent_text: smsConsent ? SMS_CONSENT_DISCLOSURE : null,
       })
       .select('id, created_at')
       .single()

@@ -186,6 +186,39 @@ export default async function WebsiteLeadDetailPage({ params }: { params: Params
         </section>
 
         <section className="card card-pad">
+          <h2 style={{ marginTop: 0 }}>SMS / Text Consent</h2>
+
+          <div className="form-grid">
+            <div className="label">
+              Consent Status
+              <div className="input" style={{ height: 'auto', minHeight: 42, display: 'flex', alignItems: 'center', fontWeight: 800 }}>
+                {submission.sms_consent ? 'OPTED IN' : 'NOT OPTED IN'}
+              </div>
+            </div>
+
+            <div className="label">
+              Consent Recorded
+              <div className="input" style={{ height: 'auto', minHeight: 42, display: 'flex', alignItems: 'center' }}>
+                {submission.sms_consent ? formatDate(submission.sms_consent_at) : 'Not applicable'}
+              </div>
+            </div>
+
+            <div className="label">
+              Consent Source
+              <div className="input" style={{ height: 'auto', minHeight: 42, display: 'flex', alignItems: 'center' }}>
+                {submission.sms_consent ? display(submission.sms_consent_source) : 'Not applicable'}
+              </div>
+            </div>
+          </div>
+
+          <div className="notice" style={{ marginTop: 14, lineHeight: 1.55 }}>
+            {submission.sms_consent
+              ? display(submission.sms_consent_text)
+              : 'No affirmative SMS consent was captured with this website submission. Do not treat this submission as website SMS opt-in proof.'}
+          </div>
+        </section>
+
+        <section className="card card-pad">
           <h2 style={{ marginTop: 0 }}>Coverage Interests</h2>
 
           {interests.length ? (
