@@ -82,20 +82,21 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   if (userId && currentProfile.full_name) agentNames[userId] = currentProfile.full_name
 
   const totalCountAgentId = canFilterByAgent ? selectedAgent : userId
+  const statsCountAgentId = currentProfile.role === 'admin' ? userId : totalCountAgentId
   let totalClientCount = 0
   let totalMedicareCount = 0
   let totalNonMedicareCount = 0
   let totalCountError = ''
 
-  if (totalCountAgentId || canFilterByAgent) {
+  if (statsCountAgentId || canFilterByAgent) {
     let allCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true })
     let medicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', true)
     let nonMedicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', false)
 
-    if (totalCountAgentId) {
-      allCountQuery = allCountQuery.eq('assigned_agent_id', totalCountAgentId)
-      medicareCountQuery = medicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
-      nonMedicareCountQuery = nonMedicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
+    if (statsCountAgentId) {
+      allCountQuery = allCountQuery.eq('assigned_agent_id', statsCountAgentId)
+      medicareCountQuery = medicareCountQuery.eq('assigned_agent_id', statsCountAgentId)
+      nonMedicareCountQuery = nonMedicareCountQuery.eq('assigned_agent_id', statsCountAgentId)
     }
 
     const [allResult, medicareResult, nonMedicareResult] = await Promise.all([
@@ -255,11 +256,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
               <div className="clients-stat-label">Total clients</div>
               <div className="clients-stat-value">{totalClientCount}</div>
               <div style={{ marginTop: 6 }}>
-                {canFilterByAgent
-                  ? selectedAgent
-                    ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                    : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                  : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
+                {currentProfile.role === 'admin'
+                  ? `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                  : canFilterByAgent
+                    ? selectedAgent
+                      ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                      : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                    : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
               </div>
             </div>
             <div className="card clients-stat-card medicare">
