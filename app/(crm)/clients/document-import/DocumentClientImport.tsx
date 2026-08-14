@@ -186,7 +186,7 @@ function dataForCategory(data: Partial<ClientDocumentDraft>, category: DocumentC
     next.health_company_choice = ''; next.health_company_custom = ''; next.health_member_id = ''; next.health_plan_id = ''; next.health_effective_date = ''
   } else if (category !== 'life_insurance') {
     next.life_company_choice = ''; next.life_face_amount_choice = ''; next.life_face_amount_custom = ''; next.life_premium_amount = ''; next.life_policy_type = ''; next.life_effective_date = ''
-    if (category !== 'health_plan' && category !== 'aca') { next.health_company_choice = ''; next.health_company_custom = ''; next.health_member_id = ''; next.health_plan_id = ''; next.health_effective_date = '' }
+    next.health_company_choice = ''; next.health_company_custom = ''; next.health_member_id = ''; next.health_plan_id = ''; next.health_effective_date = ''
     next.hospital_indemnity_company = ''; next.hospital_indemnity_premium = ''; next.hospital_indemnity_effective_date = ''
   }
   return next
