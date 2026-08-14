@@ -1616,3 +1616,27 @@ tbody tr:hover { background: #f9fbfd; }
   .premium-period-controls .btn { grid-column: 1 / -1; width: 100%; }
   .isaiah-premium-summary { grid-template-columns: 1fr; }
 }
+
+/* Isaiah / Platinum premium history: keep selector + results in one compact box. */
+.isaiah-premium-history-card { gap: 16px; }
+.isaiah-premium-inline-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.isaiah-premium-inline-results > div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.08);
+}
+.isaiah-premium-inline-results .premium-total-value {
+  display: block;
+  margin-top: 5px;
+}
+@media (max-width: 700px) {
+  .isaiah-premium-inline-results { grid-template-columns: 1fr; }
+}

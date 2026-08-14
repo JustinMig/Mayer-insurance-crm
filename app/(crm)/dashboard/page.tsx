@@ -31,6 +31,7 @@ type AgentDashboardStats = {
   lifeClients: number
   turning65: number
   currentMonthPremium: number
+  selectedMonthPremium: number
   currentYearPremium: number
 }
 
@@ -133,6 +134,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     let lifeClients = 0
     let turning65 = 0
     let currentMonthPremium = 0
+    let selectedMonthPremium = 0
     let currentYearPremium = 0
 
     for (const client of clientRows) {
@@ -147,11 +149,21 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       if (row.assigned_agent_id !== agent.id) continue
       const amount = numeric(row.premium_total)
       const rowYear = Number(row.effective_year || currentYear)
-      const targetYear = isIsaiahPortal ? selectedPremiumYear : currentYear
-      const targetMonth = isIsaiahPortal ? selectedPremiumMonth : currentMonth
-      if (rowYear !== targetYear) continue
-      currentYearPremium += amount
-      if (Number(row.effective_month) - 1 === targetMonth) currentMonthPremium += amount
+      const rowMonth = Number(row.effective_month) - 1
+
+      // The top-row Monthly Premium card always reflects the actual current month.
+      if (rowYear === currentYear && rowMonth === currentMonth) {
+        currentMonthPremium += amount
+      }
+
+      if (isIsaiahPortal) {
+        if (rowYear === selectedPremiumYear) {
+          currentYearPremium += amount
+          if (rowMonth === selectedPremiumMonth) selectedMonthPremium += amount
+        }
+      } else if (rowYear === currentYear) {
+        currentYearPremium += amount
+      }
     }
 
     return {
@@ -162,6 +174,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       lifeClients,
       turning65,
       currentMonthPremium,
+      selectedMonthPremium,
       currentYearPremium
     }
   })
@@ -194,16 +207,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <div className="card card-pad stat"><span>Medicare Clients</span><strong>{dashboardStats[0]?.medicareClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Life Clients</span><strong>{dashboardStats[0]?.lifeClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0}</strong></div>
-          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[isIsaiahPortal ? selectedPremiumMonth : currentMonth]} {isIsaiahPortal ? selectedPremiumYear : ''}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[currentMonth]} {currentYear}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
         </section>
       )}
 
       {isIsaiahPortal && !isManager ? (
         <section className="dashboard-premium-grid isaiah-premium-tools" style={{ marginTop: 20 }}>
-          <form method="get" className="card card-pad premium-period-card">
+          <form method="get" className="card card-pad premium-period-card isaiah-premium-history-card">
             <div>
-              <span className="premium-card-label">Premium Sales Period</span>
-              <p className="subtle" style={{ margin: '5px 0 0' }}>Choose a month and year to review what was sold.</p>
+              <span className="premium-card-label">Premium Sales History</span>
+              <p className="subtle" style={{ margin: '5px 0 0' }}>Choose a month and year. The selected period stays in this box.</p>
             </div>
             <div className="premium-period-controls">
               <select name="premium_month" defaultValue={String(selectedPremiumMonth + 1)} aria-label="Premium month">
@@ -214,20 +227,19 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
               </select>
               <button className="btn btn-primary" type="submit">View</button>
             </div>
-          </form>
 
-          <div className="isaiah-premium-summary">
-            <div className="card card-pad premium-total-card">
-              <span className="premium-card-label">Monthly Premium Sold · {monthNames[selectedPremiumMonth]} {selectedPremiumYear}</span>
-              <strong className="premium-total-value">{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong>
-              <p className="subtle" style={{ margin: '8px 0 0' }}>Monthly premium on Life Insurance policies effective in the selected month.</p>
+            <div className="isaiah-premium-inline-results">
+              <div>
+                <span className="premium-card-label">{monthNames[selectedPremiumMonth]} {selectedPremiumYear} Monthly Premium</span>
+                <strong className="premium-total-value">{money(dashboardStats[0]?.selectedMonthPremium || 0)}</strong>
+              </div>
+              <div>
+                <span className="premium-card-label">Annualized Premium · {selectedPremiumYear}</span>
+                <strong className="premium-total-value">{money((dashboardStats[0]?.currentYearPremium || 0) * 12)}</strong>
+                <p className="subtle" style={{ margin: '6px 0 0' }}>{money(dashboardStats[0]?.currentYearPremium || 0)} monthly premium sold in {selectedPremiumYear} × 12.</p>
+              </div>
             </div>
-            <div className="card card-pad premium-total-card annualized-premium-card">
-              <span className="premium-card-label">Annualized Premium · {selectedPremiumYear}</span>
-              <strong className="premium-total-value">{money((dashboardStats[0]?.currentYearPremium || 0) * 12)}</strong>
-              <p className="subtle" style={{ margin: '8px 0 0' }}>Monthly premium sold in {selectedPremiumYear}: {money(dashboardStats[0]?.currentYearPremium || 0)} × 12.</p>
-            </div>
-          </div>
+          </form>
         </section>
       ) : (
         <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
