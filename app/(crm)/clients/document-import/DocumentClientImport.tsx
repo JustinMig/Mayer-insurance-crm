@@ -168,7 +168,32 @@ async function extractText(file: File, onProgress: (message: string) => void) {
 
 function dataForCategory(data: Partial<ClientDocumentDraft>, category: DocumentCategory): Partial<ClientDocumentDraft> {
   if (category !== 'life_insurance') return {}
-  return { ...data, medicare_number: '', part_a_date: '', part_b_date: '', medicaid_number: '', medicaid_level: '', primary_doctor_name: '', primary_doctor_city: '', primary_doctor_state: '', pharmacy_name: '', pharmacy_city: '', pharmacy_state: '', medications: [], health_company_choice: '', health_company_custom: '', health_member_id: '', health_plan_id: '', health_effective_date: '', hospital_indemnity_company: '', hospital_indemnity_premium: '', hospital_indemnity_effective_date: '' }
+  return {
+    ...data,
+    // Names must always be entered manually during final review.
+    first_name: '',
+    last_name: '',
+    medicare_number: '',
+    part_a_date: '',
+    part_b_date: '',
+    medicaid_number: '',
+    medicaid_level: '',
+    primary_doctor_name: '',
+    primary_doctor_city: '',
+    primary_doctor_state: '',
+    pharmacy_name: '',
+    pharmacy_city: '',
+    pharmacy_state: '',
+    medications: [],
+    health_company_choice: '',
+    health_company_custom: '',
+    health_member_id: '',
+    health_plan_id: '',
+    health_effective_date: '',
+    hospital_indemnity_company: '',
+    hospital_indemnity_premium: '',
+    hospital_indemnity_effective_date: ''
+  }
 }
 
 function inputClass() { return 'input' }
@@ -178,7 +203,7 @@ export default function DocumentClientImport(props: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [documents, setDocuments] = useState<ScannedDocument[]>([])
   const [draft, setDraft] = useState<ClientDocumentDraft>(emptyClientDocumentDraft())
-  const [assignedAgentId, setAssignedAgentId] = useState(props.currentUserId)
+  const [assignedAgentId, setAssignedAgentId] = useState('')
   const [dragging, setDragging] = useState(false)
   const [scanStatus, setScanStatus] = useState('')
   const [saving, setSaving] = useState(false)
@@ -187,7 +212,7 @@ export default function DocumentClientImport(props: Props) {
   const readyCount = documents.filter(item => item.status === 'ready').length
   const scanErrorCount = documents.filter(item => item.status === 'error').length
   const hasUnclassified = documents.some(item => item.status === 'ready' && item.category === 'unclassified')
-  const canSave = Boolean(draft.first_name.trim() && draft.last_name.trim() && readyCount && !hasUnclassified)
+  const canSave = Boolean(draft.first_name.trim() && draft.last_name.trim() && assignedAgentId && readyCount && !hasUnclassified)
   const clientFlags = useMemo(() => ({ is_medicare: false, is_life: documents.some(item => item.category === 'life_insurance'), is_retirement: false }), [documents])
 
   function update<K extends keyof ClientDocumentDraft>(key: K, value: ClientDocumentDraft[K]) {
@@ -265,7 +290,11 @@ export default function DocumentClientImport(props: Props) {
     if (saving) return
     setError('')
     if (!draft.first_name.trim() || !draft.last_name.trim()) {
-      setError('Confirm the client first and last name before creating the record.')
+      setError('Enter the client first and last name before creating the record.')
+      return
+    }
+    if (!assignedAgentId) {
+      setError('Select an assigned agent before creating the record.')
       return
     }
     if (!documents.some(item => item.status === 'ready')) {
@@ -280,16 +309,6 @@ export default function DocumentClientImport(props: Props) {
     setScanStatus('Creating client…')
 
     try {
-      if (!draft.first_name.trim()) {
-        throw new Error('First name is required.')
-      }
-      if (!draft.last_name.trim()) {
-        throw new Error('Last name is required.')
-      }
-      if (!draft.assigned_agent_id) {
-        throw new Error('Please select an agent before saving.')
-      }
-
       const form = new FormData()
       append(form, 'assigned_agent_id', assignedAgentId)
       const simpleFields: Array<keyof ClientDocumentDraft> = [
@@ -315,8 +334,6 @@ export default function DocumentClientImport(props: Props) {
         form.append('medication_quantity_filled', med.quantity_filled)
         form.append('medication_refill_count', med.refill_count)
       }
-
-      form.set('assigned_agent_id', draft.assigned_agent_id)
 
       const result = await createClientIntake(form)
       if (!result.clientId) throw new Error(result.error || 'Could not create client.')
@@ -352,7 +369,7 @@ export default function DocumentClientImport(props: Props) {
             <h2>1. Choose files from Apple Files</h2>
             <p className="subtle">On iPhone/iPad tap Choose Files. On Mac you can also drag files directly from Finder or Apple Files/iCloud Drive.</p>
           </div>
-          <button type="button" className="btn btn-primary" disabled={saving || !draft.first_name.trim() || !draft.last_name.trim() || !draft.assigned_agent_id} onClick={() => inputRef.current?.click()}>CHOOSE FILES</button>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={() => inputRef.current?.click()}>CHOOSE FILES</button>
         </div>
         <div
           className={`document-import-drop${dragging ? ' is-dragging' : ''}`}
@@ -392,7 +409,13 @@ export default function DocumentClientImport(props: Props) {
         <section className="card card-pad document-import-review" style={{ marginTop: 18 }}>
           <div className="document-import-title-row"><div><h2>3. Review extracted client information</h2><p className="subtle">Nothing is created until you click Create Client & Save Files.</p></div></div>
 
-          {props.canAssignAgent && <div className="document-import-field"><label>Assigned Agent *</label><select className={inputClass()} value={assignedAgentId} onChange={(event) => setAssignedAgentId(event.target.value)}>{props.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></div>}
+          <div className="document-import-field">
+            <label>Assigned Agent *</label>
+            <select className={inputClass()} value={assignedAgentId} onChange={(event) => setAssignedAgentId(event.target.value)}>
+              <option value="">Select an agent</option>
+              {props.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}
+            </select>
+          </div>
 
           <h3>Client Information</h3>
           <div className="document-import-grid">
@@ -437,7 +460,7 @@ export default function DocumentClientImport(props: Props) {
           <div className="document-import-field" style={{ marginTop: 18 }}><label>Notes</label><textarea className="input" rows={4} value={draft.notes} onChange={e => update('notes', e.target.value)} /></div>
 
           <div className="document-import-save-row">
-            <div><strong>Final review required</strong><span>Confirm the scanned fields and file categories before saving.</span></div>
+            <div><strong>Final review required</strong><span>Enter first name, last name, and select an agent before saving.</span></div>
             <button className="btn btn-primary" type="button" disabled={!canSave || saving} onClick={() => void createClientFromDocuments()}>{saving ? 'SAVING…' : 'CREATE CLIENT & SAVE FILES'}</button>
           </div>
         </section>
