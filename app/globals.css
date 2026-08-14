@@ -1701,3 +1701,141 @@ tbody tr:hover { background: #f9fbfd; }
 }
 
 .mobile-leads-count { font-style: normal; }
+
+/* Gentle visual separation for information cards inside Add Client and Client Information.
+   These are intentionally low-saturation tints so dense client records are easier to scan
+   without making the CRM feel colorful or distracting. */
+.add-client-form .section-client .intake-group:nth-of-type(3n + 1),
+.client-profile-form .section-client .intake-group:nth-of-type(3n + 1) {
+  background: #f6f9fd;
+  border-color: #d8e4f0;
+}
+.add-client-form .section-client .intake-group:nth-of-type(3n + 2),
+.client-profile-form .section-client .intake-group:nth-of-type(3n + 2) {
+  background: #f8fbfc;
+  border-color: #dbe7ea;
+}
+.add-client-form .section-client .intake-group:nth-of-type(3n),
+.client-profile-form .section-client .intake-group:nth-of-type(3n) {
+  background: #faf9fc;
+  border-color: #e3e0e9;
+}
+
+.add-client-form .section-medicare .intake-group:nth-of-type(3n + 1),
+.client-profile-form .section-medicare .intake-group:nth-of-type(3n + 1) {
+  background: #f4fbf9;
+  border-color: #cfe5df;
+}
+.add-client-form .section-medicare .intake-group:nth-of-type(3n + 2),
+.client-profile-form .section-medicare .intake-group:nth-of-type(3n + 2) {
+  background: #f5fafc;
+  border-color: #d4e5eb;
+}
+.add-client-form .section-medicare .intake-group:nth-of-type(3n),
+.client-profile-form .section-medicare .intake-group:nth-of-type(3n) {
+  background: #f8fbfa;
+  border-color: #d8e5e1;
+}
+
+.add-client-form .section-life .intake-group:nth-of-type(odd),
+.client-profile-form .section-life .intake-group:nth-of-type(odd) {
+  background: #fdf9f2;
+  border-color: #eadcc2;
+}
+.add-client-form .section-life .intake-group:nth-of-type(even),
+.client-profile-form .section-life .intake-group:nth-of-type(even) {
+  background: #fcfaf6;
+  border-color: #e6dfd2;
+}
+
+.add-client-form .section-health .intake-group:nth-of-type(odd),
+.client-profile-form .section-health .intake-group:nth-of-type(odd) {
+  background: #f3faf8;
+  border-color: #cfe4dd;
+}
+.add-client-form .section-health .intake-group:nth-of-type(even),
+.client-profile-form .section-health .intake-group:nth-of-type(even) {
+  background: #f5fafc;
+  border-color: #d3e3e8;
+}
+
+.add-client-form .section-hospital .intake-group:nth-of-type(odd),
+.client-profile-form .section-hospital .intake-group:nth-of-type(odd) {
+  background: #fdf7f8;
+  border-color: #ead7dc;
+}
+.add-client-form .section-hospital .intake-group:nth-of-type(even),
+.client-profile-form .section-hospital .intake-group:nth-of-type(even) {
+  background: #fbf8fa;
+  border-color: #e6dce2;
+}
+
+.add-client-form .section-banking .intake-group:nth-of-type(odd),
+.client-profile-form .section-banking .intake-group:nth-of-type(odd) {
+  background: #f6f8fb;
+  border-color: #d5deea;
+}
+.add-client-form .section-banking .intake-group:nth-of-type(even),
+.client-profile-form .section-banking .intake-group:nth-of-type(even) {
+  background: #f8f8fc;
+  border-color: #dcdeeb;
+}
+
+.add-client-form .section-notes .intake-group,
+.client-profile-form .section-notes .intake-group {
+  background: #fafbfc;
+  border-color: #dde3e9;
+}
+
+/* Doctors & Medications gets a coordinated lavender family, with each sub-card distinct. */
+.add-client-form .section-care .care-subsection:nth-child(4n + 1),
+.client-profile-form .section-care .care-subsection:nth-child(4n + 1) {
+  background: #faf8fd;
+  border-color: #e1daeb;
+}
+.add-client-form .section-care .care-subsection:nth-child(4n + 2),
+.client-profile-form .section-care .care-subsection:nth-child(4n + 2) {
+  background: #f8f8fc;
+  border-color: #dddfea;
+}
+.add-client-form .section-care .care-subsection:nth-child(4n + 3),
+.client-profile-form .section-care .care-subsection:nth-child(4n + 3) {
+  background: #fbf9fc;
+  border-color: #e5dfe8;
+}
+.add-client-form .section-care .care-subsection:nth-child(4n),
+.client-profile-form .section-care .care-subsection:nth-child(4n) {
+  background: #f7f9fc;
+  border-color: #dbe2ec;
+}
+.add-client-form .section-care > .intake-section-body > .intake-group,
+.client-profile-form .section-care > .intake-section-body > .intake-group {
+  background: #faf8fd;
+  border-color: #dfd7e9;
+}
+
+/* Keep nested specialist/medication rows crisp against their softly tinted parent cards. */
+.add-client-form .section-care .specialist-card,
+.client-profile-form .section-care .specialist-card {
+  background: rgba(255, 255, 255, .72);
+  border-color: #dddfea;
+}
+.add-client-form .section-care .medication-card,
+.client-profile-form .section-care .medication-card {
+  background: rgba(255, 255, 255, .76);
+  border-color: #dde3eb;
+}
+
+/* Preserve the security cue while blending sensitive cards with their section tint. */
+.add-client-form .intake-group-sensitive,
+.client-profile-form .intake-group-sensitive {
+  border-left-color: #b78b3f;
+}
+
+/* A slightly stronger edge and softer shadow improves card separation without more color. */
+.add-client-form .intake-group,
+.client-profile-form .intake-group,
+.add-client-form .care-subsection,
+.client-profile-form .care-subsection {
+  box-shadow: 0 2px 9px rgba(16, 38, 63, .045);
+}
