@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, type ChangeEvent } from 'react'
-import { AMERICAN_AMICABLE_BUILD, MUTUAL_OF_OMAHA_BUILD, PHYSICIANS_MUTUAL_BUILD } from '@/lib/build-charts'
+import { AMERICAN_AMICABLE_BUILD, COREBRIDGE_SIMPLINOW_BUILD, MUTUAL_OF_OMAHA_BUILD, PHYSICIANS_MUTUAL_BUILD } from '@/lib/build-charts'
 
-type CompanyKey = 'mutual-of-omaha' | 'american-amicable' | 'physicians-mutual'
+type CompanyKey = 'mutual-of-omaha' | 'american-amicable' | 'physicians-mutual' | 'corebridge-simplinow'
 
 type CompanyOption = {
   key: CompanyKey
@@ -13,7 +13,8 @@ type CompanyOption = {
 const companies: CompanyOption[] = [
   { key: 'mutual-of-omaha', name: 'Mutual of Omaha' },
   { key: 'american-amicable', name: 'American Amicable' },
-  { key: 'physicians-mutual', name: 'Physicians Mutual' }
+  { key: 'physicians-mutual', name: 'Physicians Mutual' },
+  { key: 'corebridge-simplinow', name: 'Corebridge Financial — SimpliNow Legacy' }
 ]
 
 export default function BuildChartLookup() {
@@ -30,7 +31,9 @@ export default function BuildChartLookup() {
       ? AMERICAN_AMICABLE_BUILD
       : exactCompany?.key === 'physicians-mutual'
         ? PHYSICIANS_MUTUAL_BUILD
-        : []
+        : exactCompany?.key === 'corebridge-simplinow'
+          ? COREBRIDGE_SIMPLINOW_BUILD
+          : []
   const mutualRow = exactCompany?.key === 'mutual-of-omaha'
     ? MUTUAL_OF_OMAHA_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
     : null
@@ -40,7 +43,10 @@ export default function BuildChartLookup() {
   const physiciansRow = exactCompany?.key === 'physicians-mutual'
     ? PHYSICIANS_MUTUAL_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
     : null
-  const hasSelectedRow = Boolean(mutualRow || americanRow || physiciansRow)
+  const corebridgeRow = exactCompany?.key === 'corebridge-simplinow'
+    ? COREBRIDGE_SIMPLINOW_BUILD.find((row) => `${row.feet}-${row.inches}` === heightKey) || null
+    : null
+  const hasSelectedRow = Boolean(mutualRow || americanRow || physiciansRow || corebridgeRow)
 
   function resetLookup() {
     setSelectedCompany('')
@@ -93,7 +99,7 @@ export default function BuildChartLookup() {
       </div>
 
       {!exactCompany ? (
-        <div className="build-lookup-empty">Choose Mutual of Omaha, American Amicable, or Physicians Mutual to begin.</div>
+        <div className="build-lookup-empty">Choose Mutual of Omaha, American Amicable, Physicians Mutual, or Corebridge Financial to begin.</div>
       ) : !hasSelectedRow ? (
         <div className="build-lookup-empty">Select a height to see the chart values.</div>
       ) : mutualRow ? (
@@ -137,6 +143,27 @@ export default function BuildChartLookup() {
             <div><span>Decline if Over</span><strong>{physiciansRow.maximumWeight} lb</strong></div>
           </div>
           <p className="build-source-note">Source: Physicians Life Insurance Company Secure Essential Life (L780) Product &amp; Underwriting Guidelines, revised 05/11/2026, PDF page 8.</p>
+        </div>
+      ) : corebridgeRow ? (
+        <div className="build-lookup-result">
+          <div className="build-result-title"><strong>Corebridge Financial — SimpliNow Legacy</strong><span>{corebridgeRow.height}</span></div>
+          <div className="build-aa-groups">
+            <div className="build-aa-group">
+              <span className="build-group-title">SimpliNow Legacy — Graded death benefit</span>
+              <div className="build-result-grid build-result-grid-two">
+                <div><span>Minimum Weight</span><strong>{corebridgeRow.legacyMinimumWeight} lb</strong></div>
+                <div><span>Maximum Weight</span><strong>{corebridgeRow.legacyMaximumWeight} lb</strong></div>
+              </div>
+            </div>
+            <div className="build-aa-group">
+              <span className="build-group-title">SimpliNow Legacy Max — Level death benefit</span>
+              <div className="build-result-grid build-result-grid-two">
+                <div><span>Minimum Weight</span><strong>{corebridgeRow.maxMinimumWeight} lb</strong></div>
+                <div><span>Maximum Weight</span><strong>{corebridgeRow.maxMaximumWeight} lb</strong></div>
+              </div>
+            </div>
+          </div>
+          <p className="build-source-note">Source: Corebridge Financial SimpliNow Legacy Simplified Issue Whole Life Underwriting Guide, AGLC201453 REV0424, PDF page 8.</p>
         </div>
       ) : null}
     </section>

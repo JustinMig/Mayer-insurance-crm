@@ -15,6 +15,16 @@ export type PhysiciansMutualBuildRow = {
   maximumWeight: number
 }
 
+export type CorebridgeBuildRow = {
+  feet: number
+  inches: number
+  height: string
+  legacyMinimumWeight: number
+  legacyMaximumWeight: number
+  maxMinimumWeight: number
+  maxMaximumWeight: number
+}
+
 export type AmericanAmicableBuildRow = {
   feet: number
   inches: number
@@ -127,3 +137,35 @@ export const PHYSICIANS_MUTUAL_BUILD: PhysiciansMutualBuildRow[] = [
   { feet: 6, inches: 11, height: `6' 11\"`, minimumWeight: 182, maximumWeight: 401 }
 ]
 
+
+// Source: Corebridge Financial SimpliNow Legacy Underwriting Guide, AGLC201453 REV0424, PDF page 8.
+// SimpliNow Legacy = Graded death benefit; SimpliNow Legacy Max = Level death benefit.
+export const COREBRIDGE_SIMPLINOW_BUILD: CorebridgeBuildRow[] = [
+  { feet: 4, inches: 8, height: `4' 8\"`, legacyMinimumWeight: 74, legacyMaximumWeight: 203, maxMinimumWeight: 79, maxMaximumWeight: 189 },
+  { feet: 4, inches: 9, height: `4' 9\"`, legacyMinimumWeight: 77, legacyMaximumWeight: 210, maxMinimumWeight: 81, maxMaximumWeight: 196 },
+  { feet: 4, inches: 10, height: `4' 10\"`, legacyMinimumWeight: 79, legacyMaximumWeight: 217, maxMinimumWeight: 84, maxMaximumWeight: 203 },
+  { feet: 4, inches: 11, height: `4' 11\"`, legacyMinimumWeight: 82, legacyMaximumWeight: 225, maxMinimumWeight: 87, maxMaximumWeight: 210 },
+  { feet: 5, inches: 0, height: `5'`, legacyMinimumWeight: 85, legacyMaximumWeight: 232, maxMinimumWeight: 90, maxMaximumWeight: 217 },
+  { feet: 5, inches: 1, height: `5' 1\"`, legacyMinimumWeight: 88, legacyMaximumWeight: 240, maxMinimumWeight: 93, maxMaximumWeight: 224 },
+  { feet: 5, inches: 2, height: `5' 2\"`, legacyMinimumWeight: 91, legacyMaximumWeight: 248, maxMinimumWeight: 96, maxMaximumWeight: 232 },
+  { feet: 5, inches: 3, height: `5' 3\"`, legacyMinimumWeight: 94, legacyMaximumWeight: 256, maxMinimumWeight: 99, maxMaximumWeight: 239 },
+  { feet: 5, inches: 4, height: `5' 4\"`, legacyMinimumWeight: 97, legacyMaximumWeight: 265, maxMinimumWeight: 103, maxMaximumWeight: 247 },
+  { feet: 5, inches: 5, height: `5' 5\"`, legacyMinimumWeight: 100, legacyMaximumWeight: 273, maxMinimumWeight: 106, maxMaximumWeight: 255 },
+  { feet: 5, inches: 6, height: `5' 6\"`, legacyMinimumWeight: 103, legacyMaximumWeight: 281, maxMinimumWeight: 109, maxMaximumWeight: 263 },
+  { feet: 5, inches: 7, height: `5' 7\"`, legacyMinimumWeight: 106, legacyMaximumWeight: 290, maxMinimumWeight: 112, maxMaximumWeight: 271 },
+  { feet: 5, inches: 8, height: `5' 8\"`, legacyMinimumWeight: 109, legacyMaximumWeight: 299, maxMinimumWeight: 116, maxMaximumWeight: 279 },
+  { feet: 5, inches: 9, height: `5' 9\"`, legacyMinimumWeight: 112, legacyMaximumWeight: 307, maxMinimumWeight: 119, maxMaximumWeight: 287 },
+  { feet: 5, inches: 10, height: `5' 10\"`, legacyMinimumWeight: 116, legacyMaximumWeight: 316, maxMinimumWeight: 123, maxMaximumWeight: 296 },
+  { feet: 5, inches: 11, height: `5' 11\"`, legacyMinimumWeight: 119, legacyMaximumWeight: 326, maxMinimumWeight: 126, maxMaximumWeight: 304 },
+  { feet: 6, inches: 0, height: `6'`, legacyMinimumWeight: 122, legacyMaximumWeight: 335, maxMinimumWeight: 130, maxMaximumWeight: 313 },
+  { feet: 6, inches: 1, height: `6' 1\"`, legacyMinimumWeight: 126, legacyMaximumWeight: 344, maxMinimumWeight: 133, maxMaximumWeight: 321 },
+  { feet: 6, inches: 2, height: `6' 2\"`, legacyMinimumWeight: 129, legacyMaximumWeight: 354, maxMinimumWeight: 137, maxMaximumWeight: 330 },
+  { feet: 6, inches: 3, height: `6' 3\"`, legacyMinimumWeight: 133, legacyMaximumWeight: 363, maxMinimumWeight: 141, maxMaximumWeight: 339 },
+  { feet: 6, inches: 4, height: `6' 4\"`, legacyMinimumWeight: 136, legacyMaximumWeight: 373, maxMinimumWeight: 145, maxMaximumWeight: 348 },
+  { feet: 6, inches: 5, height: `6' 5\"`, legacyMinimumWeight: 140, legacyMaximumWeight: 383, maxMinimumWeight: 148, maxMaximumWeight: 358 },
+  { feet: 6, inches: 6, height: `6' 6\"`, legacyMinimumWeight: 144, legacyMaximumWeight: 393, maxMinimumWeight: 152, maxMaximumWeight: 367 },
+  { feet: 6, inches: 7, height: `6' 7\"`, legacyMinimumWeight: 147, legacyMaximumWeight: 403, maxMinimumWeight: 156, maxMaximumWeight: 376 },
+  { feet: 6, inches: 8, height: `6' 8\"`, legacyMinimumWeight: 151, legacyMaximumWeight: 413, maxMinimumWeight: 160, maxMaximumWeight: 386 },
+  { feet: 6, inches: 9, height: `6' 9\"`, legacyMinimumWeight: 155, legacyMaximumWeight: 424, maxMinimumWeight: 164, maxMaximumWeight: 396 },
+  { feet: 6, inches: 10, height: `6' 10\"`, legacyMinimumWeight: 159, legacyMaximumWeight: 434, maxMinimumWeight: 168, maxMaximumWeight: 406 }
+]
