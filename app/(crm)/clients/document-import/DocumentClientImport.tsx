@@ -280,6 +280,16 @@ export default function DocumentClientImport(props: Props) {
     setScanStatus('Creating client…')
 
     try {
+      if (!draft.first_name.trim()) {
+        throw new Error('First name is required.')
+      }
+      if (!draft.last_name.trim()) {
+        throw new Error('Last name is required.')
+      }
+      if (!draft.assigned_agent_id) {
+        throw new Error('Please select an agent before saving.')
+      }
+
       const form = new FormData()
       append(form, 'assigned_agent_id', assignedAgentId)
       const simpleFields: Array<keyof ClientDocumentDraft> = [
@@ -305,6 +315,8 @@ export default function DocumentClientImport(props: Props) {
         form.append('medication_quantity_filled', med.quantity_filled)
         form.append('medication_refill_count', med.refill_count)
       }
+
+      form.set('assigned_agent_id', draft.assigned_agent_id)
 
       const result = await createClientIntake(form)
       if (!result.clientId) throw new Error(result.error || 'Could not create client.')
@@ -340,7 +352,7 @@ export default function DocumentClientImport(props: Props) {
             <h2>1. Choose files from Apple Files</h2>
             <p className="subtle">On iPhone/iPad tap Choose Files. On Mac you can also drag files directly from Finder or Apple Files/iCloud Drive.</p>
           </div>
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={() => inputRef.current?.click()}>CHOOSE FILES</button>
+          <button type="button" className="btn btn-primary" disabled={saving || !draft.first_name.trim() || !draft.last_name.trim() || !draft.assigned_agent_id} onClick={() => inputRef.current?.click()}>CHOOSE FILES</button>
         </div>
         <div
           className={`document-import-drop${dragging ? ' is-dragging' : ''}`}
@@ -380,7 +392,7 @@ export default function DocumentClientImport(props: Props) {
         <section className="card card-pad document-import-review" style={{ marginTop: 18 }}>
           <div className="document-import-title-row"><div><h2>3. Review extracted client information</h2><p className="subtle">Nothing is created until you click Create Client & Save Files.</p></div></div>
 
-          {props.canAssignAgent && <div className="document-import-field"><label>Assigned Agent</label><select className={inputClass()} value={assignedAgentId} onChange={(event) => setAssignedAgentId(event.target.value)}>{props.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></div>}
+          {props.canAssignAgent && <div className="document-import-field"><label>Assigned Agent *</label><select className={inputClass()} value={assignedAgentId} onChange={(event) => setAssignedAgentId(event.target.value)}>{props.agents.map(agent => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></div>}
 
           <h3>Client Information</h3>
           <div className="document-import-grid">
