@@ -16,6 +16,7 @@ import HospitalIndemnityDocuments from './HospitalIndemnityDocuments'
 import OtherCoverageDocuments from './OtherCoverageDocuments'
 import DeleteClientButton from './DeleteClientButton'
 import DateOfBirthInput from '../DateOfBirthInput'
+import ManualDateInput from '../ManualDateInput'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<{ created?: string; updated?: string; upload_warning?: string }>
@@ -182,7 +183,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                   <span className="clear-sensitive"><input type="checkbox" name="clear_drivers_license" /> Clear saved license number</span>
                 </div>
                 <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} defaultValue={client.drivers_license_state || ''} /></label>
-                <label className="label">License expiration<input className="input" type="date" name="drivers_license_expiration" defaultValue={client.drivers_license_expiration || ''} /></label>
+                <label className="label">License expiration<ManualDateInput name="drivers_license_expiration" defaultValue={client.drivers_license_expiration} /></label>
               </div>
             </div>
 
@@ -219,8 +220,8 @@ export default async function ClientProfilePage({ params, searchParams }: { para
             <div className="intake-group">
               <div className="intake-group-heading"><div><strong>Medicare Effective Dates</strong><span>Original Part A and Part B effective dates.</span></div></div>
               <div className="form-grid">
-                <label className="label">Part A date<input className="input" type="date" name="part_a_date" defaultValue={medicare?.part_a_date || ''} /></label>
-                <label className="label">Part B date<input className="input" type="date" name="part_b_date" defaultValue={medicare?.part_b_date || ''} /></label>
+                <label className="label">Part A date<ManualDateInput name="part_a_date" defaultValue={medicare?.part_a_date} /></label>
+                <label className="label">Part B date<ManualDateInput name="part_b_date" defaultValue={medicare?.part_b_date} /></label>
               </div>
             </div>
             <div className="intake-group intake-group-files">

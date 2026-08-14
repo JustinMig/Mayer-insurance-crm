@@ -14,8 +14,8 @@ function nullable(form: FormData, key: string) {
 }
 
 
-function normalizedDateOfBirth(form: FormData) {
-  const raw = value(form, 'date_of_birth')
+function normalizedDate(form: FormData, key: string, label: string) {
+  const raw = value(form, key)
   if (!raw) return null
 
   let year: number
@@ -34,7 +34,7 @@ function normalizedDateOfBirth(form: FormData) {
     month = Number(isoMatch[2])
     day = Number(isoMatch[3])
   } else {
-    throw new Error('Enter the date of birth as MM/DD/YYYY.')
+    throw new Error(`Enter ${label} as MM/DD/YYYY.`)
   }
 
   const date = new Date(Date.UTC(year, month - 1, day))
@@ -43,10 +43,14 @@ function normalizedDateOfBirth(form: FormData) {
     date.getUTCMonth() !== month - 1 ||
     date.getUTCDate() !== day
   ) {
-    throw new Error('Enter a valid date of birth.')
+    throw new Error(`Enter a valid ${label}.`)
   }
 
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function normalizedDateOfBirth(form: FormData) {
+  return normalizedDate(form, 'date_of_birth', 'date of birth')
 }
 
 function checked(form: FormData, key: string) {
@@ -220,7 +224,7 @@ async function saveLifeInsurance(
     face_amount: resolvedLifeFaceAmount(form),
     premium_amount: optionalMoney(form, 'life_premium_amount'),
     policy_type: nullable(form, 'life_policy_type'),
-    effective_date: nullable(form, 'life_effective_date')
+    effective_date: normalizedDate(form, 'life_effective_date', 'Life effective date')
   }
 
   const hasLifeInsuranceData = Object.entries(record).some(
@@ -253,7 +257,7 @@ async function saveHealthPlan(
     company_name: resolvedHealthCompany(form),
     member_id_ciphertext: memberCiphertext,
     plan_id: nullable(form, 'health_plan_id'),
-    effective_date: nullable(form, 'health_effective_date')
+    effective_date: normalizedDate(form, 'health_effective_date', 'Health effective date')
   }
 
   const hasData = Boolean(record.company_name || record.member_id_ciphertext || record.plan_id || record.effective_date)
@@ -277,7 +281,7 @@ async function saveHospitalIndemnity(
     client_id: clientId,
     company_name: nullable(form, 'hospital_indemnity_company'),
     premium_amount: optionalMoney(form, 'hospital_indemnity_premium'),
-    effective_date: nullable(form, 'hospital_indemnity_effective_date')
+    effective_date: normalizedDate(form, 'hospital_indemnity_effective_date', 'Hospital Indemnity effective date')
   }
   const hasData = Boolean(record.company_name || record.premium_amount !== null || record.effective_date)
   if (hasData) {
@@ -377,7 +381,7 @@ async function createClientRecord(form: FormData) {
       ssn_ciphertext: encryptValue(nullable(form, 'ssn')),
       drivers_license_ciphertext: encryptValue(nullable(form, 'drivers_license')),
       drivers_license_state: nullable(form, 'drivers_license_state'),
-      drivers_license_expiration: nullable(form, 'drivers_license_expiration'),
+      drivers_license_expiration: normalizedDate(form, 'drivers_license_expiration', "driver's license expiration date"),
       is_veteran: optionalYesNo(form, 'is_veteran'),
       is_smoker: optionalYesNo(form, 'is_smoker'),
       is_medicare: checked(form, 'is_medicare'),
@@ -397,8 +401,8 @@ async function createClientRecord(form: FormData) {
       agency_id: profile.agency_id,
       client_id: client.id,
       medicare_number_ciphertext: encryptValue(nullable(form, 'medicare_number')),
-      part_a_date: nullable(form, 'part_a_date'),
-      part_b_date: nullable(form, 'part_b_date'),
+      part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
+      part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
       medicaid_number_ciphertext: encryptValue(nullable(form, 'medicaid_number')),
       medicaid_level: nullable(form, 'medicaid_level')
     })
@@ -481,7 +485,7 @@ export async function updateClient(form: FormData) {
     ssn_ciphertext: ssnCiphertext,
     drivers_license_ciphertext: dlCiphertext,
     drivers_license_state: nullable(form, 'drivers_license_state'),
-    drivers_license_expiration: nullable(form, 'drivers_license_expiration'),
+    drivers_license_expiration: normalizedDate(form, 'drivers_license_expiration', "driver's license expiration date"),
     is_veteran: optionalYesNo(form, 'is_veteran'),
     is_smoker: optionalYesNo(form, 'is_smoker'),
     is_medicare: checked(form, 'is_medicare'),
@@ -539,8 +543,8 @@ export async function updateClient(form: FormData) {
         .from('medicare_info')
         .update({
           medicare_number_ciphertext: medicareCiphertext,
-          part_a_date: nullable(form, 'part_a_date'),
-          part_b_date: nullable(form, 'part_b_date'),
+          part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
+          part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
           medicaid_number_ciphertext: medicaidCiphertext,
           medicaid_level: nullable(form, 'medicaid_level')
         })
@@ -554,8 +558,8 @@ export async function updateClient(form: FormData) {
         agency_id: profile.agency_id,
         client_id: clientId,
         medicare_number_ciphertext: medicareCiphertext,
-        part_a_date: nullable(form, 'part_a_date'),
-        part_b_date: nullable(form, 'part_b_date'),
+        part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
+        part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
         medicaid_number_ciphertext: medicaidCiphertext,
         medicaid_level: nullable(form, 'medicaid_level')
       })

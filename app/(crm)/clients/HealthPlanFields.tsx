@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import SensitiveReveal from './[id]/SensitiveReveal'
 
+import ManualDateInput from './ManualDateInput'
 type HealthPlanData = {
   company_name?: string | null
   plan_id?: string | null
@@ -70,7 +71,7 @@ export default function HealthPlanFields({ healthPlan = null, clientId, memberMa
       </label>
 
       <label className="label">Effective date
-        <input className="input" type="date" name="health_effective_date" defaultValue={healthPlan?.effective_date || ''} />
+        <ManualDateInput name="health_effective_date" defaultValue={healthPlan?.effective_date} />
       </label>
     </div>
   )

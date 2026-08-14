@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import ManualDateInput from './ManualDateInput'
 type LifeInsuranceData = {
   company_name?: string | null
   face_amount?: string | number | null
@@ -116,7 +117,7 @@ export default function LifeInsuranceFields({ lifeInsurance = null }: Props) {
       </label>
 
       <label className="label">Effective date
-        <input className="input" type="date" name="life_effective_date" defaultValue={lifeInsurance?.effective_date || ''} />
+        <ManualDateInput name="life_effective_date" defaultValue={lifeInsurance?.effective_date} />
       </label>
     </div>
   )

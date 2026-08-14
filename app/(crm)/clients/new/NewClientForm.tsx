@@ -9,6 +9,7 @@ import HealthPlanFields from '../HealthPlanFields'
 import HospitalIndemnityFields from '../HospitalIndemnityFields'
 
 import DateOfBirthInput from '../DateOfBirthInput'
+import ManualDateInput from '../ManualDateInput'
 import FileDropZone from '../../components/FileDropZone'
 type AgentOption = { id: string; full_name: string; role: string }
 
@@ -402,7 +403,7 @@ export default function NewClientForm(props: Props) {
               <label className="label">Social Security number<input className="input" name="ssn" type="text" autoComplete="off" inputMode="numeric" placeholder="Encrypted before storage" /></label>
               <label className="label">Driver&apos;s license number<input className="input" name="drivers_license" type="text" autoComplete="off" placeholder="Encrypted before storage" /></label>
               <label className="label">License state<input className="input" name="drivers_license_state" maxLength={2} placeholder="MS" /></label>
-              <label className="label">License expiration<input className="input" type="date" name="drivers_license_expiration" /></label>
+              <label className="label">License expiration<ManualDateInput name="drivers_license_expiration" /></label>
             </div>
           </div>
 
@@ -432,8 +433,8 @@ export default function NewClientForm(props: Props) {
           <div className="intake-group">
             <div className="intake-group-heading"><div><strong>Medicare Effective Dates</strong><span>Original Part A and Part B effective dates.</span></div></div>
             <div className="form-grid">
-              <label className="label">Part A date<input className="input" type="date" name="part_a_date" /></label>
-              <label className="label">Part B date<input className="input" type="date" name="part_b_date" /></label>
+              <label className="label">Part A date<ManualDateInput name="part_a_date" /></label>
+              <label className="label">Part B date<ManualDateInput name="part_b_date" /></label>
             </div>
           </div>
 

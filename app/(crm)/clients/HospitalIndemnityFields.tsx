@@ -1,5 +1,6 @@
 'use client'
 
+import ManualDateInput from './ManualDateInput'
 type HospitalIndemnityData = {
   company_name?: string | null
   premium_amount?: string | number | null
@@ -22,7 +23,7 @@ export default function HospitalIndemnityFields({ hospitalIndemnity = null }: { 
         <input className="input" name="hospital_indemnity_premium" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={normalizedAmount(hospitalIndemnity?.premium_amount)} placeholder="0.00" />
       </label>
       <label className="label">Effective date
-        <input className="input" type="date" name="hospital_indemnity_effective_date" defaultValue={hospitalIndemnity?.effective_date || ''} />
+        <ManualDateInput name="hospital_indemnity_effective_date" defaultValue={hospitalIndemnity?.effective_date} />
       </label>
     </div>
   )
