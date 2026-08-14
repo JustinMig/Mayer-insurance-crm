@@ -1949,42 +1949,42 @@ tbody tr:hover { background: #f9fbfd; }
 
 .add-client-form .section-client > summary,
 .client-profile-form .section-client > summary {
-  background: linear-gradient(135deg, #edf3f8, #dce8f2);
+  background: linear-gradient(135deg, #dce8f2, #c7d9e7);
 }
 
 .add-client-form .section-medicare > summary,
 .client-profile-form .section-medicare > summary {
-  background: linear-gradient(135deg, #eaf4f0, #d9eae4);
+  background: linear-gradient(135deg, #d9ebe4, #c4ddd3);
 }
 
 .add-client-form .section-care > summary,
 .client-profile-form .section-care > summary {
-  background: linear-gradient(135deg, #f1eef6, #e4dfee);
+  background: linear-gradient(135deg, #e3dfee, #d2c9e2);
 }
 
 .add-client-form .section-life > summary,
 .client-profile-form .section-life > summary {
-  background: linear-gradient(135deg, #f7f1e7, #ecdfcb);
+  background: linear-gradient(135deg, #eee2cf, #dfc9a8);
 }
 
 .add-client-form .section-health > summary,
 .client-profile-form .section-health > summary {
-  background: linear-gradient(135deg, #eaf3ee, #d8e7df);
+  background: linear-gradient(135deg, #d8e8df, #c3d9ce);
 }
 
 .add-client-form .section-hospital > summary,
 .client-profile-form .section-hospital > summary {
-  background: linear-gradient(135deg, #f6edef, #eadbdf);
+  background: linear-gradient(135deg, #eadcdf, #ddc5cb);
 }
 
 .add-client-form .section-banking > summary,
 .client-profile-form .section-banking > summary {
-  background: linear-gradient(135deg, #eef1f5, #dfe5ec);
+  background: linear-gradient(135deg, #dde4eb, #cbd6e1);
 }
 
 .add-client-form .section-notes > summary,
 .client-profile-form .section-notes > summary {
-  background: linear-gradient(135deg, #f3f4f5, #e5e8eb);
+  background: linear-gradient(135deg, #e3e7ea, #d2d8dd);
 }
 
 .add-client-form .section-details[open] > summary,
