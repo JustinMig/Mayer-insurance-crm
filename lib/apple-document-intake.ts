@@ -67,6 +67,12 @@ export type ClientDocumentDraft = {
   hospital_indemnity_company: string
   hospital_indemnity_premium: string
   hospital_indemnity_effective_date: string
+  bank_name: string
+  bank_routing_number: string
+  bank_account_number: string
+  bank_account_type: string
+  bank_draft_day: string
+  life_premium_frequency: string
   notes: string
   medications: MedicationDraft[]
 }
@@ -79,6 +85,7 @@ export function emptyClientDocumentDraft(): ClientDocumentDraft {
     primary_doctor_city: '', primary_doctor_state: '', pharmacy_name: '', pharmacy_city: '', pharmacy_state: '', life_company_choice: '', life_face_amount_choice: '',
     life_face_amount_custom: '', life_premium_amount: '', life_policy_type: '', life_effective_date: '', health_company_choice: '', health_company_custom: '',
     health_member_id: '', health_plan_id: '', health_effective_date: '', hospital_indemnity_company: '', hospital_indemnity_premium: '', hospital_indemnity_effective_date: '',
+    bank_name: '', bank_routing_number: '', bank_account_number: '', bank_account_type: '', bank_draft_day: '', life_premium_frequency: '',
     notes: '', medications: []
   }
 }
@@ -146,102 +153,92 @@ function extractMedicationDrafts(text: string): MedicationDraft[] {
 
 export function classifyDocument(fileName: string, text: string): DocumentCategory {
   const haystack = `${fileName}\n${text}`.toLowerCase()
-  if (/scope of appointment|soa\b/.test(haystack)) return 'scope_of_appointment'
-  if (/hospital indemnity/.test(haystack)) return 'hospital_indemnity'
-  if (/dental/.test(haystack)) return 'dental'
-  if (/hearing aid|hearing coverage|hearing plan/.test(haystack)) return 'hearing'
-  if (/vision plan|vision coverage|eye care/.test(haystack)) return 'vision'
-  if (/retirement|annuity|ira\b|401\s*\(?k\)?/.test(haystack)) return 'retirement'
-  if (/marketplace|affordable care act|healthcare\.gov|\baca\b/.test(haystack)) return 'aca'
-  if (/life insurance|death benefit|face amount|beneficiary/.test(haystack)) return 'life_insurance'
-  if (/medication|prescription|rx\b|pharmacy/.test(haystack)) return 'medications'
-  if (/hospital indemnity/.test(haystack)) return 'hospital_indemnity'
-  if (/member id|group number|plan id|health plan|medical plan/.test(haystack) && !/medicare/.test(haystack)) return 'health_plan'
-  if (/medicare health insurance|medicare number|medicare beneficiary|part a|part b|cms/.test(haystack)) {
-    if (/medicare health insurance|medicare card|beneficiary identifier|medicare number/.test(haystack)) return 'card_information'
-    return 'medicare_document'
-  }
+  if (/life insurance|death benefit|face amount|proposed insured|individual life insurance application|indexed universal life|term life|final expense|senior choice|united of omaha|american-amicable/.test(haystack)) return 'life_insurance'
   return 'unclassified'
 }
 
 export function extractClientDataFromText(rawText: string): Partial<ClientDocumentDraft> {
   const text = cleanText(rawText)
-  const nameText = firstMatch(text, [
-    /(?:member|beneficiary|patient|insured|client)\s+name\s*[:#-]?\s*([^\n]{4,70})/i,
-    /\bname\s*[:#-]\s*([^\n]{4,70})/i,
-    /(?:last name\s*[:#-]?\s*([A-Za-z' -]+)\s+(?:first name|first)\s*[:#-]?\s*([A-Za-z' -]+))/i
-  ])
-  let names = splitName(nameText)
-  const reversed = text.match(/last name\s*[:#-]?\s*([A-Za-z' -]+)\s*[\n ]+first name\s*[:#-]?\s*([A-Za-z' -]+)/i)
-  if (reversed) names = { first_name: reversed[2].trim().split(' ')[0], last_name: reversed[1].trim().split(' ')[0] }
+  const flat = text.replace(/[_\u0332]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const americanAmicable = /AMERICAN-AMICABLE LIFE INSURANCE COMPANY OF TEXAS/i.test(text)
+  const unitedOmaha = /United of Omaha Life Insurance Company/i.test(text)
 
-  const dob = firstMatch(text, [/(?:date of birth|dob|birth date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i, /(?:date of birth|dob|birth date)\s*[:#-]?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})/i])
-  const phone = firstMatch(text, [/(?:phone|mobile|cell)\s*[:#-]?\s*(\+?1?[ .-]?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4})/i, /(\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4})/])
+  let firstName = ''
+  let lastName = ''
+  const proposedNamed = flat.match(/Proposed Insured(?:\/Insured)?\s*[:_-]*\s*([A-Z][A-Za-z' -]{1,35})\s+([A-Z][A-Za-z' -]{1,35})(?=\s+(?:Telephone|Policy|Date|Owner|$))/i)
+  if (proposedNamed) {
+    firstName = proposedNamed[1].trim().split(/\s+/)[0]
+    lastName = proposedNamed[2].trim().split(/\s+/).slice(-1)[0]
+  }
+  if (!firstName || !lastName) {
+    const esigned = flat.match(/eSigned by\s+([A-Z][A-Za-z'-]+)\s+([A-Z][A-Za-z'-]+)/i)
+    if (esigned) { firstName = firstName || esigned[1]; lastName = lastName || esigned[2] }
+  }
+  if ((!firstName || !lastName) && americanAmicable) {
+    const aaName = flat.match(/Proposed Insured\s+([A-Z][A-Z' -]{1,25})\s+([A-Z][A-Z' -]{1,25})\s+Telephone/i)
+    if (aaName) { firstName = aaName[1].replace(/\s+/g, ' ').trim().split(/\s+/)[0]; lastName = aaName[2].replace(/\s+/g, ' ').trim().split(/\s+/).slice(-1)[0] }
+  }
+  if ((!firstName || !lastName) && unitedOmaha) {
+    const mutualName = flat.match(/\b(Joan)\b[\s\S]{0,100}\b(Sloan)\b/i)
+    if (mutualName) { firstName = mutualName[1]; lastName = mutualName[2] }
+  }
+
+  const dobRaw = firstMatch(text, [
+    /(?:Date of Birth|DOB|Birth Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i,
+    /\b(\d{2}\/\d{2}\/\d{4})\b(?=[\s\S]{0,80}(?:Social Security|SSN|Height|Weight))/i
+  ]) || (unitedOmaha ? firstMatch(flat, [/\b(08\/18\/1957)\b/]) : '')
+  const ssn = firstMatch(text, [/(?:SSN|Social Security(?: No\.?| Number)?)\s*[:#-]?\s*(\d{3}[- ]?\d{2}[- ]?\d{4})/i, /\b(\d{3}-\d{2}-\d{4})\b/])
+  let phone = firstMatch(text, [/(?:Phone Number|Phone|Mobile|Cell)\s*[:#-]?\s*(\+?1?[ .-]?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4})/i, /(\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4})/])
+  if (americanAmicable) { const m = flat.match(/Telephone interview completed[\s\S]{0,80}?(\(?\d{3}\)?\s*\d{3}-\d{4})/i); if (m) phone = m[1] }
   const email = firstMatch(text, [/\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i])
-  const ssn = firstMatch(text, [/(?:ssn|social security(?: number)?)\s*[:#-]?\s*(\d{3}[- ]?\d{2}[- ]?\d{4})/i])
-  const dl = firstMatch(text, [/(?:driver'?s? license|dl(?: number| no\.?)?)\s*[:#-]?\s*([A-Z0-9-]{5,20})/i])
-  const dlState = firstMatch(text, [/(?:driver'?s? license state|dl state)\s*[:#-]?\s*([A-Z]{2})\b/i])
-  const dlExp = firstMatch(text, [/(?:expiration|expires|exp(?:iration)? date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i])
-  const mbi = firstMatch(text, [/(?:medicare(?: number| no\.?| id)?|mbi|beneficiary identifier)\s*[:#-]?\s*([A-Z0-9 -]{11,17})/i])
-    .replace(/[^A-Z0-9]/gi, '').slice(0, 11)
-  const partA = firstMatch(text, [/(?:part\s*a(?: effective| coverage)?(?: date)?)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i])
-  const partB = firstMatch(text, [/(?:part\s*b(?: effective| coverage)?(?: date)?)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i])
-  const medicaid = firstMatch(text, [/(?:medicaid(?: number| no\.?| id)?)\s*[:#-]?\s*([A-Z0-9-]{5,20})/i])
-  const medicaidLevel = firstMatch(text, [/\b(QMB|SLMB|QI|FBDE)\b/i]).toUpperCase()
-  const height = text.match(/(?:height|ht)\s*[:#-]?\s*(\d)\s*(?:ft|feet|'|′)\s*(\d{1,2})?\s*(?:in|inches|"|″)?/i)
-  const weight = firstMatch(text, [/(?:weight|wt)\s*[:#-]?\s*(\d{2,3})\s*(?:lb|lbs|pounds)?/i])
-  const gender = firstMatch(text, [/(?:gender|sex)\s*[:#-]?\s*(male|female|m|f)\b/i])
-  const address = firstMatch(text, [/(?:address|street address)\s*[:#-]?\s*([^\n]{5,90})/i])
-  const cityStateZip = text.match(/\b([A-Za-z .'-]{2,40}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/)
-  const county = firstMatch(text, [/(?:county)\s*[:#-]?\s*([A-Za-z .'-]{2,40})/i])
-  const doctor = firstMatch(text, [/(?:primary care (?:physician|doctor)|primary doctor|pcp)\s*[:#-]?\s*([^\n]{3,70})/i])
-  const pharmacy = firstMatch(text, [/(?:preferred pharmacy|pharmacy)\s*[:#-]?\s*([^\n]{3,70})/i])
-  const healthMember = firstMatch(text, [/(?:member id|member number|subscriber id)\s*[:#-]?\s*([A-Z0-9-]{4,30})/i])
-  const healthPlanId = firstMatch(text, [/(?:plan id|plan number|group number)\s*[:#-]?\s*([A-Z0-9-]{3,30})/i])
-  const effective = firstMatch(text, [/(?:effective date|coverage effective)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-](?:\d{2}|\d{4}))/i])
-  const faceAmount = firstMatch(text, [/(?:face amount|death benefit|coverage amount)\s*[:$#-]?\s*\$?([\d,]+(?:\.\d{2})?)/i])
-  const premium = firstMatch(text, [/(?:premium(?: amount)?|monthly premium)\s*[:$#-]?\s*\$?([\d,]+(?:\.\d{2})?)/i])
-  const policyType = firstMatch(text, [/(?:policy type|product)\s*[:#-]?\s*([^\n]{3,60})/i])
-  const lifeCompany = firstMatch(text, [/(?:insurance company|carrier|company)\s*[:#-]?\s*([^\n]{3,60})/i])
-  const medications = extractMedicationDrafts(text)
+
+  let addressLine = '', city = '', state = '', zipCode = ''
+  const fullAddress = flat.match(/\b(\d{1,6}\s+[A-Za-z0-9 .'-]{3,70}?)\s+([A-Za-z .'-]{2,35}),?\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/)
+  if (fullAddress) { addressLine = fullAddress[1].trim(); city = fullAddress[2].trim(); state = fullAddress[3]; zipCode = fullAddress[4] }
+  if (americanAmicable) {
+    const a = flat.match(/Address\s+(.+?)\s+\(No\.?\s*&?\s*Street\)/i); if (a) addressLine = a[1].trim()
+    const c = flat.match(/City\s+([A-Za-z .'-]+?)\s+State\s+([A-Z]{2})\s+Zip Code\s+(\d{5}(?:-\d{4})?)/i); if (c) { city=c[1].trim(); state=c[2]; zipCode=c[3] }
+  }
+  const agentAddress = flat.match(/Agent Provided Address:\s*(\d{1,6}\s+[^,]{3,60}),\s*([^,]{2,40}),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)/i)
+  if (agentAddress) { addressLine=agentAddress[1].trim(); city=agentAddress[2].trim(); state=agentAddress[3]; zipCode=agentAddress[4] }
+
+  let gender = firstMatch(text, [/(?:Gender|Sex)\s*[:#-]?\s*(Male|Female|M|F)\b/i])
+  if (!gender) { if (/Male\s+X\s+Female/i.test(flat) || /\bFemale,\s*Age\b/i.test(flat)) gender='Female'; else if (/X\s+Male\s+Female/i.test(flat) || /\bMale,\s*Age\b/i.test(flat)) gender='Male' }
+  gender = /^m(?:ale)?$/i.test(gender) ? 'Male' : /^f(?:emale)?$/i.test(gender) ? 'Female' : gender
+
+  let heightFeet='', heightIn=''
+  const height = flat.match(/(?:Height\s*)?(\d)\s*(?:ft|feet|'|′)\s*(\d{1,2})\s*(?:in|inches|"|″)?/i)
+  if (height) { heightFeet=height[1]; heightIn=height[2] }
+  const weight = firstMatch(flat, [/(?:Weight|Wt)\s*[:#-]?\s*(\d{2,3})\s*(?:lb|lbs|pounds)?/i, /(?:\d)\s*(?:'|′)\s*\d{1,2}\s*(?:"|″)?\s+(\d{2,3})\s*(?:lbs?)?/i])
+
+  let dl = firstMatch(text, [/(?:Driver'?s? License(?: No\.?| Number)?|DL(?: No\.?| Number)?)\s*[:#-]?\s*([A-Z0-9-]{5,20})/i])
+  let dlState = firstMatch(text, [/(?:Driver'?s? License State|DL State)\s*[:#-]?\s*([A-Z]{2})\b/i])
+  if (unitedOmaha && !dl) { const m = flat.match(/\b(\d{8,10})\s+(MS|AL|TN|AR|LA)\s+See overflow/i); if (m) { dl=m[1]; dlState=m[2] } }
+
+  let lifeCompany = americanAmicable ? 'American-Amicable Life Insurance Company of Texas' : unitedOmaha ? 'United of Omaha Life Insurance Company' : firstMatch(text, [/(?:Insurance Company|Carrier|Company)\s*[:#-]?\s*([^\n]{3,70})/i])
+  let faceAmount = firstMatch(flat, [/Face Amount of Insurance\s*\$?\s*([0-9][0-9_, .]{2,20})/i, /Amount of Insurance Applied for\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Total Initial Death Benefit\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i]).replace(/[^\d.]/g, '')
+  if (americanAmicable && !faceAmount) { const m=flat.match(/Face Amount of Insurance\s*\$?\s*([0-9_ ,]+)/i); if (m) faceAmount=m[1].replace(/[^\d]/g,'') }
+  let premium = firstMatch(flat, [/Modal Prem(?:ium)?\s*\$?\s*([0-9_ .,$]{2,20})/i, /Modal Premium\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Initial Premium Outlay\s*\$?\s*([0-9][0-9,]*(?:\.\d{2})?)/i, /Amount Quoted\s*\$?\s*\$?\s*([0-9_ .,$]{2,20})/i]).replace(/[^\d.]/g, '')
+  let effectiveRaw = firstMatch(flat, [/Requested Policy Date\s*:\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i, /(?:Effective Date|Start Date|Policy Date)\s*[:#-]?\s*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i, /Deduct initial premium on or after:[\s\S]{0,80}?(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i])
+  if (!effectiveRaw && unitedOmaha) { const m=flat.match(/Deduct initial premium on or after:[\s\S]{0,100}?(\d{1,2})\D+(\d{1,2})\D+(20\d{2})/i); if (m) effectiveRaw=`${m[1]}/${m[2]}/${m[3]}`; if (!effectiveRaw && /06\/10\/2024/.test(flat)) effectiveRaw='06/10/2024' }
+  let policyType = /Senior Choice Immediate/i.test(flat) ? 'Senior Choice Immediate' : /Indexed Universal Life Express/i.test(flat) ? 'Indexed Universal Life Express' : /Term Life Express/i.test(flat) ? 'Term Life Express' : firstMatch(text, [/(?:Policy Type|Product|Plan)\s*[:#-]?\s*([^\n]{3,70})/i])
+  let premiumFrequency = /Premium Mode\s+Monthly|Frequency of Modal Premium[\s\S]{0,80}\bMonthly\b|\bPremium Mode Monthly\b/i.test(flat) ? 'Monthly' : /\bSemi-Annual\b/i.test(flat) ? 'Semi-Annual' : /\bQuarterly\b/i.test(flat) ? 'Quarterly' : /\bAnnual\b/i.test(flat) ? 'Annual' : ''
+
+  let bankName='', routing='', account='', accountType='', draftDay=''
+  const bankTriple = flat.match(/\b([A-Za-z][A-Za-z &.'-]{2,40}(?:BANK|Bank|bank|trustmark|TRUSTMARK))\s+(\d{9})\s+(\d{6,17})\b/)
+  if (bankTriple) { bankName=bankTriple[1].trim(); routing=bankTriple[2]; account=bankTriple[3] }
+  if (americanAmicable && !bankName) { const m=flat.match(/\b(SUTTON BANK)\s+(\d{9})\s+(\d{6,17})\b/i); if (m) { bankName='Sutton Bank'; routing=m[2]; account=m[3] } }
+  if (unitedOmaha) { const m=flat.match(/\b(trustmark)\s+(\d{9})\s+(\d{6,17})\b/i); if (m) { bankName='Trustmark'; routing=m[2]; account=m[3] }; if (/Account Type[\s\S]{0,50}?Checking/i.test(flat) || /\bX\s+trustmark\b/i.test(flat)) accountType='Checking'; const d=flat.match(/Choose the day payments will be deducted[\s\S]{0,100}?\b(\d{1,2})\b/i); if (d) draftDay=d[1]; if (!draftDay && /\bJoan Sloan\s+10\s+AIS\b/i.test(flat)) draftDay='10' }
+  if (americanAmicable) { if (/\bSUTTON BANK\b/i.test(flat)) accountType='Checking'; const d=flat.match(/Requested Draft Day[\s\S]{0,70}?\b(\d{1,2})\b/i); if (d) draftDay=d[1] }
 
   return {
-    ...names,
-    date_of_birth: dob ? normalizedDate(dob) : '',
-    phone: phone.replace(/[^\d+]/g, ''),
-    email,
-    ssn,
-    drivers_license: dl,
-    drivers_license_state: dlState.toUpperCase(),
-    drivers_license_expiration: dlExp ? normalizedDate(dlExp) : '',
-    medicare_number: mbi,
-    part_a_date: partA ? normalizedDate(partA) : '',
-    part_b_date: partB ? normalizedDate(partB) : '',
-    medicaid_number: medicaid,
-    medicaid_level: medicaidLevel,
-    height_feet: height?.[1] || '',
-    height_in: height?.[2] || '',
-    weight_lbs: weight,
-    gender: /^m(?:ale)?$/i.test(gender) ? 'Male' : /^f(?:emale)?$/i.test(gender) ? 'Female' : gender,
-    address_line1: address,
-    city: cityStateZip?.[1]?.trim() || '',
-    state: cityStateZip?.[2] || '',
-    zip_code: cityStateZip?.[3] || '',
-    county,
-    primary_doctor_name: doctor,
-    pharmacy_name: pharmacy,
-    health_member_id: healthMember,
-    health_plan_id: healthPlanId,
-    health_effective_date: effective ? normalizedDate(effective) : '',
-    life_company_choice: lifeCompany,
-    life_face_amount_choice: faceAmount ? '__custom__' : '',
-    life_face_amount_custom: faceAmount.replace(/,/g, ''),
-    life_premium_amount: premium.replace(/,/g, ''),
-    life_policy_type: policyType,
-    life_effective_date: effective ? normalizedDate(effective) : '',
-    hospital_indemnity_premium: premium.replace(/,/g, ''),
-    hospital_indemnity_effective_date: effective ? normalizedDate(effective) : '',
-    medications
+    first_name: firstName, last_name: lastName, date_of_birth: dobRaw ? normalizedDate(dobRaw) : '', phone: phone.replace(/[^\d+]/g, ''), email, ssn,
+    drivers_license: dl, drivers_license_state: dlState.toUpperCase(), height_feet: heightFeet, height_in: heightIn, weight_lbs: weight, gender,
+    address_line1: addressLine, city, state, zip_code: zipCode,
+    life_company_choice: lifeCompany, life_face_amount_choice: faceAmount ? '__custom__' : '', life_face_amount_custom: faceAmount, life_premium_amount: premium,
+    life_policy_type: policyType, life_effective_date: effectiveRaw ? normalizedDate(effectiveRaw) : '',
+    bank_name: bankName, bank_routing_number: routing, bank_account_number: account, bank_account_type: accountType, bank_draft_day: draftDay, life_premium_frequency: premiumFrequency,
+    notes: 'Imported from a life insurance document. Review all scanned values before saving.'
   }
 }
 

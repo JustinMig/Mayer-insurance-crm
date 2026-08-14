@@ -33,19 +33,8 @@ type ScannedDocument = {
 type PdfJsWindow = Window & { pdfjsLib?: any; Tesseract?: any }
 
 const CATEGORY_OPTIONS: Array<{ value: DocumentCategory; label: string }> = [
-  { value: 'unclassified', label: 'Needs review · Choose section' },
-  { value: 'card_information', label: 'Medicare · Card Information' },
-  { value: 'medicare_document', label: 'Medicare · Plan / Other Document' },
-  { value: 'scope_of_appointment', label: 'Medicare · Scope of Appointment' },
-  { value: 'medications', label: 'Doctors & Medications' },
   { value: 'life_insurance', label: 'Life Insurance' },
-  { value: 'health_plan', label: 'Health Plan' },
-  { value: 'hospital_indemnity', label: 'Hospital Indemnity' },
-  { value: 'aca', label: 'Other Coverage · ACA' },
-  { value: 'dental', label: 'Other Coverage · Dental' },
-  { value: 'hearing', label: 'Other Coverage · Hearing' },
-  { value: 'vision', label: 'Other Coverage · Vision' },
-  { value: 'retirement', label: 'Other Coverage · Retirement' }
+  { value: 'unclassified', label: 'Not recognized as a life insurance document' }
 ]
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -129,14 +118,24 @@ async function imageFileToCanvas(file: File) {
 async function extractPdf(file: File, onProgress: (message: string) => void) {
   const pdfjs = await ensurePdfJs()
   const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
-  const pages = Math.min(pdf.numPages, 12)
+  const pages = Math.min(pdf.numPages, 20)
   const chunks: string[] = []
 
   for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
     onProgress(`Reading PDF page ${pageNumber} of ${pages}…`)
     const page = await pdf.getPage(pageNumber)
     const content = await page.getTextContent()
-    const pageText = content.items.map((item: { str?: string }) => item.str || '').join(' ').trim()
+    const items = (content.items as Array<{ str?: string; transform?: number[] }>).filter(item => (item.str || '').trim())
+    const rows: Array<{ y: number; items: Array<{ x: number; text: string }> }> = []
+    for (const item of items) {
+      const x = Number(item.transform?.[4] || 0)
+      const y = Number(item.transform?.[5] || 0)
+      let row = rows.find(candidate => Math.abs(candidate.y - y) <= 2.5)
+      if (!row) { row = { y, items: [] }; rows.push(row) }
+      row.items.push({ x, text: item.str || '' })
+    }
+    rows.sort((a, b) => b.y - a.y)
+    const pageText = rows.map(row => row.items.sort((a, b) => a.x - b.x).map(item => item.text).join(' ')).join('\n').trim()
     if (pageText.length >= 80) {
       chunks.push(pageText)
       continue
@@ -168,28 +167,8 @@ async function extractText(file: File, onProgress: (message: string) => void) {
 }
 
 function dataForCategory(data: Partial<ClientDocumentDraft>, category: DocumentCategory): Partial<ClientDocumentDraft> {
-  const next = { ...data }
-  const detectedCompany = next.life_company_choice || ''
-  const detectedPremium = next.life_premium_amount || ''
-  const detectedEffective = next.life_effective_date || next.health_effective_date || next.hospital_indemnity_effective_date || ''
-
-  if (category === 'health_plan' || category === 'aca') {
-    if (detectedCompany && !next.health_company_custom) { next.health_company_choice = '__other__'; next.health_company_custom = detectedCompany }
-    next.health_effective_date = detectedEffective
-    next.life_company_choice = ''; next.life_face_amount_choice = ''; next.life_face_amount_custom = ''; next.life_premium_amount = ''; next.life_policy_type = ''; next.life_effective_date = ''
-    next.hospital_indemnity_premium = ''; next.hospital_indemnity_effective_date = ''
-  } else if (category === 'hospital_indemnity') {
-    if (detectedCompany && !next.hospital_indemnity_company) next.hospital_indemnity_company = detectedCompany
-    next.hospital_indemnity_premium = detectedPremium
-    next.hospital_indemnity_effective_date = detectedEffective
-    next.life_company_choice = ''; next.life_face_amount_choice = ''; next.life_face_amount_custom = ''; next.life_premium_amount = ''; next.life_policy_type = ''; next.life_effective_date = ''
-    next.health_company_choice = ''; next.health_company_custom = ''; next.health_member_id = ''; next.health_plan_id = ''; next.health_effective_date = ''
-  } else if (category !== 'life_insurance') {
-    next.life_company_choice = ''; next.life_face_amount_choice = ''; next.life_face_amount_custom = ''; next.life_premium_amount = ''; next.life_policy_type = ''; next.life_effective_date = ''
-    next.health_company_choice = ''; next.health_company_custom = ''; next.health_member_id = ''; next.health_plan_id = ''; next.health_effective_date = ''
-    next.hospital_indemnity_company = ''; next.hospital_indemnity_premium = ''; next.hospital_indemnity_effective_date = ''
-  }
-  return next
+  if (category !== 'life_insurance') return {}
+  return { ...data, medicare_number: '', part_a_date: '', part_b_date: '', medicaid_number: '', medicaid_level: '', primary_doctor_name: '', primary_doctor_city: '', primary_doctor_state: '', pharmacy_name: '', pharmacy_city: '', pharmacy_state: '', medications: [], health_company_choice: '', health_company_custom: '', health_member_id: '', health_plan_id: '', health_effective_date: '', hospital_indemnity_company: '', hospital_indemnity_premium: '', hospital_indemnity_effective_date: '' }
 }
 
 function inputClass() { return 'input' }
@@ -209,11 +188,7 @@ export default function DocumentClientImport(props: Props) {
   const scanErrorCount = documents.filter(item => item.status === 'error').length
   const hasUnclassified = documents.some(item => item.status === 'ready' && item.category === 'unclassified')
   const canSave = Boolean(draft.first_name.trim() && draft.last_name.trim() && readyCount && !hasUnclassified)
-  const clientFlags = useMemo(() => ({
-    is_medicare: documents.some(item => ['medicare_document', 'card_information', 'scope_of_appointment'].includes(item.category)),
-    is_life: documents.some(item => item.category === 'life_insurance'),
-    is_retirement: documents.some(item => item.category === 'retirement')
-  }), [documents])
+  const clientFlags = useMemo(() => ({ is_medicare: false, is_life: documents.some(item => item.category === 'life_insurance'), is_retirement: false }), [documents])
 
   function update<K extends keyof ClientDocumentDraft>(key: K, value: ClientDocumentDraft[K]) {
     setDraft(current => ({ ...current, [key]: value }))
@@ -271,14 +246,6 @@ export default function DocumentClientImport(props: Props) {
     setDocuments(current => current.map(item => item.id === id ? { ...item, category } : item))
   }
 
-  function addMedication() {
-    update('medications', [...draft.medications, { name: '', dosage: '', times_per_day: '', quantity_filled: '', refill_count: '' }])
-  }
-
-  function updateMedication(index: number, key: keyof ClientDocumentDraft['medications'][number], value: string) {
-    const medications = draft.medications.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item)
-    update('medications', medications)
-  }
 
   async function uploadDocument(clientId: string, document: ScannedDocument) {
     const form = new FormData()
@@ -306,7 +273,7 @@ export default function DocumentClientImport(props: Props) {
       return
     }
     if (documents.some(item => item.status === 'ready' && item.category === 'unclassified')) {
-      setError('Choose the correct CRM section for every scanned document before creating the client.')
+      setError('Every file must be recognized as a life insurance document before creating the client.')
       return
     }
     setSaving(true)
@@ -320,7 +287,7 @@ export default function DocumentClientImport(props: Props) {
         'drivers_license','drivers_license_state','drivers_license_expiration','is_veteran','is_smoker','medicare_number','part_a_date','part_b_date','medicaid_number','medicaid_level',
         'primary_doctor_name','primary_doctor_city','primary_doctor_state','pharmacy_name','pharmacy_city','pharmacy_state','life_company_choice','life_face_amount_choice','life_face_amount_custom',
         'life_premium_amount','life_policy_type','life_effective_date','health_company_choice','health_company_custom','health_member_id','health_plan_id','health_effective_date',
-        'hospital_indemnity_company','hospital_indemnity_premium','hospital_indemnity_effective_date','notes'
+        'hospital_indemnity_company','hospital_indemnity_premium','hospital_indemnity_effective_date','bank_name','bank_routing_number','bank_account_number','bank_account_type','bank_draft_day','life_premium_frequency','notes'
       ]
       for (const key of simpleFields) {
         const value = draft[key]
@@ -329,6 +296,8 @@ export default function DocumentClientImport(props: Props) {
       if (clientFlags.is_medicare || draft.medicare_number || draft.part_a_date || draft.part_b_date) form.set('is_medicare', 'on')
       if (clientFlags.is_life || draft.life_company_choice || draft.life_face_amount_custom) form.set('is_life', 'on')
       if (clientFlags.is_retirement) form.set('is_retirement', 'on')
+      const lifeImportNotes = [draft.notes.trim(), draft.life_premium_frequency.trim() ? `Life premium frequency: ${draft.life_premium_frequency.trim()}.` : '', draft.bank_account_type.trim() ? `Bank account type: ${draft.bank_account_type.trim()}.` : '', draft.bank_draft_day.trim() ? `Bank draft day: ${draft.bank_draft_day.trim()}.` : ''].filter(Boolean).join(' ')
+      if (lifeImportNotes) form.set('notes', lifeImportNotes)
       for (const med of draft.medications) {
         form.append('medication_name', med.name)
         form.append('medication_dosage', med.dosage)
@@ -373,7 +342,7 @@ export default function DocumentClientImport(props: Props) {
           role="button"
           tabIndex={0}
         >
-          <strong>Drop client documents here</strong>
+          <strong>Drop life insurance documents here</strong>
           <span>PDF, JPEG, PNG, HEIC/HEIF, WebP or TXT · up to 20 files · 10 MB each</span>
           <small>Scanning happens in this browser. Files are not stored in the CRM until you approve the review and create the client.</small>
         </div>
@@ -384,14 +353,12 @@ export default function DocumentClientImport(props: Props) {
 
       {documents.length > 0 && (
         <section className="card card-pad" style={{ marginTop: 18 }}>
-          <div className="document-import-title-row"><div><h2>2. Confirm where each file belongs</h2><p className="subtle">The CRM makes a best guess. Any file it cannot identify is marked Needs review and must be assigned before saving.</p></div><strong>{readyCount} scanned{scanErrorCount ? ` · ${scanErrorCount} needs attention` : ''}</strong></div>
+          <div className="document-import-title-row"><div><h2>2. Confirm the life insurance files</h2><p className="subtle">Recognized files will always be saved under the client&apos;s Life Insurance section.</p></div><strong>{readyCount} scanned{scanErrorCount ? ` · ${scanErrorCount} needs attention` : ''}</strong></div>
           <div className="document-import-file-list">
             {documents.map(document => (
               <div className="document-import-file" key={document.id}>
-                <div className="document-import-file-name"><strong>{document.file.name}</strong><span>{document.status === 'ready' ? 'Scanned' : document.status === 'error' ? document.error : document.status === 'scanning' ? 'Scanning…' : 'Waiting…'}</span></div>
-                <select className="input" value={document.category} disabled={saving} onChange={(event) => updateDocumentCategory(document.id, event.target.value as DocumentCategory)}>
-                  {CATEGORY_OPTIONS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
-                </select>
+                <div className="document-import-file-name"><strong>{document.file.name}</strong><span>{document.status === 'ready' ? (document.category === 'life_insurance' ? 'Life Insurance · Scanned' : 'Not recognized as life insurance') : document.status === 'error' ? document.error : document.status === 'scanning' ? 'Scanning…' : 'Waiting…'}</span></div>
+                <div className="input" style={{ display: 'flex', alignItems: 'center' }}>{document.category === 'life_insurance' ? 'Life Insurance' : 'Needs review'}</div>
                 <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => removeDocument(document.id)}>Remove</button>
               </div>
             ))}
@@ -426,45 +393,24 @@ export default function DocumentClientImport(props: Props) {
             <div className="document-import-field"><label>Weight (lbs)</label><input className={inputClass()} inputMode="numeric" value={draft.weight_lbs} onChange={e => update('weight_lbs', e.target.value)} /></div>
           </div>
 
-          <h3>Medicare Information</h3>
+          <h3>Life Insurance</h3>
           <div className="document-import-grid">
-            <div className="document-import-field"><label>Medicare Number</label><input className={inputClass()} value={draft.medicare_number} onChange={e => update('medicare_number', e.target.value.toUpperCase())} /></div>
-            <div className="document-import-field"><label>Part A Effective Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.part_a_date} onChange={e => update('part_a_date', e.target.value)} /></div>
-            <div className="document-import-field"><label>Part B Effective Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.part_b_date} onChange={e => update('part_b_date', e.target.value)} /></div>
-            <div className="document-import-field"><label>Medicaid Number</label><input className={inputClass()} value={draft.medicaid_number} onChange={e => update('medicaid_number', e.target.value)} /></div>
-            <div className="document-import-field"><label>Medicaid Level</label><input className={inputClass()} value={draft.medicaid_level} onChange={e => update('medicaid_level', e.target.value)} /></div>
+            <div className="document-import-field"><label>Company</label><input className={inputClass()} value={draft.life_company_choice} onChange={e => update('life_company_choice', e.target.value)} /></div>
+            <div className="document-import-field"><label>Face Amount</label><input className={inputClass()} inputMode="decimal" value={draft.life_face_amount_custom} onChange={e => { update('life_face_amount_choice', e.target.value ? '__custom__' : ''); update('life_face_amount_custom', e.target.value) }} /></div>
+            <div className="document-import-field"><label>Premium Amount</label><input className={inputClass()} inputMode="decimal" value={draft.life_premium_amount} onChange={e => update('life_premium_amount', e.target.value)} /></div>
+            <div className="document-import-field"><label>Premium Frequency</label><input className={inputClass()} placeholder="Monthly, Annual…" value={draft.life_premium_frequency} onChange={e => update('life_premium_frequency', e.target.value)} /></div>
+            <div className="document-import-field"><label>Policy / Product Type</label><input className={inputClass()} value={draft.life_policy_type} onChange={e => update('life_policy_type', e.target.value)} /></div>
+            <div className="document-import-field"><label>Effective / Start / Requested Policy Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.life_effective_date} onChange={e => update('life_effective_date', e.target.value)} /></div>
           </div>
 
-          <h3>Doctors & Medications</h3>
+          <h3>Banking Information</h3>
           <div className="document-import-grid">
-            <div className="document-import-field"><label>Primary Doctor</label><input className={inputClass()} value={draft.primary_doctor_name} onChange={e => update('primary_doctor_name', e.target.value)} /></div>
-            <div className="document-import-field"><label>Pharmacy</label><input className={inputClass()} value={draft.pharmacy_name} onChange={e => update('pharmacy_name', e.target.value)} /></div>
+            <div className="document-import-field"><label>Bank Name</label><input className={inputClass()} value={draft.bank_name} onChange={e => update('bank_name', e.target.value)} /></div>
+            <div className="document-import-field"><label>Routing Number</label><input className={inputClass()} inputMode="numeric" value={draft.bank_routing_number} onChange={e => update('bank_routing_number', e.target.value.replace(/\D/g, ''))} /></div>
+            <div className="document-import-field"><label>Account Number</label><input className={inputClass()} inputMode="numeric" value={draft.bank_account_number} onChange={e => update('bank_account_number', e.target.value.replace(/\D/g, ''))} /></div>
+            <div className="document-import-field"><label>Account Type</label><input className={inputClass()} placeholder="Checking / Savings" value={draft.bank_account_type} onChange={e => update('bank_account_type', e.target.value)} /></div>
+            <div className="document-import-field"><label>Draft Day</label><input className={inputClass()} inputMode="numeric" placeholder="1–28" value={draft.bank_draft_day} onChange={e => update('bank_draft_day', e.target.value.replace(/\D/g, ''))} /></div>
           </div>
-          <div className="document-import-medications">
-            {draft.medications.map((med, index) => <div className="document-import-medication" key={`${index}-${med.name}`}>
-              <input className={inputClass()} placeholder="Medication" value={med.name} onChange={e => updateMedication(index, 'name', e.target.value)} />
-              <input className={inputClass()} placeholder="Dosage" value={med.dosage} onChange={e => updateMedication(index, 'dosage', e.target.value)} />
-              <input className={inputClass()} placeholder="Times/day" value={med.times_per_day} onChange={e => updateMedication(index, 'times_per_day', e.target.value)} />
-            </div>)}
-            <button type="button" className="btn btn-secondary" onClick={addMedication}>+ Add Medication</button>
-          </div>
-
-          <details className="document-import-optional"><summary>Life, Health & Hospital Plan Fields</summary>
-            <div className="document-import-grid" style={{ marginTop: 14 }}>
-              <div className="document-import-field"><label>Life Company</label><input className={inputClass()} value={draft.life_company_choice} onChange={e => update('life_company_choice', e.target.value)} /></div>
-              <div className="document-import-field"><label>Life Face Amount</label><input className={inputClass()} value={draft.life_face_amount_custom} onChange={e => { update('life_face_amount_choice', e.target.value ? '__custom__' : ''); update('life_face_amount_custom', e.target.value) }} /></div>
-              <div className="document-import-field"><label>Life Premium</label><input className={inputClass()} value={draft.life_premium_amount} onChange={e => update('life_premium_amount', e.target.value)} /></div>
-              <div className="document-import-field"><label>Life Policy Type</label><input className={inputClass()} value={draft.life_policy_type} onChange={e => update('life_policy_type', e.target.value)} /></div>
-              <div className="document-import-field"><label>Life Effective Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.life_effective_date} onChange={e => update('life_effective_date', e.target.value)} /></div>
-              <div className="document-import-field"><label>Health Company</label><input className={inputClass()} value={draft.health_company_custom || draft.health_company_choice} onChange={e => { update('health_company_choice', '__other__'); update('health_company_custom', e.target.value) }} /></div>
-              <div className="document-import-field"><label>Health Member ID</label><input className={inputClass()} value={draft.health_member_id} onChange={e => update('health_member_id', e.target.value)} /></div>
-              <div className="document-import-field"><label>Health Plan ID</label><input className={inputClass()} value={draft.health_plan_id} onChange={e => update('health_plan_id', e.target.value)} /></div>
-              <div className="document-import-field"><label>Health Effective Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.health_effective_date} onChange={e => update('health_effective_date', e.target.value)} /></div>
-              <div className="document-import-field"><label>Hospital Indemnity Company</label><input className={inputClass()} value={draft.hospital_indemnity_company} onChange={e => update('hospital_indemnity_company', e.target.value)} /></div>
-              <div className="document-import-field"><label>Hospital Indemnity Premium</label><input className={inputClass()} value={draft.hospital_indemnity_premium} onChange={e => update('hospital_indemnity_premium', e.target.value)} /></div>
-              <div className="document-import-field"><label>Hospital Indemnity Effective Date</label><input className={inputClass()} placeholder="MM/DD/YYYY" value={draft.hospital_indemnity_effective_date} onChange={e => update('hospital_indemnity_effective_date', e.target.value)} /></div>
-            </div>
-          </details>
 
           <div className="document-import-field" style={{ marginTop: 18 }}><label>Notes</label><textarea className="input" rows={4} value={draft.notes} onChange={e => update('notes', e.target.value)} /></div>
 
