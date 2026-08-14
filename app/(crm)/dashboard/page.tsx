@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
+import MedicalQualificationsLookup from './MedicalQualificationsLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
 
 export const dynamic = 'force-dynamic'
@@ -177,6 +178,8 @@ export default async function DashboardPage() {
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
 
       <BuildChartLookup />
+
+      <MedicalQualificationsLookup />
 
       <section className="card card-pad" style={{ marginTop: 20 }}>
         <h2>Quick actions</h2>
