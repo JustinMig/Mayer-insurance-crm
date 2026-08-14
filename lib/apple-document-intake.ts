@@ -216,27 +216,44 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
   let firstName = ''
   let lastName = ''
 
-  // Mutual/United: the filled name and SSN are on the same visual row.
-  for (const line of proposedLines) {
-    const m = line.match(/^([A-Za-z][A-Za-z'’-]{1,30})\s+([A-Za-z][A-Za-z'’-]{1,30})\s+(\d{3}-\d{2}-\d{4})\b/)
-    if (m) { firstName = m[1]; lastName = m[2]; break }
+  // Mutual/United only: the filled name and SSN are on the same visual row.
+  if (unitedOmaha) {
+    for (const line of proposedLines) {
+      const m = line.match(/^([A-Za-z][A-Za-z'’-]{1,30})\s+([A-Za-z][A-Za-z'’-]{1,30})\s+(\d{3}-\d{2}-\d{4})\b/)
+      if (m) { firstName = m[1]; lastName = m[2]; break }
+    }
   }
 
-  // American-Amicable: read the filled first/last name directly from the top Proposed Insured row.
-  if (americanAmicable && (!firstName || !lastName)) {
-    const directAAName =
-      proposed.match(/Proposed Insured\s+([A-Z][A-Z'’-]{1,30})(?:\s+\(First\))?(?:\s+[A-Z][A-Z'’-]{0,30}\s+\(Middle\))?\s+([A-Z][A-Z'’-]{1,30})(?=\s|$)/i)
-      || text.match(/INTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s+(?:X|Yes|No)\b/i)
-      || text.match(/Senior Choice Immediate\s+INTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\b/i)
-    if (directAAName) {
-      const nice = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-      firstName = nice(directAAName[1])
-      lastName = nice(directAAName[2])
+  // American-Amicable: use only carrier-specific filled-name patterns.
+  // Do NOT infer a name from arbitrary nearby prose; that is what caused values such as "The Sum".
+  if (americanAmicable) {
+    const blockedNameWord = /^(the|sum|of|insurance|proposed|insured|first|middle|last|final|expense|senior|choice|immediate|interview|not|req|address|city|state|phone|email|male|female)$/i
+    const nice = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+
+    const aaCandidates: Array<RegExpMatchArray | null> = [
+      // The supplied American-Amicable PDF's extracted text emits this filled row reliably.
+      text.match(/\bSenior Choice Immediate\s+INTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s+(?:X|\d|\()/i),
+      text.match(/\bINTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s+(?:X|Yes|No|\d|\()/i),
+      // OCR/text-layer variant where the visible top row is preserved.
+      proposed.match(/Proposed Insured\s+([A-Z][A-Z'’-]{1,30})\s+(?:\([^)]+\)\s*)*([A-Z][A-Z'’-]{1,30})(?=\s+(?:Telephone|Address|$))/i),
+      // Filled-value row immediately preceding address / phone details.
+      text.match(/\b([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s+X\s+\d{1,6}\s+[A-Za-z0-9]/)
+    ]
+
+    for (const candidate of aaCandidates) {
+      if (!candidate) continue
+      const f = candidate[1].trim()
+      const l = candidate[2].trim()
+      if (blockedNameWord.test(f) || blockedNameWord.test(l)) continue
+      firstName = nice(f)
+      lastName = nice(l)
+      break
     }
   }
 
   // Additional visual-row fallback for unusual PDF text ordering.
-  if (!firstName || !lastName) {
+  // Never use this loose fallback for American-Amicable.
+  if (!americanAmicable && (!firstName || !lastName)) {
     const proposedIndex = lines.findIndex(line => /Proposed Insured/i.test(line))
     const nearby = proposedIndex >= 0 ? lines.slice(Math.max(0, proposedIndex - 3), proposedIndex + 5) : proposedLines.slice(0, 8)
     const blocked = /proposed|insured|first|middle|last|telephone|interview|completed|address|phone|individual|life|insurance|application|male|female|senior|choice|immediate|final|expense/i
@@ -248,8 +265,8 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     }
   }
 
-  // Last structured fallback: a two-name row close to SSN/DOB/height in the Proposed Insured section only.
-  if (!firstName || !lastName) {
+  // Last structured fallback for non-American-Amicable documents only.
+  if (!americanAmicable && (!firstName || !lastName)) {
     const m = proposedFlat.match(/\b([A-Z][A-Za-z'’-]{1,30})\s+([A-Z][A-Za-z'’-]{1,30})\s+(?:\d{3}-\d{2}-\d{4}|\d{1,2}\/\d{1,2}\/\d{4})\b/)
     if (m && !/^(Is|The|First|Last|Male|Female)$/i.test(m[1]) && !/^(Is|The|First|Last|Male|Female)$/i.test(m[2])) {
       firstName = m[1]; lastName = m[2]
