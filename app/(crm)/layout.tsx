@@ -22,7 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: '/platinum-icon-192.png', sizes: '192x192', type: 'image/png' },
         { url: '/platinum-icon.png', sizes: '512x512', type: 'image/png' }
       ],
-      apple: [{ url: '/platinum-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }]
+      apple: [{ url: '/platinum-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+      shortcut: [{ url: '/platinum-favicon-64.png', sizes: '64x64', type: 'image/png' }]
     }
   }
 }
