@@ -222,7 +222,20 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     if (m) { firstName = m[1]; lastName = m[2]; break }
   }
 
-  // American-Amicable: the name is printed immediately above / beside the Proposed Insured line.
+  // American-Amicable: read the filled first/last name directly from the top Proposed Insured row.
+  if (americanAmicable && (!firstName || !lastName)) {
+    const directAAName =
+      proposed.match(/Proposed Insured\s+([A-Z][A-Z'’-]{1,30})(?:\s+\(First\))?(?:\s+[A-Z][A-Z'’-]{0,30}\s+\(Middle\))?\s+([A-Z][A-Z'’-]{1,30})(?=\s|$)/i)
+      || text.match(/INTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\s+(?:X|Yes|No)\b/i)
+      || text.match(/Senior Choice Immediate\s+INTERVIEW NOT REQ\s+([A-Z][A-Z'’-]{1,30})\s+([A-Z][A-Z'’-]{1,30})\b/i)
+    if (directAAName) {
+      const nice = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+      firstName = nice(directAAName[1])
+      lastName = nice(directAAName[2])
+    }
+  }
+
+  // Additional visual-row fallback for unusual PDF text ordering.
   if (!firstName || !lastName) {
     const proposedIndex = lines.findIndex(line => /Proposed Insured/i.test(line))
     const nearby = proposedIndex >= 0 ? lines.slice(Math.max(0, proposedIndex - 3), proposedIndex + 5) : proposedLines.slice(0, 8)
@@ -378,8 +391,9 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
   ])
   if (unitedOmaha) {
     // Mutual/United places the selected date on the next visual row under this label.
-    const mutualInitialDate = text.match(/Deduct initial premium on or after:[^\n]*\n\s*(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
-      || text.match(/Deduct initial premium on or after:[\s\S]{0,180}?\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
+    const mutualInitialDate = text.match(/Deduct initial premium on or after:\s*(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
+      || text.match(/Deduct initial premium on or after:[^\n]*\n\s*(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
+      || text.match(/Deduct initial premium on or after:[\s\S]{0,220}?\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/i)
     if (mutualInitialDate) effectiveRaw = mutualInitialDate[1]
   }
 
@@ -404,7 +418,8 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     const paymentText = paymentAnchor >= 0 ? text.slice(paymentAnchor, Math.min(text.length, paymentAnchor + 12000)) : text
 
     // Sample layout: "trustmark" is the filled institution value adjacent to / immediately above the institution label.
-    const institution = paymentText.match(/\b([A-Za-z][A-Za-z .&'-]{2,45})\s*\n\s*2\.\s*Name of Financial Institution/i)
+    const institution = paymentText.match(/2\.\s*Name of Financial Institution\s*:\s*([A-Za-z][A-Za-z .&'-]{2,45})(?=\s{2,}|\n|$)/i)
+      || paymentText.match(/\b([A-Za-z][A-Za-z .&'-]{2,45})\s*\n\s*2\.\s*Name of Financial Institution/i)
       || paymentText.match(/2\.\s*Name of Financial Institution[^\n]*\n\s*([A-Za-z][A-Za-z .&'-]{2,45})\b/i)
       || paymentText.match(/\b(trustmark)\b/i)
     if (institution) bankName = institution[1].replace(/\s+/g, ' ').trim().replace(/\b\w/g, ch => ch.toUpperCase())
@@ -413,27 +428,32 @@ export function extractClientDataFromText(rawText: string): Partial<ClientDocume
     // 065300279
     // Bank Routing Number: _______        8403321436
     //                                  Bank Account Number: _______
-    const bankPair = paymentText.match(/\b(\d{9})\b[\s\S]{0,140}?Bank Routing Number[^\n]*?\b(\d{6,17})\b[\s\S]{0,100}?Bank Account Number/i)
+    const bankPair = paymentText.match(/Bank Routing Number\s*:\s*(\d{9})\b[\s\S]{0,100}?Bank Account Number\s*:\s*(\d{6,17})\b/i)
+      || paymentText.match(/\b(\d{9})\b[\s\S]{0,140}?Bank Routing Number[^\n]*?\b(\d{6,17})\b[\s\S]{0,100}?Bank Account Number/i)
       || paymentText.match(/Bank Routing Number[^\n]*\n\s*(\d{9})\b[\s\S]{0,180}?Bank Account Number[^\n]*\n\s*(\d{6,17})\b/i)
     if (bankPair) { routing = bankPair[1]; account = bankPair[2] }
 
     if (!routing) {
-      const routingMatch = paymentText.match(/\b(\d{9})\b\s*\n\s*Bank Routing Number/i)
+      const routingMatch = paymentText.match(/Bank Routing Number\s*:\s*(\d{9})\b/i)
+        || paymentText.match(/\b(\d{9})\b\s*\n\s*Bank Routing Number/i)
         || paymentText.match(/Bank Routing Number[\s\S]{0,120}?\b(\d{9})\b/i)
       if (routingMatch) routing = routingMatch[1]
     }
     if (!account) {
-      const accountMatch = paymentText.match(/Bank Routing Number[^\n]*?\b\d{9}\b[^\n]*?\b(\d{6,17})\b/i)
+      const accountMatch = paymentText.match(/Bank Account Number\s*:\s*(\d{6,17})\b/i)
+        || paymentText.match(/Bank Routing Number[^\n]*?\b\d{9}\b[^\n]*?\b(\d{6,17})\b/i)
         || paymentText.match(/\b(\d{6,17})\b\s*\n\s*Bank Account Number/i)
         || paymentText.match(/Bank Account Number[\s\S]{0,120}?\b(\d{6,17})\b/i)
       if (accountMatch && accountMatch[1] !== routing && accountMatch[1] !== '12345678' && accountMatch[1] !== '123456789') account = accountMatch[1]
     }
 
-    if (/1\.\s*Account Type[^\n]*(?:X|☒)[^\n]*Checking/i.test(paymentText)) accountType = 'Checking'
-    else if (/1\.\s*Account Type[^\n]*(?:X|☒)[^\n]*Savings/i.test(paymentText)) accountType = 'Savings'
+    if (/1\.\s*Account Type[^\n]*(?:X|☒|☑)[^\n]*Checking/i.test(paymentText) || /Account Type[^\n]*Checking[^\n]*(?:X|☒|☑)/i.test(paymentText)) accountType = 'Checking'
+    else if (/1\.\s*Account Type[^\n]*(?:X|☒|☑)[^\n]*Savings/i.test(paymentText) || /Account Type[^\n]*Savings[^\n]*(?:X|☒|☑)/i.test(paymentText)) accountType = 'Savings'
 
-    const selectedDay = paymentText.match(/Choose the day payments will be deducted every month from your bank account:[^\n]*\n\s*(\d{1,2})\b/i)
-      || paymentText.match(/Choose the day payments will be deducted every month from your bank account:[\s\S]{0,100}?\n\s*(\d{1,2})\b/i)
+    const selectedDay = paymentText.match(/Choose the day payments will be deducted every month from your bank account:[^\n]*?(?:month\)|month)?\s+(\d{1,2})\b/i)
+      || paymentText.match(/\(1st through the 28th or Last Day of every month\)\s*(\d{1,2})\b/i)
+      || paymentText.match(/Choose the day payments will be deducted every month from your bank account:[^\n]*\n\s*(\d{1,2})\b/i)
+      || paymentText.match(/Choose the day payments will be deducted every month from your bank account:[\s\S]{0,140}?\b(\d{1,2})\b/i)
     if (selectedDay && Number(selectedDay[1]) >= 1 && Number(selectedDay[1]) <= 28) draftDay = selectedDay[1]
   }
 
