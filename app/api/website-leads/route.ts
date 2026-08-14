@@ -15,8 +15,10 @@ const ALLOWED_ORIGINS = new Set([
   'https://www.mayerig.com',
 ])
 
-function corsHeaders(origin: string | null) {
-  if (!origin || !ALLOWED_ORIGINS.has(origin)) return {}
+function corsHeaders(origin: string | null): HeadersInit {
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    return {}
+  }
 
   return {
     'Access-Control-Allow-Origin': origin,
