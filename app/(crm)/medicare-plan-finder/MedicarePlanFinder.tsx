@@ -618,7 +618,7 @@ export default function MedicarePlanFinder() {
                   aria-pressed={filterAllSelectedDoctors}
                   title={doctorNetworkLoading ? 'Doctor network verification is still loading. You can turn the filter on now.' : (doctorNetworkPayload?.message || 'Show only plans verified in-network for every selected doctor office.')}
                 >
-                  {filterAllSelectedDoctors ? 'SHOW ALL PLANS' : `ONLY PLANS ALL ${selectedDoctorEntries.length} ${selectedDoctorEntries.length === 1 ? 'DOCTOR TAKES' : 'DOCTORS TAKE'}`}
+                  {filterAllSelectedDoctors ? 'SHOW ALL PLANS' : 'ONLY IN-NETWORK DOCTORS'}
                 </button>
               ) : null}
               <button
@@ -705,32 +705,32 @@ export default function MedicarePlanFinder() {
                       <span>{selectedPlanIds.length}/4 selected</span>
                     </div>
 
-                    {selectedDoctorEntries.length ? (
-                      <div className="medicare-plan-doctor-match-strip">
-                        <span className="medicare-plan-doctor-match-title">Selected doctors</span>
-                        <div className="medicare-plan-doctor-match-list">
-                          {selectedDoctorEntries.map(([slotId, doctor]) => {
-                            const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
-                            const status = match?.status || 'not_verified'
-                            const label = status === 'in_network'
-                              ? 'In network'
-                              : status === 'out_of_network'
-                                ? 'Out of network'
-                                : status === 'source_unavailable'
-                                  ? 'Carrier source not connected'
-                                  : 'Needs verification'
-                            const detail = match?.message || `${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`
-                            return (
-                              <span className={`medicare-plan-doctor-match ${status}`} key={slotId} title={detail}>
-                                <strong>{doctor.name}</strong>
-                                <small>{label} · {doctor.city}</small>
-                                {match?.verified_at ? <em>Checked {new Date(match.verified_at).toLocaleDateString()}</em> : null}
-                              </span>
-                            )
-                          })}
+                    {(() => {
+                      const inNetworkDoctors = selectedDoctorEntries.flatMap(([slotId, doctor]) => {
+                        const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
+                        return match?.status === 'in_network' ? [{ slotId, doctor, match }] : []
+                      })
+
+                      if (!inNetworkDoctors.length) return null
+
+                      return (
+                        <div className="medicare-plan-doctor-match-strip">
+                          <span className="medicare-plan-doctor-match-title">In-network doctors</span>
+                          <div className="medicare-plan-doctor-match-list">
+                            {inNetworkDoctors.map(({ slotId, doctor, match }) => {
+                              const detail = match.message || `${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`
+                              return (
+                                <span className="medicare-plan-doctor-match in_network" key={slotId} title={detail}>
+                                  <strong>{doctor.name}</strong>
+                                  <small>In network · {doctor.city}</small>
+                                  {match.verified_at ? <em>Checked {new Date(match.verified_at).toLocaleDateString()}</em> : null}
+                                </span>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
+                      )
+                    })()}
 
                     <details className="medicare-plan-details">
                       <summary className="medicare-plan-card-head">
