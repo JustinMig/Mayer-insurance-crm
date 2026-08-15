@@ -2114,3 +2114,116 @@ tbody tr:hover { background: #f9fbfd; }
   .medicare-plan-badges{justify-content:flex-start}
   .medicare-comparison-heading .btn{width:100%}
 }
+
+/* Dashboard lookup cards: soft full-card color fills for quick visual separation */
+.dashboard-lookup-accent-directory{
+  background:linear-gradient(145deg,#e9f8f8 0%,#f7fcfc 58%,#ffffff 100%);
+  border-color:#b9dede;
+  border-top-color:#0f7c86;
+}
+.dashboard-lookup-accent-medicare{
+  background:linear-gradient(145deg,#eaf7ef 0%,#f7fbf8 58%,#ffffff 100%);
+  border-color:#c4dfcf;
+  border-top-color:#2f7d57;
+}
+.dashboard-lookup-accent-build{
+  background:linear-gradient(145deg,#fff2e2 0%,#fffaf4 58%,#ffffff 100%);
+  border-color:#ead0ad;
+  border-top-color:#b56a16;
+}
+.dashboard-lookup-accent-medical{
+  background:linear-gradient(145deg,#f1ecfb 0%,#faf8fe 58%,#ffffff 100%);
+  border-color:#d6c9ee;
+  border-top-color:#6b4fb3;
+}
+.dashboard-lookup-accent .build-lookup-empty,
+.dashboard-lookup-accent .medicare-plan-filter-note,
+.dashboard-lookup-accent .medicare-plan-results-toolbar,
+.dashboard-lookup-accent .company-directory-empty,
+.dashboard-lookup-accent .company-directory-details,
+.dashboard-lookup-accent .medical-table-wrap{
+  background:rgba(255,255,255,.78);
+}
+
+/* Medicare Finder: concise verified supplemental allowance display */
+.medicare-plan-benefit-grid.hospital-benefits{
+  grid-template-columns:1fr;
+  padding-bottom:2px;
+}
+.medicare-plan-benefit-grid.hospital-benefits .medicare-plan-benefit-wide{
+  grid-column:auto;
+}
+.medicare-plan-supplemental-section{
+  margin:13px 18px 0;
+  padding:13px;
+  border:1px solid #cfe0d7;
+  border-radius:13px;
+  background:#f3faf6;
+}
+.medicare-plan-supplemental-heading{
+  margin-bottom:9px;
+  color:#3f6656;
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+.medicare-plan-benefit-grid.supplemental-benefits{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  padding:0;
+}
+.medicare-plan-exact-benefit{
+  background:#fff;
+  border-color:#c9ddd2;
+}
+.medicare-plan-exact-benefit strong{
+  color:#1f5740;
+  font-size:14px;
+}
+
+@media(max-width:980px){
+  .medicare-plan-benefit-grid.supplemental-benefits{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+  .medicare-plan-supplemental-section{margin:12px 14px 0;padding:11px}
+  .medicare-plan-benefit-grid.supplemental-benefits{grid-template-columns:1fr}
+}
+
+/* Dashboard lookup cards: full light-color fills with no fade-to-white */
+.dashboard-lookup-accent-directory{
+  background:#eaf8f8;
+  border-color:#b9dede;
+  border-top-color:#0f7c86;
+}
+.dashboard-lookup-accent-medicare{
+  background:#edf8f1;
+  border-color:#c4dfcf;
+  border-top-color:#2f7d57;
+}
+.dashboard-lookup-accent-build{
+  background:#fff3e5;
+  border-color:#ead0ad;
+  border-top-color:#b56a16;
+}
+.dashboard-lookup-accent-medical{
+  background:#f3eefc;
+  border-color:#d6c9ee;
+  border-top-color:#6b4fb3;
+}
+.dashboard-field-doctor{background:#f7fbff;border-color:#aac8e2}
+.dashboard-field-doctor:focus{border-color:#4f82ad;box-shadow:0 0 0 3px rgba(79,130,173,.14)}
+
+/* Medicare doctor-network filter layout. Network filtering stays inactive until verified carrier data is loaded. */
+.medicare-doctor-filter{margin-top:14px;padding:14px;border:1px solid #bdd9ca;border-radius:13px;background:rgba(255,255,255,.76)}
+.medicare-doctor-filter-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.medicare-doctor-filter-heading>div{display:grid;gap:4px}
+.medicare-doctor-filter-heading strong{color:#244d3d;font-size:14px}
+.medicare-doctor-filter-heading span{color:#5f7168;font-size:12px;line-height:1.45;max-width:760px}
+.medicare-doctor-inputs{display:grid;gap:9px;margin-top:12px}
+.medicare-doctor-row{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;align-items:end}
+.medicare-doctor-remove{margin-bottom:1px}
+.medicare-doctor-network-status{margin-top:10px;padding:9px 11px;border-radius:10px;background:#fff8e8;border:1px solid #ead9a9;color:#735f2c;font-size:11.5px;line-height:1.45}
+@media(max-width:680px){
+  .medicare-doctor-row{grid-template-columns:1fr}
+  .medicare-doctor-remove{width:100%}
+}

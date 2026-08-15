@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 
 const MEDICAID_LEVELS = new Set(['none', 'qmb', 'slmb', 'qi', 'fbde', 'other'])
 
+type BenefitDetails = Record<string, unknown>
+
 type MedicarePlanRow = {
   id: string
   carrier: string
@@ -27,6 +29,7 @@ type MedicarePlanRow = {
   hearing_benefit: string | null
   medicaid_levels: string[] | null
   medicaid_level_status: 'not_required' | 'verified' | 'needs_verification'
+  benefit_details: BenefitDetails | null
   cms_source_date: string | null
   q1_source_url: string | null
   source_note: string | null
@@ -44,6 +47,79 @@ function isDsnp(plan: MedicarePlanRow) {
 function normalizedPlan(joined: CountyJoinRow['medicare_plans']) {
   if (Array.isArray(joined)) return joined[0] || null
   return joined || null
+}
+
+function detailString(details: BenefitDetails | null, key: string) {
+  const value = details?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function moneyString(value: string) {
+  const numeric = Number(value.replace(/[$,\s]/g, ''))
+  if (!Number.isFinite(numeric)) return value.trim()
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: numeric % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(numeric)
+}
+
+function annualAllowanceFromText(value: string | null) {
+  if (!value || /not covered/i.test(value)) return null
+
+  const candidates: number[] = []
+  const patterns = [
+    /maximum benefit:\s*\$([\d,]+(?:\.\d{1,2})?)(?=[^·]*(?:every year|per year|annually|annual))/gi,
+    /(?:allowance|benefit)[^$]{0,80}\$([\d,]+(?:\.\d{1,2})?)[^·]{0,80}(?:every year|per year|annually|annual)/gi,
+    /\$([\d,]+(?:\.\d{1,2})?)\s*(?:every year|per year|annually|annual)/gi
+  ]
+
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const amount = Number(match[1].replace(/,/g, ''))
+      if (Number.isFinite(amount) && amount >= 0) candidates.push(amount)
+    }
+  }
+
+  if (!candidates.length) return null
+  const highest = Math.max(...candidates)
+  return `${moneyString(String(highest))} / year`
+}
+
+function recurringAllowanceFromText(value: string | null) {
+  if (!value || /not covered|dollar amount not published|verify carrier/i.test(value)) return null
+
+  const match = value.match(/\$([\d,]+(?:\.\d{1,2})?)[^·]{0,60}\b(month|monthly|quarter|quarterly|year|yearly|annual|annually)\b/i)
+  if (!match) return null
+
+  const frequency = match[2].toLowerCase()
+  const normalizedFrequency = frequency.startsWith('month')
+    ? 'month'
+    : frequency.startsWith('quarter')
+      ? 'quarter'
+      : 'year'
+
+  return `${moneyString(match[1])} / ${normalizedFrequency}`
+}
+
+function recurringAllowance(details: BenefitDetails | null, prefix: 'otc' | 'food', fallback: string | null) {
+  const amount = detailString(details, `${prefix}_amount`)
+  const frequency = detailString(details, `${prefix}_frequency`)
+
+  if (amount) {
+    const normalizedAmount = moneyString(amount)
+    if (!frequency) return normalizedAmount
+    const cleanedFrequency = frequency.replace(/^\s*per\s+/i, '').trim().toLowerCase()
+    return `${normalizedAmount} / ${cleanedFrequency}`
+  }
+
+  return recurringAllowanceFromText(fallback)
+}
+
+function partBGiveback(details: BenefitDetails | null) {
+  const amount = detailString(details, 'part_b_credit_monthly') || detailString(details, 'part_b_giveback_monthly')
+  return amount ? `${moneyString(amount)} / month` : null
 }
 
 export async function GET(request: NextRequest) {
@@ -75,7 +151,7 @@ export async function GET(request: NextRequest) {
         monthly_premium, moop_in_network, pcp_copay, specialist_copay,
         inpatient_hospital, otc_benefit, food_benefit, dental_benefit,
         vision_benefit, hearing_benefit, medicaid_levels, medicaid_level_status,
-        cms_source_date, q1_source_url, source_note
+        benefit_details, cms_source_date, q1_source_url, source_note
       )
     `)
     .eq('state', 'MS')
@@ -111,18 +187,32 @@ export async function GET(request: NextRequest) {
     return a.carrier.localeCompare(b.carrier) || a.plan_name.localeCompare(b.plan_name) || a.plan_id.localeCompare(b.plan_id)
   })
 
-  const results = plans.map((plan) => ({
-    ...plan,
-    plan_key: `${plan.contract_id}-${plan.plan_id}${plan.segment_id && plan.segment_id !== '0' ? `-${plan.segment_id}` : ''}`,
-    is_dsnp: isDsnp(plan),
-    medicaid_match_status: !isDsnp(plan)
-      ? 'not_required'
-      : plan.medicaid_level_status === 'verified'
-        ? 'verified'
-        : medicaid === 'none'
-          ? 'not_selected'
-          : 'needs_verification'
-  }))
+  const results = plans.map((plan) => {
+    const details = plan.benefit_details || {}
+    const dentalAnnualAllowance = detailString(details, 'dental_annual_allowance') || annualAllowanceFromText(plan.dental_benefit)
+    const visionAnnualAllowance = detailString(details, 'vision_annual_allowance') || annualAllowanceFromText(plan.vision_benefit)
+    const otcAllowance = recurringAllowance(details, 'otc', plan.otc_benefit)
+    const foodAllowance = recurringAllowance(details, 'food', plan.food_benefit)
+
+    return {
+      ...plan,
+      benefit_details: undefined,
+      plan_key: `${plan.contract_id}-${plan.plan_id}${plan.segment_id && plan.segment_id !== '0' ? `-${plan.segment_id}` : ''}`,
+      is_dsnp: isDsnp(plan),
+      part_b_credit: partBGiveback(details),
+      dental_annual_allowance: dentalAnnualAllowance,
+      vision_annual_allowance: visionAnnualAllowance,
+      otc_allowance: otcAllowance,
+      food_allowance: foodAllowance,
+      medicaid_match_status: !isDsnp(plan)
+        ? 'not_required'
+        : plan.medicaid_level_status === 'verified'
+          ? 'verified'
+          : medicaid === 'none'
+            ? 'not_selected'
+            : 'needs_verification'
+    }
+  })
 
   return NextResponse.json(
     {

@@ -8,19 +8,6 @@ const MISSISSIPPI_COUNTIES = [
 
 const CARRIERS = ['All carriers', 'Aetna', 'Devoted', 'HealthSpring', 'Humana', 'UnitedHealthcare'] as const
 
-const COMPARISON_ROWS: Array<{ key: keyof MedicarePlan; label: string }> = [
-  { key: 'monthly_premium', label: 'Monthly premium' },
-  { key: 'moop_in_network', label: 'In-network max out-of-pocket' },
-  { key: 'pcp_copay', label: 'Primary care doctor' },
-  { key: 'specialist_copay', label: 'Specialist' },
-  { key: 'inpatient_hospital', label: 'Inpatient hospital' },
-  { key: 'otc_benefit', label: 'OTC benefit' },
-  { key: 'food_benefit', label: 'Food / nutrition benefit' },
-  { key: 'dental_benefit', label: 'Dental' },
-  { key: 'vision_benefit', label: 'Vision' },
-  { key: 'hearing_benefit', label: 'Hearing' }
-]
-
 type MedicarePlan = {
   id: string
   carrier: string
@@ -39,11 +26,11 @@ type MedicarePlan = {
   pcp_copay: string | null
   specialist_copay: string | null
   inpatient_hospital: string | null
-  otc_benefit: string | null
-  food_benefit: string | null
-  dental_benefit: string | null
-  vision_benefit: string | null
-  hearing_benefit: string | null
+  part_b_credit: string | null
+  dental_annual_allowance: string | null
+  vision_annual_allowance: string | null
+  otc_allowance: string | null
+  food_allowance: string | null
   medicaid_level_status: 'not_required' | 'verified' | 'needs_verification'
   medicaid_match_status: 'not_required' | 'verified' | 'not_selected' | 'needs_verification'
   is_dsnp: boolean
@@ -51,6 +38,19 @@ type MedicarePlan = {
   q1_source_url: string | null
   source_note: string | null
 }
+
+const COMPARISON_ROWS: Array<{ key: keyof MedicarePlan; label: string }> = [
+  { key: 'monthly_premium', label: 'Monthly premium' },
+  { key: 'moop_in_network', label: 'In-network max out-of-pocket' },
+  { key: 'pcp_copay', label: 'Primary care doctor' },
+  { key: 'specialist_copay', label: 'Specialist' },
+  { key: 'inpatient_hospital', label: 'Inpatient hospital' },
+  { key: 'part_b_credit', label: 'Part B credit' },
+  { key: 'dental_annual_allowance', label: 'Dental / year / year' },
+  { key: 'vision_annual_allowance', label: 'Vision / year / year' },
+  { key: 'otc_allowance', label: 'OTC amount / occurrence' },
+  { key: 'food_allowance', label: 'Food amount / occurrence' }
+]
 
 type SearchPayload = {
   county: string
@@ -64,6 +64,10 @@ type SearchPayload = {
 
 function displayValue(value: string | null | undefined) {
   return value?.trim() || 'Not published — verify plan materials'
+}
+
+function comparisonValue(value: string | null | undefined) {
+  return value?.trim() || '—'
 }
 
 function formatSourceDate(value: string) {
@@ -82,6 +86,16 @@ function Benefit({ label, value, wide = false }: { label: string; value: string 
   )
 }
 
+function ExactBenefit({ label, value }: { label: string; value: string | null }) {
+  if (!value?.trim()) return null
+  return (
+    <div className="medicare-plan-benefit medicare-plan-exact-benefit">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
 export default function MedicarePlanFinder() {
   const [county, setCounty] = useState('')
   const [medicaid, setMedicaid] = useState('none')
@@ -92,6 +106,7 @@ export default function MedicarePlanFinder() {
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([])
   const [showComparison, setShowComparison] = useState(false)
   const [compareError, setCompareError] = useState('')
+  const [doctorNames, setDoctorNames] = useState<string[]>([''])
 
   const displayedPlans = useMemo(() => {
     const plans = payload?.results || []
@@ -152,6 +167,22 @@ export default function MedicarePlanFinder() {
     setSelectedPlanIds([])
     setShowComparison(false)
     setCompareError('')
+    setDoctorNames([''])
+  }
+
+  function updateDoctor(index: number, value: string) {
+    setDoctorNames((current) => current.map((doctor, doctorIndex) => doctorIndex === index ? value : doctor))
+  }
+
+  function addDoctor() {
+    setDoctorNames((current) => current.length >= 5 ? current : [...current, ''])
+  }
+
+  function removeDoctor(index: number) {
+    setDoctorNames((current) => {
+      const next = current.filter((_, doctorIndex) => doctorIndex !== index)
+      return next.length ? next : ['']
+    })
   }
 
   function toggleCompare(planId: string) {
@@ -214,8 +245,36 @@ export default function MedicarePlanFinder() {
         </button>
       </form>
 
+      <section className="medicare-doctor-filter" aria-label="Doctor network filter">
+        <div className="medicare-doctor-filter-heading">
+          <div>
+            <strong>Doctor Network Filter</strong>
+            <span>Add up to 5 doctors. Once the carrier network sync is loaded, the finder can return only plans that include every doctor entered.</span>
+          </div>
+          <button type="button" className="btn btn-secondary btn-small" onClick={addDoctor} disabled={doctorNames.length >= 5}>+ Add doctor</button>
+        </div>
+        <div className="medicare-doctor-inputs">
+          {doctorNames.map((doctor, index) => (
+            <div className="medicare-doctor-row" key={`doctor-${index}`}>
+              <label className="label">Doctor {index + 1}
+                <input
+                  className="input dashboard-field dashboard-field-doctor"
+                  type="text"
+                  value={doctor}
+                  onChange={(event) => updateDoctor(index, event.target.value)}
+                  placeholder="Example: John Smith, MD"
+                  autoComplete="off"
+                />
+              </label>
+              {doctorNames.length > 1 ? <button type="button" className="btn btn-secondary btn-small medicare-doctor-remove" onClick={() => removeDoctor(index)}>Remove</button> : null}
+            </div>
+          ))}
+        </div>
+        <div className="medicare-doctor-network-status"><strong>Network data status:</strong> carrier provider-directory sync is not loaded into this package yet, so doctor names do not narrow plan results yet. This prevents the CRM from falsely saying a doctor is in-network.</div>
+      </section>
+
       <div className="medicare-plan-filter-note">
-        <strong>Medicaid filtering:</strong> No Medicaid removes D-SNPs. When a Medicaid level is selected, D-SNPs are shown first. If CMS/public plan data does not publish that plan’s exact QMB/SLMB/QI/FBDE acceptance, the result is clearly marked <em>Verify Medicaid eligibility</em> instead of guessing.
+        <strong>Medicaid filtering:</strong> No Medicaid removes D-SNPs. When a Medicaid level is selected, D-SNPs are shown first. If public plan data does not publish that plan’s exact QMB/SLMB/QI/FBDE acceptance, the result is marked <em>Verify Medicaid eligibility</em> instead of guessing.
       </div>
 
       {error ? <div className="medicare-plan-error">{error}</div> : null}
@@ -249,7 +308,7 @@ export default function MedicarePlanFinder() {
           </div>
 
           <div className="medicare-compare-help">
-            Select the <strong>Compare</strong> box on up to 4 plans. Then use the Compare Plans button to line every benefit up side-by-side.
+            Select the <strong>Compare</strong> box on up to 4 plans. Supplemental dollar benefits are only displayed when an exact amount is stored for that plan.
           </div>
 
           {compareError ? <div className="medicare-plan-error medicare-compare-error">{compareError}</div> : null}
@@ -283,7 +342,7 @@ export default function MedicarePlanFinder() {
                       <tr key={row.key}>
                         <th scope="row">{row.label}</th>
                         {selectedPlans.map((plan) => (
-                          <td key={plan.id}>{displayValue(plan[row.key] as string | null | undefined)}</td>
+                          <td key={plan.id}>{comparisonValue(plan[row.key] as string | null | undefined)}</td>
                         ))}
                       </tr>
                     ))}
@@ -299,6 +358,14 @@ export default function MedicarePlanFinder() {
             <div className="medicare-plan-results">
               {displayedPlans.map((plan) => {
                 const selectedForCompare = selectedPlanIds.includes(plan.id)
+                const hasExactSupplemental = Boolean(
+                  plan.part_b_credit ||
+                  plan.dental_annual_allowance ||
+                  plan.vision_annual_allowance ||
+                  plan.otc_allowance ||
+                  plan.food_allowance
+                )
+
                 return (
                   <article className={`medicare-plan-card${selectedForCompare ? ' is-selected-for-compare' : ''}`} key={plan.id}>
                     <div className="medicare-plan-compare-strip">
@@ -347,18 +414,27 @@ export default function MedicarePlanFinder() {
                           <Benefit label="Specialist" value={plan.specialist_copay} />
                         </div>
 
-                        <div className="medicare-plan-benefit-grid detail-benefits">
+                        <div className="medicare-plan-benefit-grid hospital-benefits">
                           <Benefit label="Inpatient hospital" value={plan.inpatient_hospital} wide />
-                          <Benefit label="OTC benefit" value={plan.otc_benefit} />
-                          <Benefit label="Food / nutrition benefit" value={plan.food_benefit} />
-                          <Benefit label="Dental" value={plan.dental_benefit} wide />
-                          <Benefit label="Vision" value={plan.vision_benefit} wide />
-                          <Benefit label="Hearing" value={plan.hearing_benefit} wide />
                         </div>
+
+                        {hasExactSupplemental ? (
+                          <div className="medicare-plan-supplemental-section">
+                            <div className="medicare-plan-supplemental-heading">Extra benefits</div>
+                            <div className="medicare-plan-benefit-grid supplemental-benefits">
+                              <ExactBenefit label="Part B credit" value={plan.part_b_credit} />
+                              <ExactBenefit label="Dental / year" value={plan.dental_annual_allowance} />
+                              <ExactBenefit label="Vision / year" value={plan.vision_annual_allowance} />
+                              <ExactBenefit label="OTC amount / occurrence" value={plan.otc_allowance} />
+                              <ExactBenefit label="Food card amount / occurrence" value={plan.food_allowance} />
+                            </div>
+                          </div>
+                        ) : null}
 
                         <details className="medicare-plan-source-details">
                           <summary>Data source &amp; verification note</summary>
                           <p>{plan.source_note || 'Verify current CMS and carrier plan materials before enrollment.'}</p>
+                          <p>Supplemental allowances are hidden unless an exact dollar amount is available. The frequency is shown with the amount when known, for example “$100 / quarter.”</p>
                           {plan.q1_source_url ? <a href={plan.q1_source_url} target="_blank" rel="noreferrer">Open 2026 plan benefit detail</a> : null}
                         </details>
                       </div>
