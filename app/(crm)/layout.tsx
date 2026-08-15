@@ -63,6 +63,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="nav">
           <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
+          <Link prefetch={false} className="nav-link nav-medicare-plans" href="/medicare-plan-finder">MEDICARE PLAN FINDER</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
           {isJustinPortal && (
