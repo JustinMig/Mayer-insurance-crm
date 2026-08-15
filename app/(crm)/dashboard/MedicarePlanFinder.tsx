@@ -64,6 +64,7 @@ type SearchPayload = {
 
 type DoctorSuggestion = {
   npi: string
+  location_key: string
   name: string
   credential: string | null
   specialty: string | null
@@ -77,6 +78,30 @@ type DoctorSuggestion = {
 type DoctorSearchPayload = {
   results: DoctorSuggestion[]
   count: number
+  error?: string
+}
+
+type DoctorNetworkMatch = {
+  slot_id: string
+  npi: string
+  location_key: string | null
+  name: string
+  status: 'in_network' | 'out_of_network' | 'not_verified'
+  source_url: string | null
+  verified_at: string | null
+}
+
+type PlanDoctorNetworkStatus = {
+  plan_id: string
+  all_selected_in_network: boolean
+  doctor_matches: DoctorNetworkMatch[]
+}
+
+type DoctorNetworkPayload = {
+  available: boolean
+  plans: Record<string, PlanDoctorNetworkStatus>
+  verified_matches: number
+  message?: string | null
   error?: string
 }
 
@@ -228,22 +253,22 @@ function DoctorAutocompleteRow({
                 <button
                   type="button"
                   className="medicare-doctor-suggestion"
-                  key={`${doctor.npi}-${doctor.postal_code}`}
+                  key={doctor.location_key}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => chooseDoctor(doctor)}
                   role="option"
-                  aria-selected={selected?.npi === doctor.npi}
+                  aria-selected={selected?.location_key === doctor.location_key}
                 >
                   <strong>{doctor.name}{doctor.credential ? `, ${doctor.credential}` : ''}</strong>
                   <span>{doctor.specialty || 'Individual provider'}</span>
-                  <small>{doctor.city}, MS {doctor.postal_code} · {doctor.distance_miles.toFixed(1)} mi</small>
+                  <small>{doctor.address ? `${doctor.address} · ` : ''}{doctor.city}, MS {doctor.postal_code} · {doctor.distance_miles.toFixed(1)} mi</small>
                 </button>
               ))}
             </div>
           ) : null}
         </div>
         {selected ? (
-          <span className="medicare-doctor-selected-detail">Selected: NPI {selected.npi} · {selected.city}, MS {selected.postal_code} · {selected.distance_miles.toFixed(1)} miles away</span>
+          <span className="medicare-doctor-selected-detail">Selected office: {selected.address ? `${selected.address} · ` : ''}{selected.city}, MS {selected.postal_code} · NPI {selected.npi} · {selected.distance_miles.toFixed(1)} miles away</span>
         ) : message ? <span className="medicare-doctor-search-message">{message}</span> : null}
       </label>
       {canRemove ? <button type="button" className="btn btn-secondary btn-small medicare-doctor-remove" onClick={() => onRemove(slotId)}>Remove</button> : null}
@@ -265,17 +290,77 @@ export default function MedicarePlanFinder() {
   const [doctorRadius, setDoctorRadius] = useState('25')
   const [doctorRows, setDoctorRows] = useState<string[]>(['doctor-1'])
   const [selectedDoctors, setSelectedDoctors] = useState<Record<string, DoctorSuggestion>>({})
+  const [doctorNetworkPayload, setDoctorNetworkPayload] = useState<DoctorNetworkPayload | null>(null)
+  const [doctorNetworkLoading, setDoctorNetworkLoading] = useState(false)
+  const [doctorNetworkError, setDoctorNetworkError] = useState('')
+  const [filterAllSelectedDoctors, setFilterAllSelectedDoctors] = useState(false)
+
+  const selectedDoctorEntries = useMemo(() => Object.entries(selectedDoctors), [selectedDoctors])
 
   const displayedPlans = useMemo(() => {
-    const plans = payload?.results || []
-    return carrier === 'All carriers' ? plans : plans.filter((plan) => plan.carrier === carrier)
-  }, [carrier, payload])
+    let plans = payload?.results || []
+    if (carrier !== 'All carriers') plans = plans.filter((plan) => plan.carrier === carrier)
+    if (filterAllSelectedDoctors && selectedDoctorEntries.length) {
+      plans = plans.filter((plan) => doctorNetworkPayload?.plans?.[plan.id]?.all_selected_in_network)
+    }
+    return plans
+  }, [carrier, payload, filterAllSelectedDoctors, selectedDoctorEntries.length, doctorNetworkPayload])
 
   const selectedPlans = useMemo(() => {
     if (!payload) return []
     const planById = new Map(payload.results.map((plan) => [plan.id, plan]))
     return selectedPlanIds.map((id) => planById.get(id)).filter((plan): plan is MedicarePlan => Boolean(plan))
   }, [payload, selectedPlanIds])
+
+  useEffect(() => {
+    if (!payload?.results?.length || selectedDoctorEntries.length === 0) {
+      setDoctorNetworkPayload(null)
+      setDoctorNetworkLoading(false)
+      setDoctorNetworkError('')
+      setFilterAllSelectedDoctors(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const doctors = selectedDoctorEntries.map(([slotId, doctor]) => ({
+      slot_id: slotId,
+      npi: doctor.npi,
+      location_key: doctor.location_key,
+      name: doctor.name,
+      address: doctor.address,
+      city: doctor.city,
+      state: doctor.state,
+      postal_code: doctor.postal_code
+    }))
+
+    setDoctorNetworkLoading(true)
+    setDoctorNetworkError('')
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/providers/network-status', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ doctors, plan_ids: payload.results.map((plan) => plan.id) }),
+          signal: controller.signal
+        })
+        const result = await response.json() as DoctorNetworkPayload
+        if (!response.ok) throw new Error(result.error || 'Unable to check doctor networks.')
+        setDoctorNetworkPayload(result)
+        if (!result.available) setFilterAllSelectedDoctors(false)
+      } catch (networkError) {
+        if (controller.signal.aborted) return
+        setDoctorNetworkPayload(null)
+        setFilterAllSelectedDoctors(false)
+        setDoctorNetworkError(networkError instanceof Error ? networkError.message : 'Unable to check doctor networks.')
+      } finally {
+        if (!controller.signal.aborted) setDoctorNetworkLoading(false)
+      }
+    })()
+
+    return () => controller.abort()
+  }, [payload, selectedDoctorEntries])
 
   async function searchPlans(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -291,6 +376,7 @@ export default function MedicarePlanFinder() {
     setSelectedPlanIds([])
     setShowComparison(false)
     setCompareError('')
+    setFilterAllSelectedDoctors(false)
 
     try {
       const params = new URLSearchParams({ county: cleanedCounty, medicaid })
@@ -329,6 +415,10 @@ export default function MedicarePlanFinder() {
     setDoctorRadius('25')
     setDoctorRows(['doctor-1'])
     setSelectedDoctors({})
+    setDoctorNetworkPayload(null)
+    setDoctorNetworkLoading(false)
+    setDoctorNetworkError('')
+    setFilterAllSelectedDoctors(false)
   }
 
   function addDoctor() {
@@ -336,6 +426,7 @@ export default function MedicarePlanFinder() {
   }
 
   function removeDoctor(slotId: string) {
+    setFilterAllSelectedDoctors(false)
     setDoctorRows((current) => current.length > 1 ? current.filter((id) => id !== slotId) : current)
     setSelectedDoctors((current) => {
       const next = { ...current }
@@ -345,6 +436,7 @@ export default function MedicarePlanFinder() {
   }
 
   function selectDoctor(slotId: string, doctor: DoctorSuggestion | null) {
+    setFilterAllSelectedDoctors(false)
     setSelectedDoctors((current) => {
       const next = { ...current }
       if (doctor) next[slotId] = doctor
@@ -356,11 +448,15 @@ export default function MedicarePlanFinder() {
   function changeDoctorZip(value: string) {
     setDoctorZip(value.replace(/\D/g, '').slice(0, 5))
     setSelectedDoctors({})
+    setDoctorNetworkPayload(null)
+    setFilterAllSelectedDoctors(false)
   }
 
   function changeDoctorRadius(value: string) {
     setDoctorRadius(value)
     setSelectedDoctors({})
+    setDoctorNetworkPayload(null)
+    setFilterAllSelectedDoctors(false)
   }
 
   function toggleCompare(planId: string) {
@@ -472,14 +568,21 @@ export default function MedicarePlanFinder() {
           ))}
         </div>
 
-        {Object.keys(selectedDoctors).length ? (
+        {selectedDoctorEntries.length ? (
           <div className="medicare-doctor-selected-summary">
-            <strong>{Object.keys(selectedDoctors).length} doctor{Object.keys(selectedDoctors).length === 1 ? '' : 's'} selected</strong>
-            <span>The selected NPIs are saved in the search state so they can be matched to verified carrier network records when that network sync is activated.</span>
+            <strong>{selectedDoctorEntries.length} doctor{selectedDoctorEntries.length === 1 ? '' : 's'} selected</strong>
+            {selectedDoctorEntries.map(([slotId, doctor]) => (
+              <span key={slotId}><b>{doctor.name}</b> — {doctor.address ? `${doctor.address}, ` : ''}{doctor.city}, MS {doctor.postal_code}</span>
+            ))}
           </div>
         ) : null}
 
-        <div className="medicare-doctor-network-status"><strong>Doctor search:</strong> names and locations come from the CMS NPPES directory. <strong>Plan-network filtering:</strong> remains off until verified carrier provider-network records are loaded, because an NPI appearing in Medicare does not by itself prove participation in a specific Medicare Advantage plan.</div>
+        <div className="medicare-doctor-network-status">
+          <strong>Doctor search:</strong> CMS NPPES provides the doctor identity and practice locations. <strong>Plan match:</strong> the CRM checks the exact selected office against verified carrier-network records by NPI + location.
+          {doctorNetworkLoading ? <span className="medicare-doctor-network-inline"> Checking selected doctors…</span> : null}
+          {doctorNetworkError ? <span className="medicare-doctor-network-inline error"> {doctorNetworkError}</span> : null}
+          {!doctorNetworkLoading && doctorNetworkPayload?.message ? <span className="medicare-doctor-network-inline"> {doctorNetworkPayload.message}</span> : null}
+        </div>
       </section>
 
       <div className="medicare-plan-filter-note">
@@ -505,6 +608,17 @@ export default function MedicarePlanFinder() {
                   {CARRIERS.map((name) => <option value={name} key={name}>{name}</option>)}
                 </select>
               </label>
+              {selectedDoctorEntries.length ? (
+                <button
+                  type="button"
+                  className={`btn medicare-doctor-plan-filter-button${filterAllSelectedDoctors ? ' is-active' : ' btn-secondary'}`}
+                  disabled={doctorNetworkLoading || !doctorNetworkPayload?.available || doctorNetworkPayload.verified_matches === 0}
+                  onClick={() => setFilterAllSelectedDoctors((current) => !current)}
+                  title={!doctorNetworkPayload?.available || doctorNetworkPayload.verified_matches === 0 ? (doctorNetworkPayload?.message || 'No verified carrier-network matches are loaded for the selected doctor offices yet.') : undefined}
+                >
+                  {filterAllSelectedDoctors ? 'SHOW ALL PLANS' : `ONLY PLANS ALL ${selectedDoctorEntries.length} ${selectedDoctorEntries.length === 1 ? 'DOCTOR TAKES' : 'DOCTORS TAKE'}`}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn btn-secondary medicare-compare-button"
@@ -562,7 +676,7 @@ export default function MedicarePlanFinder() {
           ) : null}
 
           {displayedPlans.length === 0 ? (
-            <div className="build-lookup-empty medicare-plan-empty">No plans from that carrier match this county and Medicaid selection.</div>
+            <div className="build-lookup-empty medicare-plan-empty">{filterAllSelectedDoctors ? 'No plans have verified in-network matches for every selected doctor at the selected office locations.' : 'No plans from that carrier match this county and Medicaid selection.'}</div>
           ) : (
             <div className="medicare-plan-results">
               {displayedPlans.map((plan) => {
@@ -588,6 +702,25 @@ export default function MedicarePlanFinder() {
                       </label>
                       <span>{selectedPlanIds.length}/4 selected</span>
                     </div>
+
+                    {selectedDoctorEntries.length ? (
+                      <div className="medicare-plan-doctor-match-strip">
+                        <span className="medicare-plan-doctor-match-title">Selected doctors</span>
+                        <div className="medicare-plan-doctor-match-list">
+                          {selectedDoctorEntries.map(([slotId, doctor]) => {
+                            const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
+                            const status = match?.status || 'not_verified'
+                            const label = status === 'in_network' ? 'In network' : status === 'out_of_network' ? 'Out of network' : 'Not verified'
+                            return (
+                              <span className={`medicare-plan-doctor-match ${status}`} key={slotId} title={`${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`}>
+                                <strong>{doctor.name}</strong>
+                                <small>{label} · {doctor.city}</small>
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <details className="medicare-plan-details">
                       <summary className="medicare-plan-card-head">

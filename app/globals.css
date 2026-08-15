@@ -2250,3 +2250,20 @@ tbody tr:hover { background: #f9fbfd; }
   .medicare-doctor-location-controls{grid-template-columns:1fr}
   .medicare-doctor-suggestions{max-height:260px}
 }
+
+/* Medicare doctor office + verified plan-network matching */
+.medicare-doctor-suggestion small{display:block;line-height:1.35}
+.medicare-doctor-selected-summary span b{color:#244d3d}
+.medicare-doctor-network-inline{margin-left:4px;font-weight:600}.medicare-doctor-network-inline.error{color:#9a3e36}
+.medicare-doctor-plan-filter-button{max-width:310px;white-space:normal;line-height:1.2;text-align:center}
+.medicare-doctor-plan-filter-button.is-active{background:#2f6f56;color:#fff;border-color:#2f6f56}
+.medicare-plan-doctor-match-strip{padding:10px 14px;background:#f7fbf9;border-top:1px solid #e0ebe6;border-bottom:1px solid #e0ebe6;display:grid;gap:7px}
+.medicare-plan-doctor-match-title{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.06em;color:#4a665b}
+.medicare-plan-doctor-match-list{display:flex;gap:7px;flex-wrap:wrap}
+.medicare-plan-doctor-match{display:grid;gap:1px;border:1px solid #d3ddd8;border-radius:10px;padding:6px 9px;background:#fff;min-width:150px;max-width:245px}
+.medicare-plan-doctor-match strong{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.medicare-plan-doctor-match small{font-size:10.5px}
+.medicare-plan-doctor-match.in_network{background:#edf8f1;border-color:#a9cfb8;color:#24553e}
+.medicare-plan-doctor-match.out_of_network{background:#fff1ef;border-color:#e2b2aa;color:#853c34}
+.medicare-plan-doctor-match.not_verified{background:#f5f6f7;border-color:#d4d9dd;color:#59656d}
+@media(max-width:680px){.medicare-doctor-plan-filter-button{width:100%;max-width:none}.medicare-plan-doctor-match{min-width:0;max-width:none;flex:1 1 100%}}

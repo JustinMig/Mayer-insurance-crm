@@ -42,6 +42,7 @@ type NppesResponse = {
 
 type ProviderCandidate = {
   npi: string
+  location_key: string
   name: string
   credential: string | null
   specialty: string | null
@@ -62,6 +63,14 @@ function cleanNameQuery(value: string) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 70)
+}
+
+function normalizeLocationPart(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function makeLocationKey(npi: string, address: string, city: string, zip: string) {
+  return [npi, normalizeLocationPart(address), normalizeLocationPart(city), zip].join('|')
 }
 
 async function coordinatesForZip(zip: string) {
@@ -114,7 +123,7 @@ function locationAddresses(result: NppesResult) {
   return [...primary, ...secondary]
 }
 
-function candidateFromResult(result: NppesResult) {
+function candidatesFromResult(result: NppesResult) {
   const first = result.basic?.first_name?.trim() || ''
   const middle = result.basic?.middle_name?.trim() || ''
   const last = result.basic?.last_name?.trim() || ''
@@ -123,25 +132,32 @@ function candidateFromResult(result: NppesResult) {
 
   const credential = result.basic?.credential?.trim() || null
   const specialty = primarySpecialty(result)
+  const deduped = new Map<string, ProviderCandidate>()
 
-  const candidates: ProviderCandidate[] = []
   for (const location of locationAddresses(result)) {
     if ((location.state || '').toUpperCase() !== 'MS') continue
     const postalCode = cleanZip(location.postal_code || '')
     if (!postalCode) continue
-    candidates.push({
-      npi: result.number,
-      name,
-      credential,
-      specialty,
-      address: [location.address_1, location.address_2].filter(Boolean).join(', '),
-      city: location.city?.trim() || '',
-      state: 'MS',
-      postal_code: postalCode
-    })
+    const address = [location.address_1, location.address_2].filter(Boolean).join(', ').trim()
+    const city = location.city?.trim() || ''
+    const locationKey = makeLocationKey(result.number, address, city, postalCode)
+
+    if (!deduped.has(locationKey)) {
+      deduped.set(locationKey, {
+        npi: result.number,
+        location_key: locationKey,
+        name,
+        credential,
+        specialty,
+        address,
+        city,
+        state: 'MS',
+        postal_code: postalCode
+      })
+    }
   }
 
-  return candidates
+  return [...deduped.values()]
 }
 
 function nppesParams(query: string, field: 'first_name' | 'last_name') {
@@ -219,33 +235,31 @@ export async function GET(request: NextRequest) {
 
   try {
     const nppesResults = await searchNppes(query)
-    const rawCandidates = nppesResults.flatMap(candidateFromResult)
+    const rawCandidates = nppesResults.flatMap(candidatesFromResult)
 
-    const uniqueZipCodes = [...new Set(rawCandidates.map((candidate) => candidate.postal_code))].slice(0, 80)
+    const uniqueZipCodes = [...new Set(rawCandidates.map((candidate) => candidate.postal_code))].slice(0, 120)
     const coordinates = new Map<string, { lat: number; lon: number } | null>()
     await Promise.all(uniqueZipCodes.map(async (candidateZip) => {
       coordinates.set(candidateZip, candidateZip === zip ? center : await coordinatesForZip(candidateZip))
     }))
 
-    const closestByNpi = new Map<string, ProviderCandidate & { distance_miles: number }>()
+    const uniqueLocations = new Map<string, ProviderCandidate & { distance_miles: number }>()
     for (const candidate of rawCandidates) {
       const candidateCoordinates = coordinates.get(candidate.postal_code)
       if (!candidateCoordinates) continue
       const distance = haversineMiles(center, candidateCoordinates)
       if (distance > radius) continue
 
-      const existing = closestByNpi.get(candidate.npi)
-      if (!existing || distance < existing.distance_miles) {
-        closestByNpi.set(candidate.npi, {
-          ...candidate,
-          distance_miles: Math.round(distance * 10) / 10
-        })
+      const locationWithDistance = {
+        ...candidate,
+        distance_miles: Math.round(distance * 10) / 10
       }
+      uniqueLocations.set(candidate.location_key, locationWithDistance)
     }
 
-    const results = [...closestByNpi.values()]
-      .sort((a, b) => a.distance_miles - b.distance_miles || a.name.localeCompare(b.name))
-      .slice(0, 15)
+    const results = [...uniqueLocations.values()]
+      .sort((a, b) => a.distance_miles - b.distance_miles || a.name.localeCompare(b.name) || a.address.localeCompare(b.address))
+      .slice(0, 30)
 
     return NextResponse.json({
       query,
@@ -254,7 +268,8 @@ export async function GET(request: NextRequest) {
       results,
       count: results.length,
       source: 'CMS NPPES NPI Registry API 2.1',
-      location_method: 'ZIP centroid distance'
+      location_method: 'ZIP centroid distance',
+      multiple_locations_preserved: true
     })
   } catch {
     return NextResponse.json({ error: 'Unable to search the CMS doctor directory right now.' }, { status: 502 })
