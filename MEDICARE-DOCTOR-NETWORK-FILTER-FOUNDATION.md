@@ -1,7 +1,12 @@
-# Medicare Doctor Network Filter Foundation
+# Medicare Doctor Network Filter
 
-This package adds the requested multi-doctor search area to the Medicare Plan Finder and prepares a Supabase schema for verified doctor-to-plan network data.
+The original database foundation is now active as a verified-results cache.
 
-Important: the doctor entries intentionally do not filter plans until verified carrier provider-directory data is loaded. The CMS Care Compare clinician database identifies Medicare providers but does not prove participation in a specific Medicare Advantage plan network.
+The Medicare Plan Finder performs live provider-directory verification for connected carriers and saves verified doctor-office-to-plan results in:
 
-The target network sources are the carriers' CMS-required provider-directory APIs / machine-readable data for Aetna, Humana, Devoted, UnitedHealthcare, and HealthSpring. Once those records are synchronized into `medicare_network_providers` and `medicare_provider_plan_networks`, the finder can intersect multiple doctors and return only plans accepted by every selected doctor.
+- `medicare_network_providers`
+- `medicare_provider_plan_networks`
+
+Humana and Devoted have public live-directory adapters in this package. Aetna, HealthSpring, and UnitedHealthcare remain carrier-connection dependent and are shown as `Carrier source not connected` until their official Medicare Advantage directory connection is configured.
+
+See `LIVE-MEDICARE-DOCTOR-NETWORK-VERIFICATION.md` for the full implementation and environment-variable list.
