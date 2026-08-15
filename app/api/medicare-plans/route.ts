@@ -117,6 +117,42 @@ function recurringAllowance(details: BenefitDetails | null, prefix: 'otc' | 'foo
   return recurringAllowanceFromText(fallback)
 }
 
+
+function benefitSegment(value: string | null, label: string) {
+  if (!value) return null
+  const segment = value
+    .split(/\s*·\s*/g)
+    .map((part) => part.trim())
+    .find((part) => part.toLowerCase().startsWith(`${label.toLowerCase()}:`))
+
+  if (!segment) return null
+  const cleaned = segment.slice(segment.indexOf(':') + 1).trim()
+  return cleaned || null
+}
+
+function firstBenefitSegment(value: string | null) {
+  if (!value) return null
+  const segment = value.split(/\s*·\s*/g).map((part) => part.trim()).find(Boolean)
+  if (!segment) return null
+  const separator = segment.indexOf(':')
+  return separator >= 0 ? segment.slice(separator + 1).trim() || null : segment
+}
+
+function compactVisionSummary(exam: string | null, eyewear: string | null, allowance: string | null) {
+  const parts: string[] = []
+  if (exam) parts.push(`Eye exam: ${exam}`)
+  if (allowance) parts.push(`Eyewear: ${allowance}`)
+  else if (eyewear) parts.push(`Eyewear: ${eyewear}`)
+  return parts.length ? parts.join(' · ') : null
+}
+
+function compactHearingSummary(exam: string | null, aids: string | null) {
+  const parts: string[] = []
+  if (exam) parts.push(`Exam: ${exam}`)
+  if (aids) parts.push(`Hearing aids: ${aids}`)
+  return parts.length ? parts.join(' · ') : null
+}
+
 function partBGiveback(details: BenefitDetails | null) {
   const amount = detailString(details, 'part_b_credit_monthly') || detailString(details, 'part_b_giveback_monthly')
   return amount ? `${moneyString(amount)} / month` : null
@@ -191,6 +227,10 @@ export async function GET(request: NextRequest) {
     const details = plan.benefit_details || {}
     const dentalAnnualAllowance = detailString(details, 'dental_annual_allowance') || annualAllowanceFromText(plan.dental_benefit)
     const visionAnnualAllowance = detailString(details, 'vision_annual_allowance') || annualAllowanceFromText(plan.vision_benefit)
+    const visionExam = benefitSegment(plan.vision_benefit, 'Routine eye exam') || firstBenefitSegment(plan.vision_benefit)
+    const visionEyewear = benefitSegment(plan.vision_benefit, 'Eyeglasses (frames and lenses)') || benefitSegment(plan.vision_benefit, 'Eyeglasses') || benefitSegment(plan.vision_benefit, 'Contact lenses')
+    const hearingExam = benefitSegment(plan.hearing_benefit, 'Hearing exam') || firstBenefitSegment(plan.hearing_benefit)
+    const hearingAids = benefitSegment(plan.hearing_benefit, 'Hearing aids')
     const otcAllowance = recurringAllowance(details, 'otc', plan.otc_benefit)
     const foodAllowance = recurringAllowance(details, 'food', plan.food_benefit)
 
@@ -202,6 +242,12 @@ export async function GET(request: NextRequest) {
       part_b_credit: partBGiveback(details),
       dental_annual_allowance: dentalAnnualAllowance,
       vision_annual_allowance: visionAnnualAllowance,
+      vision_exam: visionExam,
+      vision_eyewear: visionAnnualAllowance || visionEyewear,
+      vision_summary: compactVisionSummary(visionExam, visionEyewear, visionAnnualAllowance),
+      hearing_exam: hearingExam,
+      hearing_aids: hearingAids,
+      hearing_summary: compactHearingSummary(hearingExam, hearingAids),
       otc_allowance: otcAllowance,
       food_allowance: foodAllowance,
       medicaid_match_status: !isDsnp(plan)

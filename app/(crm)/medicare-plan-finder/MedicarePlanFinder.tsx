@@ -29,6 +29,15 @@ type MedicarePlan = {
   part_b_credit: string | null
   dental_annual_allowance: string | null
   vision_annual_allowance: string | null
+  vision_exam: string | null
+  vision_eyewear: string | null
+  vision_summary: string | null
+  hearing_exam: string | null
+  hearing_aids: string | null
+  hearing_summary: string | null
+  vision_benefit: string | null
+  hearing_benefit: string | null
+  dental_benefit: string | null
   otc_allowance: string | null
   food_allowance: string | null
   medicaid_level_status: 'not_required' | 'verified' | 'needs_verification'
@@ -41,15 +50,16 @@ type MedicarePlan = {
 
 const COMPARISON_ROWS: Array<{ key: keyof MedicarePlan; label: string }> = [
   { key: 'monthly_premium', label: 'Monthly premium' },
-  { key: 'moop_in_network', label: 'In-network max out-of-pocket' },
-  { key: 'pcp_copay', label: 'Primary care doctor' },
+  { key: 'moop_in_network', label: 'Max out-of-pocket' },
+  { key: 'pcp_copay', label: 'Primary care' },
   { key: 'specialist_copay', label: 'Specialist' },
-  { key: 'inpatient_hospital', label: 'Inpatient hospital' },
-  { key: 'part_b_credit', label: 'Part B credit' },
-  { key: 'dental_annual_allowance', label: 'Dental allowance / year' },
-  { key: 'vision_annual_allowance', label: 'Vision allowance / year' },
-  { key: 'otc_allowance', label: 'OTC amount / occurrence' },
-  { key: 'food_allowance', label: 'Food amount / occurrence' }
+  { key: 'inpatient_hospital', label: 'Hospital' },
+  { key: 'part_b_credit', label: 'Part B giveback' },
+  { key: 'dental_annual_allowance', label: 'Dental' },
+  { key: 'vision_summary', label: 'Vision' },
+  { key: 'hearing_summary', label: 'Hearing' },
+  { key: 'otc_allowance', label: 'OTC' },
+  { key: 'food_allowance', label: 'Food' }
 ]
 
 type SearchPayload = {
@@ -139,6 +149,46 @@ function ExactBenefit({ label, value }: { label: string; value: string | null })
     <div className="medicare-plan-benefit medicare-plan-exact-benefit">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  )
+}
+
+function QuickStat({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="medicare-plan-quick-stat">
+      <span>{label}</span>
+      <strong>{comparisonValue(value)}</strong>
+    </div>
+  )
+}
+
+function CompactBenefit({ label, value, wide = false }: { label: string; value: string | null; wide?: boolean }) {
+  return (
+    <div className={`medicare-plan-compact-benefit${wide ? ' is-wide' : ''}${value?.trim() ? '' : ' is-empty'}`}>
+      <span>{label}</span>
+      <strong>{comparisonValue(value)}</strong>
+    </div>
+  )
+}
+
+function SplitBenefit({
+  label,
+  primaryLabel,
+  primaryValue,
+  secondaryLabel,
+  secondaryValue
+}: {
+  label: string
+  primaryLabel: string
+  primaryValue: string | null
+  secondaryLabel: string
+  secondaryValue: string | null
+}) {
+  return (
+    <div className="medicare-plan-compact-benefit medicare-plan-split-benefit">
+      <span>{label}</span>
+      <strong><b>{primaryLabel}:</b> {comparisonValue(primaryValue)}</strong>
+      <strong><b>{secondaryLabel}:</b> {comparisonValue(secondaryValue)}</strong>
     </div>
   )
 }
@@ -290,6 +340,7 @@ export default function MedicarePlanFinder() {
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([])
   const [showComparison, setShowComparison] = useState(false)
   const [compareError, setCompareError] = useState('')
+  const [showDifferencesOnly, setShowDifferencesOnly] = useState(false)
   const [doctorZip, setDoctorZip] = useState('')
   const [doctorRadius, setDoctorRadius] = useState('25')
   const [doctorRows, setDoctorRows] = useState<string[]>(['doctor-1'])
@@ -315,6 +366,14 @@ export default function MedicarePlanFinder() {
     const planById = new Map(payload.results.map((plan) => [plan.id, plan]))
     return selectedPlanIds.map((id) => planById.get(id)).filter((plan): plan is MedicarePlan => Boolean(plan))
   }, [payload, selectedPlanIds])
+
+  const visibleComparisonRows = useMemo(() => {
+    if (!showDifferencesOnly || selectedPlans.length < 2) return COMPARISON_ROWS
+    return COMPARISON_ROWS.filter((row) => {
+      const values = selectedPlans.map((plan) => comparisonValue(plan[row.key] as string | null | undefined).trim().toLowerCase())
+      return new Set(values).size > 1
+    })
+  }, [selectedPlans, showDifferencesOnly])
 
   useEffect(() => {
     if (!payload?.results?.length || selectedDoctorEntries.length === 0) {
@@ -378,6 +437,7 @@ export default function MedicarePlanFinder() {
     setSelectedPlanIds([])
     setShowComparison(false)
     setCompareError('')
+    setShowDifferencesOnly(false)
     setFilterAllSelectedDoctors(false)
 
     try {
@@ -413,6 +473,7 @@ export default function MedicarePlanFinder() {
     setSelectedPlanIds([])
     setShowComparison(false)
     setCompareError('')
+    setShowDifferencesOnly(false)
     setDoctorZip('')
     setDoctorRadius('25')
     setDoctorRows(['doctor-1'])
@@ -633,7 +694,7 @@ export default function MedicarePlanFinder() {
           </div>
 
           <div className="medicare-compare-help">
-            Select the <strong>Compare</strong> box on up to 4 plans. Supplemental dollar benefits are only displayed when an exact amount is stored for that plan.
+            Select up to 4 plans to compare. Use <strong>Show differences only</strong> to hide rows that are identical across every selected plan.
           </div>
 
           {compareError ? <div className="medicare-plan-error medicare-compare-error">{compareError}</div> : null}
@@ -645,7 +706,18 @@ export default function MedicarePlanFinder() {
                   <h3>Plan Comparison</h3>
                   <span>{selectedPlans.length} of 4 plans selected</span>
                 </div>
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => { setSelectedPlanIds([]); setShowComparison(false); setCompareError('') }}>Clear comparison</button>
+                <div className="medicare-comparison-actions">
+                  <label className="medicare-differences-toggle">
+                    <input
+                      type="checkbox"
+                      checked={showDifferencesOnly}
+                      disabled={selectedPlans.length < 2}
+                      onChange={(event) => setShowDifferencesOnly(event.target.checked)}
+                    />
+                    <span>Show differences only</span>
+                  </label>
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => { setSelectedPlanIds([]); setShowComparison(false); setShowDifferencesOnly(false); setCompareError('') }}>Clear comparison</button>
+                </div>
               </div>
               <div className="medicare-comparison-scroll">
                 <table className="medicare-comparison-table" style={{ minWidth: `${190 + selectedPlans.length * 225}px` }}>
@@ -663,14 +735,18 @@ export default function MedicarePlanFinder() {
                     </tr>
                   </thead>
                   <tbody>
-                    {COMPARISON_ROWS.map((row) => (
+                    {visibleComparisonRows.length ? visibleComparisonRows.map((row) => (
                       <tr key={row.key}>
                         <th scope="row">{row.label}</th>
                         {selectedPlans.map((plan) => (
                           <td key={plan.id}>{comparisonValue(plan[row.key] as string | null | undefined)}</td>
                         ))}
                       </tr>
-                    ))}
+                    )) : (
+                      <tr>
+                        <td colSpan={selectedPlans.length + 1} className="medicare-comparison-no-differences">No differences found in the displayed benefits.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -680,115 +756,112 @@ export default function MedicarePlanFinder() {
           {displayedPlans.length === 0 ? (
             <div className="build-lookup-empty medicare-plan-empty">{filterAllSelectedDoctors ? 'No plans have verified in-network matches for every selected doctor at the selected office locations.' : 'No plans from that carrier match this county and Medicaid selection.'}</div>
           ) : (
-            <div className="medicare-plan-results">
+            <div className="medicare-plan-results medicare-plan-results-simple">
               {displayedPlans.map((plan) => {
                 const selectedForCompare = selectedPlanIds.includes(plan.id)
-                const hasExactSupplemental = Boolean(
-                  plan.part_b_credit ||
-                  plan.dental_annual_allowance ||
-                  plan.vision_annual_allowance ||
-                  plan.otc_allowance ||
-                  plan.food_allowance
-                )
+                const inNetworkDoctors = selectedDoctorEntries.flatMap(([slotId, doctor]) => {
+                  const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
+                  return match?.status === 'in_network' ? [{ slotId, doctor, match }] : []
+                })
 
                 return (
-                  <article className={`medicare-plan-card${selectedForCompare ? ' is-selected-for-compare' : ''}`} key={plan.id}>
-                    <div className="medicare-plan-compare-strip">
-                      <label className="medicare-plan-compare-choice">
-                        <input
-                          type="checkbox"
-                          checked={selectedForCompare}
-                          onChange={() => toggleCompare(plan.id)}
-                        />
-                        <span>Compare</span>
-                      </label>
-                      <span>{selectedPlanIds.length}/4 selected</span>
+                  <article className={`medicare-plan-card medicare-plan-card-simple${selectedForCompare ? ' is-selected-for-compare' : ''}`} key={plan.id}>
+                    <div className="medicare-plan-simple-head">
+                      <div className="medicare-plan-simple-title-block">
+                        <span className="medicare-plan-carrier">{plan.carrier}</span>
+                        <h3 className="medicare-plan-title">{plan.plan_name}</h3>
+                        <div className="medicare-plan-meta">
+                          <span>{plan.plan_key}</span>
+                          {plan.plan_type ? <span>{plan.plan_type}</span> : null}
+                          {plan.snp_indicator && plan.snp_type ? <span>{plan.snp_type}</span> : null}
+                        </div>
+                      </div>
+                      <div className="medicare-plan-simple-actions">
+                        <div className="medicare-plan-badges">
+                          {plan.is_dsnp ? <span className="medicare-plan-badge dual">D-SNP</span> : <span className="medicare-plan-badge standard">MAPD</span>}
+                          {plan.zero_dollar_cost_sharing_dsnp ? <span className="medicare-plan-badge zero-cost">$0 Medicare cost-share</span> : null}
+                        </div>
+                        <label className="medicare-plan-compare-choice medicare-plan-simple-compare">
+                          <input
+                            type="checkbox"
+                            checked={selectedForCompare}
+                            onChange={() => toggleCompare(plan.id)}
+                          />
+                          <span>Compare</span>
+                        </label>
+                      </div>
                     </div>
 
-                    {(() => {
-                      const inNetworkDoctors = selectedDoctorEntries.flatMap(([slotId, doctor]) => {
-                        const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
-                        return match?.status === 'in_network' ? [{ slotId, doctor, match }] : []
-                      })
+                    {plan.medicaid_match_status === 'needs_verification' ? (
+                      <div className="medicare-plan-medicaid-warning medicare-plan-simple-warning">
+                        <strong>Verify Medicaid eligibility:</strong> confirm this plan accepts the client’s {medicaid.toUpperCase()} category before enrollment.
+                      </div>
+                    ) : null}
 
-                      if (!inNetworkDoctors.length) return null
+                    <div className="medicare-plan-quick-stats" aria-label="Key plan costs">
+                      <QuickStat label="Monthly Premium" value={plan.monthly_premium} />
+                      <QuickStat label="Max Out-of-Pocket" value={plan.moop_in_network} />
+                      <QuickStat label="Part B Giveback" value={plan.part_b_credit} />
+                    </div>
 
-                      return (
-                        <div className="medicare-plan-doctor-match-strip">
-                          <span className="medicare-plan-doctor-match-title">In-network doctors</span>
-                          <div className="medicare-plan-doctor-match-list">
-                            {inNetworkDoctors.map(({ slotId, doctor, match }) => {
-                              const detail = match.message || `${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`
-                              return (
-                                <span className="medicare-plan-doctor-match in_network" key={slotId} title={detail}>
-                                  <strong>{doctor.name}</strong>
-                                  <small>In network · {doctor.city}</small>
-                                  {match.verified_at ? <em>Checked {new Date(match.verified_at).toLocaleDateString()}</em> : null}
-                                </span>
-                              )
-                            })}
-                          </div>
+                    <section className="medicare-plan-simple-section">
+                      <h4>Medical</h4>
+                      <div className="medicare-plan-compact-grid medical">
+                        <CompactBenefit label="Primary Care" value={plan.pcp_copay} />
+                        <CompactBenefit label="Specialist" value={plan.specialist_copay} />
+                        <CompactBenefit label="Hospital" value={plan.inpatient_hospital} wide />
+                      </div>
+                    </section>
+
+                    <section className="medicare-plan-simple-section medicare-plan-simple-extras">
+                      <h4>Extra Benefits</h4>
+                      <div className="medicare-plan-compact-grid extras">
+                        <CompactBenefit label="Dental" value={plan.dental_annual_allowance} />
+                        <SplitBenefit
+                          label="Vision"
+                          primaryLabel="Eye exam"
+                          primaryValue={plan.vision_exam}
+                          secondaryLabel={plan.vision_annual_allowance ? 'Eyewear allowance' : 'Eyewear'}
+                          secondaryValue={plan.vision_annual_allowance || plan.vision_eyewear}
+                        />
+                        <SplitBenefit
+                          label="Hearing"
+                          primaryLabel="Exam"
+                          primaryValue={plan.hearing_exam}
+                          secondaryLabel="Hearing aids"
+                          secondaryValue={plan.hearing_aids}
+                        />
+                        <CompactBenefit label="OTC" value={plan.otc_allowance} />
+                        <CompactBenefit label="Food" value={plan.food_allowance} />
+                      </div>
+                    </section>
+
+                    {inNetworkDoctors.length ? (
+                      <div className="medicare-plan-doctor-match-strip medicare-plan-simple-doctors">
+                        <span className="medicare-plan-doctor-match-title">In-network doctors</span>
+                        <div className="medicare-plan-doctor-match-list">
+                          {inNetworkDoctors.map(({ slotId, doctor, match }) => {
+                            const detail = match.message || `${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`
+                            return (
+                              <span className="medicare-plan-doctor-match in_network" key={slotId} title={detail}>
+                                <strong>{doctor.name}</strong>
+                                <small>In network · {doctor.city}</small>
+                                {match.verified_at ? <em>Checked {new Date(match.verified_at).toLocaleDateString()}</em> : null}
+                              </span>
+                            )
+                          })}
                         </div>
-                      )
-                    })()}
+                      </div>
+                    ) : null}
 
-                    <details className="medicare-plan-details">
-                      <summary className="medicare-plan-card-head">
-                        <span className="medicare-plan-summary-main">
-                          <span className="medicare-plan-carrier">{plan.carrier}</span>
-                          <strong className="medicare-plan-title">{plan.plan_name}</strong>
-                          <span className="medicare-plan-meta">
-                            <span>{plan.plan_key}</span>
-                            {plan.plan_type ? <span>{plan.plan_type}</span> : null}
-                            {plan.snp_indicator && plan.snp_type ? <span>{plan.snp_type}</span> : null}
-                          </span>
-                        </span>
-                        <span className="medicare-plan-summary-right">
-                          <span className="medicare-plan-badges">
-                            {plan.is_dsnp ? <span className="medicare-plan-badge dual">D-SNP</span> : <span className="medicare-plan-badge standard">MAPD</span>}
-                            {plan.zero_dollar_cost_sharing_dsnp ? <span className="medicare-plan-badge zero-cost">$0 Medicare cost-share D-SNP</span> : null}
-                          </span>
-                          <span className="medicare-plan-expand-label"><span className="closed-label">Open plan details</span><span className="open-label">Close plan details</span></span>
-                        </span>
-                      </summary>
-
-                      <div className="medicare-plan-card-body">
-                        {plan.medicaid_match_status === 'needs_verification' ? (
-                          <div className="medicare-plan-medicaid-warning">
-                            <strong>Verify Medicaid eligibility:</strong> this D-SNP serves the county, but the public master data does not identify this plan’s exact accepted Medicaid category. Confirm the client’s {medicaid.toUpperCase()} eligibility with the carrier before enrollment.
-                          </div>
-                        ) : null}
-
-                        <div className="medicare-plan-benefit-grid primary-benefits">
-                          <Benefit label="Monthly premium" value={plan.monthly_premium} />
-                          <Benefit label="In-network max out-of-pocket" value={plan.moop_in_network} />
-                          <Benefit label="Primary care doctor" value={plan.pcp_copay} />
-                          <Benefit label="Specialist" value={plan.specialist_copay} />
-                        </div>
-
-                        <div className="medicare-plan-benefit-grid hospital-benefits">
-                          <Benefit label="Inpatient hospital" value={plan.inpatient_hospital} wide />
-                        </div>
-
-                        {hasExactSupplemental ? (
-                          <div className="medicare-plan-supplemental-section">
-                            <div className="medicare-plan-supplemental-heading">Extra benefits</div>
-                            <div className="medicare-plan-benefit-grid supplemental-benefits">
-                              <ExactBenefit label="Part B credit" value={plan.part_b_credit} />
-                              <ExactBenefit label="Dental / year" value={plan.dental_annual_allowance} />
-                              <ExactBenefit label="Vision / year" value={plan.vision_annual_allowance} />
-                              <ExactBenefit label="OTC amount / occurrence" value={plan.otc_allowance} />
-                              <ExactBenefit label="Food card amount / occurrence" value={plan.food_allowance} />
-                            </div>
-                          </div>
-                        ) : null}
-
-                        <details className="medicare-plan-source-details">
-                          <summary>Data source &amp; verification note</summary>
-                          <p>{plan.source_note || 'Verify current CMS and carrier plan materials before enrollment.'}</p>
-                          <p>Supplemental allowances are hidden unless an exact dollar amount is available. The frequency is shown with the amount when known, for example “$100 / quarter.”</p>
-                          {plan.q1_source_url ? <a href={plan.q1_source_url} target="_blank" rel="noreferrer">Open 2026 plan benefit detail</a> : null}
-                        </details>
+                    <details className="medicare-plan-more-details">
+                      <summary>More details</summary>
+                      <div className="medicare-plan-more-details-body">
+                        <p><strong>Dental details:</strong> {displayValue(plan.dental_benefit)}</p>
+                        <p><strong>Vision details:</strong> {displayValue(plan.vision_benefit)}</p>
+                        <p><strong>Hearing details:</strong> {displayValue(plan.hearing_benefit)}</p>
+                        <p><strong>Source note:</strong> {plan.source_note || 'Verify current CMS and carrier plan materials before enrollment.'}</p>
+                        {plan.q1_source_url ? <a href={plan.q1_source_url} target="_blank" rel="noreferrer">Open 2026 plan benefit detail</a> : null}
                       </div>
                     </details>
                   </article>

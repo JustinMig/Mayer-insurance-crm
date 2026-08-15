@@ -2301,3 +2301,33 @@ tbody tr:hover { background: #f9fbfd; }
 }
 .medicare-plan-doctor-match.source_unavailable{background:#f7f4ea;border-color:#d9ccb0;color:#6d5a2d}
 .medicare-plan-doctor-match em{font-size:9.5px;font-style:normal;opacity:.72;margin-top:1px}
+
+/* Medicare Plan Finder — simplified comparison layout (2026-08-14) */
+.medicare-plan-results-simple{gap:12px}
+.medicare-plan-card-simple{overflow:hidden}
+.medicare-plan-simple-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 18px;background:linear-gradient(135deg,#f8fafb,#eef4f5);border-bottom:1px solid #dde4e7}
+.medicare-plan-simple-title-block{min-width:0}.medicare-plan-simple-title-block .medicare-plan-title{margin:3px 0 8px}
+.medicare-plan-simple-actions{display:grid;gap:10px;justify-items:end;min-width:170px}.medicare-plan-simple-compare{border:1px solid #cbdad2;border-radius:9px;background:#fff;padding:7px 10px}
+.medicare-plan-simple-warning{margin:12px 18px 0}
+.medicare-plan-quick-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:0;background:#dfe6e9;border-bottom:1px solid #dfe6e9}
+.medicare-plan-quick-stat{display:grid;gap:5px;min-width:0;padding:13px 18px;background:#fff}.medicare-plan-quick-stat span{font-size:10.5px;font-weight:850;text-transform:uppercase;letter-spacing:.05em;color:#6a7885}.medicare-plan-quick-stat strong{font-size:17px;line-height:1.25;color:#1f3547;overflow-wrap:anywhere}
+.medicare-plan-simple-section{padding:14px 18px 0}.medicare-plan-simple-section h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#526b63}
+.medicare-plan-compact-grid{display:grid;gap:8px}.medicare-plan-compact-grid.medical{grid-template-columns:repeat(4,minmax(0,1fr))}.medicare-plan-compact-grid.extras{grid-template-columns:repeat(5,minmax(0,1fr))}
+.medicare-plan-compact-benefit{display:grid;align-content:start;gap:4px;min-width:0;padding:10px 11px;border:1px solid #dde4e7;border-radius:10px;background:#fbfcfc}.medicare-plan-compact-benefit.is-wide{grid-column:span 2}.medicare-plan-compact-benefit>span{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.045em;color:#657584}.medicare-plan-compact-benefit>strong{font-size:12px;line-height:1.35;color:#26384b;overflow-wrap:anywhere}.medicare-plan-compact-benefit>strong b{font-weight:850;color:#526171}.medicare-plan-compact-benefit.is-empty strong{color:#8a949c}
+.medicare-plan-split-benefit{gap:3px}.medicare-plan-split-benefit>span{margin-bottom:2px}
+.medicare-plan-simple-doctors{margin-top:14px;border-top:1px solid #e0ebe6}
+.medicare-plan-more-details{margin:12px 18px 16px;border-top:1px solid #e2e7ea;padding-top:10px}.medicare-plan-more-details>summary{cursor:pointer;color:#36556b;font-size:12px;font-weight:850;list-style:none;display:inline-flex;align-items:center;gap:6px}.medicare-plan-more-details>summary::-webkit-details-marker{display:none}.medicare-plan-more-details>summary::after{content:'+';display:inline-grid;place-items:center;width:20px;height:20px;border-radius:999px;border:1px solid #ccd9df;background:#fff;font-size:15px}.medicare-plan-more-details[open]>summary::after{content:'–'}
+.medicare-plan-more-details-body{padding-top:7px}.medicare-plan-more-details-body p{margin:7px 0;color:#657084;font-size:12px;line-height:1.5}.medicare-plan-more-details-body a{display:inline-block;margin-top:3px;color:#244f78;font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:2px}
+.medicare-comparison-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.medicare-differences-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid #bfd5c8;border-radius:9px;background:#fff;padding:7px 9px;color:#315d4a;font-size:11.5px;font-weight:850;cursor:pointer}.medicare-differences-toggle input{width:16px;height:16px;accent-color:#2f7d57}.medicare-differences-toggle input:disabled+span{opacity:.55}.medicare-comparison-no-differences{text-align:center!important;color:#687687!important;font-weight:700!important;padding:18px!important}
+
+@media(max-width:1050px){
+  .medicare-plan-compact-grid.medical{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .medicare-plan-compact-grid.extras{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:680px){
+  .medicare-plan-simple-head{display:grid;gap:10px;padding:14px}.medicare-plan-simple-actions{justify-items:start;min-width:0}.medicare-plan-badges{justify-content:flex-start}
+  .medicare-plan-quick-stats{grid-template-columns:1fr}.medicare-plan-quick-stat{padding:10px 14px;grid-template-columns:minmax(120px,.8fr) 1.2fr;align-items:center;gap:10px}.medicare-plan-quick-stat strong{font-size:14px;text-align:right}
+  .medicare-plan-simple-section{padding:12px 14px 0}.medicare-plan-compact-grid.medical,.medicare-plan-compact-grid.extras{grid-template-columns:1fr}.medicare-plan-compact-benefit.is-wide{grid-column:auto}
+  .medicare-plan-simple-doctors{margin-top:12px}.medicare-plan-more-details{margin:11px 14px 14px}
+  .medicare-comparison-actions{width:100%;display:grid;grid-template-columns:1fr}.medicare-differences-toggle{justify-content:center}.medicare-comparison-actions .btn{width:100%}
+}
