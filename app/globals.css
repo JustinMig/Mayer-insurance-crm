@@ -2227,3 +2227,26 @@ tbody tr:hover { background: #f9fbfd; }
   .medicare-doctor-row{grid-template-columns:1fr}
   .medicare-doctor-remove{width:100%}
 }
+
+/* Doctor autocomplete + ZIP/radius controls */
+.dashboard-field-doctor-location{background:#f1f7fc;border-color:#a9c8df}
+.dashboard-field-doctor-location:focus{border-color:#4f82ad;box-shadow:0 0 0 3px rgba(79,130,173,.14)}
+.medicare-doctor-location-controls{display:grid;grid-template-columns:minmax(170px,230px) minmax(170px,230px);gap:12px;margin-top:13px;align-items:end}
+.medicare-doctor-autocomplete{position:relative}
+.medicare-doctor-searching{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:#547086;pointer-events:none}
+.medicare-doctor-suggestions{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 5px);max-height:320px;overflow:auto;border:1px solid #a9c8df;border-radius:12px;background:#fff;box-shadow:0 14px 34px rgba(31,63,87,.16);padding:5px}
+.medicare-doctor-suggestion{width:100%;display:grid;gap:2px;text-align:left;border:0;background:transparent;padding:10px 11px;border-radius:9px;color:#243744;cursor:pointer}
+.medicare-doctor-suggestion:hover,.medicare-doctor-suggestion:focus{background:#eef6fc;outline:none}
+.medicare-doctor-suggestion strong{font-size:13px;color:#18384f}
+.medicare-doctor-suggestion span{font-size:11.5px;color:#4f6574}
+.medicare-doctor-suggestion small{font-size:11px;color:#6e7f89}
+.medicare-doctor-selected-detail,.medicare-doctor-search-message{display:block;margin-top:5px;font-size:11px;line-height:1.35}
+.medicare-doctor-selected-detail{color:#315f4e;font-weight:600}
+.medicare-doctor-search-message{color:#786436}
+.medicare-doctor-selected-summary{margin-top:10px;padding:9px 11px;border-radius:10px;background:#edf8f1;border:1px solid #bdd9ca;display:grid;gap:3px;color:#315f4e}
+.medicare-doctor-selected-summary strong{font-size:12px}
+.medicare-doctor-selected-summary span{font-size:11px;line-height:1.4}
+@media(max-width:680px){
+  .medicare-doctor-location-controls{grid-template-columns:1fr}
+  .medicare-doctor-suggestions{max-height:260px}
+}

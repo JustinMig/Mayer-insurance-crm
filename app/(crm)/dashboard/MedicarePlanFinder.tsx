@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 const MISSISSIPPI_COUNTIES = [
   'Adams','Alcorn','Amite','Attala','Benton','Bolivar','Calhoun','Carroll','Chickasaw','Choctaw','Claiborne','Clarke','Clay','Coahoma','Copiah','Covington','DeSoto','Forrest','Franklin','George','Greene','Grenada','Hancock','Harrison','Hinds','Holmes','Humphreys','Issaquena','Itawamba','Jackson','Jasper','Jefferson','Jefferson Davis','Jones','Kemper','Lafayette','Lamar','Lauderdale','Lawrence','Leake','Lee','Leflore','Lincoln','Lowndes','Madison','Marion','Marshall','Monroe','Montgomery','Neshoba','Newton','Noxubee','Oktibbeha','Panola','Pearl River','Perry','Pike','Pontotoc','Prentiss','Quitman','Rankin','Scott','Sharkey','Simpson','Smith','Stone','Sunflower','Tallahatchie','Tate','Tippah','Tishomingo','Tunica','Union','Walthall','Warren','Washington','Wayne','Webster','Wilkinson','Winston','Yalobusha','Yazoo'
@@ -62,6 +62,24 @@ type SearchPayload = {
   error?: string
 }
 
+type DoctorSuggestion = {
+  npi: string
+  name: string
+  credential: string | null
+  specialty: string | null
+  address: string
+  city: string
+  state: string
+  postal_code: string
+  distance_miles: number
+}
+
+type DoctorSearchPayload = {
+  results: DoctorSuggestion[]
+  count: number
+  error?: string
+}
+
 function displayValue(value: string | null | undefined) {
   return value?.trim() || 'Not published — verify plan materials'
 }
@@ -96,6 +114,143 @@ function ExactBenefit({ label, value }: { label: string; value: string | null })
   )
 }
 
+function DoctorAutocompleteRow({
+  slotId,
+  index,
+  zipCode,
+  radius,
+  selected,
+  canRemove,
+  onSelect,
+  onRemove
+}: {
+  slotId: string
+  index: number
+  zipCode: string
+  radius: string
+  selected: DoctorSuggestion | undefined
+  canRemove: boolean
+  onSelect: (slotId: string, doctor: DoctorSuggestion | null) => void
+  onRemove: (slotId: string) => void
+}) {
+  const [query, setQuery] = useState(selected?.name || '')
+  const [suggestions, setSuggestions] = useState<DoctorSuggestion[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (selected && query !== selected.name) setQuery(selected.name)
+  }, [selected, query])
+
+  useEffect(() => {
+    const cleanedQuery = query.trim()
+    if (selected?.name === cleanedQuery) {
+      setSuggestions([])
+      setMessage('')
+      return
+    }
+    if (!/^\d{5}$/.test(zipCode)) {
+      setSuggestions([])
+      setMessage(cleanedQuery.length >= 2 ? 'Enter a 5-digit ZIP code first.' : '')
+      return
+    }
+    if (cleanedQuery.length < 2) {
+      setSuggestions([])
+      setMessage('')
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      setMessage('')
+      try {
+        const params = new URLSearchParams({ q: cleanedQuery, zip: zipCode, radius })
+        const response = await fetch(`/api/providers/search?${params.toString()}`, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        })
+        const payload = await response.json() as DoctorSearchPayload
+        if (!response.ok) throw new Error(payload.error || 'Doctor search failed.')
+        setSuggestions(payload.results || [])
+        setMessage(payload.results?.length ? '' : `No matching doctors found within ${radius} miles.`)
+        setOpen(true)
+      } catch (searchError) {
+        if (controller.signal.aborted) return
+        setSuggestions([])
+        setMessage(searchError instanceof Error ? searchError.message : 'Unable to search doctors.')
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }, 450)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query, zipCode, radius, selected])
+
+  function chooseDoctor(doctor: DoctorSuggestion) {
+    setQuery(doctor.name)
+    setSuggestions([])
+    setOpen(false)
+    setMessage('')
+    onSelect(slotId, doctor)
+  }
+
+  function changeQuery(value: string) {
+    setQuery(value)
+    if (selected) onSelect(slotId, null)
+    setOpen(true)
+  }
+
+  return (
+    <div className="medicare-doctor-row">
+      <label className="label">Doctor {index + 1}
+        <div className="medicare-doctor-autocomplete">
+          <input
+            className="input dashboard-field dashboard-field-doctor"
+            type="text"
+            value={query}
+            onChange={(event) => changeQuery(event.target.value)}
+            onFocus={() => setOpen(true)}
+            onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+            placeholder="Start typing first or last name"
+            autoComplete="off"
+            aria-autocomplete="list"
+          />
+          {loading ? <span className="medicare-doctor-searching">Searching…</span> : null}
+          {open && suggestions.length ? (
+            <div className="medicare-doctor-suggestions" role="listbox">
+              {suggestions.map((doctor) => (
+                <button
+                  type="button"
+                  className="medicare-doctor-suggestion"
+                  key={`${doctor.npi}-${doctor.postal_code}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => chooseDoctor(doctor)}
+                  role="option"
+                  aria-selected={selected?.npi === doctor.npi}
+                >
+                  <strong>{doctor.name}{doctor.credential ? `, ${doctor.credential}` : ''}</strong>
+                  <span>{doctor.specialty || 'Individual provider'}</span>
+                  <small>{doctor.city}, MS {doctor.postal_code} · {doctor.distance_miles.toFixed(1)} mi</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {selected ? (
+          <span className="medicare-doctor-selected-detail">Selected: NPI {selected.npi} · {selected.city}, MS {selected.postal_code} · {selected.distance_miles.toFixed(1)} miles away</span>
+        ) : message ? <span className="medicare-doctor-search-message">{message}</span> : null}
+      </label>
+      {canRemove ? <button type="button" className="btn btn-secondary btn-small medicare-doctor-remove" onClick={() => onRemove(slotId)}>Remove</button> : null}
+    </div>
+  )
+}
+
 export default function MedicarePlanFinder() {
   const [county, setCounty] = useState('')
   const [medicaid, setMedicaid] = useState('none')
@@ -106,7 +261,10 @@ export default function MedicarePlanFinder() {
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([])
   const [showComparison, setShowComparison] = useState(false)
   const [compareError, setCompareError] = useState('')
-  const [doctorNames, setDoctorNames] = useState<string[]>([''])
+  const [doctorZip, setDoctorZip] = useState('')
+  const [doctorRadius, setDoctorRadius] = useState('25')
+  const [doctorRows, setDoctorRows] = useState<string[]>(['doctor-1'])
+  const [selectedDoctors, setSelectedDoctors] = useState<Record<string, DoctorSuggestion>>({})
 
   const displayedPlans = useMemo(() => {
     const plans = payload?.results || []
@@ -167,22 +325,42 @@ export default function MedicarePlanFinder() {
     setSelectedPlanIds([])
     setShowComparison(false)
     setCompareError('')
-    setDoctorNames([''])
-  }
-
-  function updateDoctor(index: number, value: string) {
-    setDoctorNames((current) => current.map((doctor, doctorIndex) => doctorIndex === index ? value : doctor))
+    setDoctorZip('')
+    setDoctorRadius('25')
+    setDoctorRows(['doctor-1'])
+    setSelectedDoctors({})
   }
 
   function addDoctor() {
-    setDoctorNames((current) => current.length >= 5 ? current : [...current, ''])
+    setDoctorRows((current) => current.length >= 5 ? current : [...current, `doctor-${Date.now()}-${current.length}`])
   }
 
-  function removeDoctor(index: number) {
-    setDoctorNames((current) => {
-      const next = current.filter((_, doctorIndex) => doctorIndex !== index)
-      return next.length ? next : ['']
+  function removeDoctor(slotId: string) {
+    setDoctorRows((current) => current.length > 1 ? current.filter((id) => id !== slotId) : current)
+    setSelectedDoctors((current) => {
+      const next = { ...current }
+      delete next[slotId]
+      return next
     })
+  }
+
+  function selectDoctor(slotId: string, doctor: DoctorSuggestion | null) {
+    setSelectedDoctors((current) => {
+      const next = { ...current }
+      if (doctor) next[slotId] = doctor
+      else delete next[slotId]
+      return next
+    })
+  }
+
+  function changeDoctorZip(value: string) {
+    setDoctorZip(value.replace(/\D/g, '').slice(0, 5))
+    setSelectedDoctors({})
+  }
+
+  function changeDoctorRadius(value: string) {
+    setDoctorRadius(value)
+    setSelectedDoctors({})
   }
 
   function toggleCompare(planId: string) {
@@ -249,28 +427,59 @@ export default function MedicarePlanFinder() {
         <div className="medicare-doctor-filter-heading">
           <div>
             <strong>Doctor Network Filter</strong>
-            <span>Add up to 5 doctors. Once the carrier network sync is loaded, the finder can return only plans that include every doctor entered.</span>
+            <span>Set the client’s ZIP code and search radius, then start typing a doctor’s first or last name. The list only shows matching Mississippi providers found inside that area.</span>
           </div>
-          <button type="button" className="btn btn-secondary btn-small" onClick={addDoctor} disabled={doctorNames.length >= 5}>+ Add doctor</button>
+          <button type="button" className="btn btn-secondary btn-small" onClick={addDoctor} disabled={doctorRows.length >= 5}>+ Add doctor</button>
         </div>
+
+        <div className="medicare-doctor-location-controls">
+          <label className="label">ZIP code
+            <input
+              className="input dashboard-field dashboard-field-doctor-location"
+              type="text"
+              inputMode="numeric"
+              value={doctorZip}
+              onChange={(event) => changeDoctorZip(event.target.value)}
+              placeholder="Example: 38801"
+              maxLength={5}
+              autoComplete="postal-code"
+            />
+          </label>
+          <label className="label">Area radius
+            <select className="select dashboard-field dashboard-field-doctor-location" value={doctorRadius} onChange={(event) => changeDoctorRadius(event.target.value)}>
+              <option value="5">5 miles</option>
+              <option value="10">10 miles</option>
+              <option value="25">25 miles</option>
+              <option value="50">50 miles</option>
+              <option value="100">100 miles</option>
+            </select>
+          </label>
+        </div>
+
         <div className="medicare-doctor-inputs">
-          {doctorNames.map((doctor, index) => (
-            <div className="medicare-doctor-row" key={`doctor-${index}`}>
-              <label className="label">Doctor {index + 1}
-                <input
-                  className="input dashboard-field dashboard-field-doctor"
-                  type="text"
-                  value={doctor}
-                  onChange={(event) => updateDoctor(index, event.target.value)}
-                  placeholder="Example: John Smith, MD"
-                  autoComplete="off"
-                />
-              </label>
-              {doctorNames.length > 1 ? <button type="button" className="btn btn-secondary btn-small medicare-doctor-remove" onClick={() => removeDoctor(index)}>Remove</button> : null}
-            </div>
+          {doctorRows.map((slotId, index) => (
+            <DoctorAutocompleteRow
+              key={slotId}
+              slotId={slotId}
+              index={index}
+              zipCode={doctorZip}
+              radius={doctorRadius}
+              selected={selectedDoctors[slotId]}
+              canRemove={doctorRows.length > 1}
+              onSelect={selectDoctor}
+              onRemove={removeDoctor}
+            />
           ))}
         </div>
-        <div className="medicare-doctor-network-status"><strong>Network data status:</strong> carrier provider-directory sync is not loaded into this package yet, so doctor names do not narrow plan results yet. This prevents the CRM from falsely saying a doctor is in-network.</div>
+
+        {Object.keys(selectedDoctors).length ? (
+          <div className="medicare-doctor-selected-summary">
+            <strong>{Object.keys(selectedDoctors).length} doctor{Object.keys(selectedDoctors).length === 1 ? '' : 's'} selected</strong>
+            <span>The selected NPIs are saved in the search state so they can be matched to verified carrier network records when that network sync is activated.</span>
+          </div>
+        ) : null}
+
+        <div className="medicare-doctor-network-status"><strong>Doctor search:</strong> names and locations come from the CMS NPPES directory. <strong>Plan-network filtering:</strong> remains off until verified carrier provider-network records are loaded, because an NPI appearing in Medicare does not by itself prove participation in a specific Medicare Advantage plan.</div>
       </section>
 
       <div className="medicare-plan-filter-note">
