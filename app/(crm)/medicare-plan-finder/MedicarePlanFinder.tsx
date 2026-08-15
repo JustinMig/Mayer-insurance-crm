@@ -86,9 +86,11 @@ type DoctorNetworkMatch = {
   npi: string
   location_key: string | null
   name: string
-  status: 'in_network' | 'out_of_network' | 'not_verified'
+  status: 'in_network' | 'out_of_network' | 'not_verified' | 'source_unavailable'
   source_url: string | null
   verified_at: string | null
+  message: string | null
+  verification_method: 'cache' | 'live' | 'unavailable'
 }
 
 type PlanDoctorNetworkStatus = {
@@ -101,6 +103,8 @@ type DoctorNetworkPayload = {
   available: boolean
   plans: Record<string, PlanDoctorNetworkStatus>
   verified_matches: number
+  unavailable_matches?: number
+  carrier_support?: Record<string, { carrier: string; connected: boolean; public_access: boolean; source_label: string; message: string | null }>
   message?: string | null
   error?: string
 }
@@ -576,7 +580,7 @@ export default function MedicarePlanFinder() {
         ) : null}
 
         <div className="medicare-doctor-network-status">
-          <strong>Doctor search:</strong> CMS NPPES provides the doctor identity and practice locations. <strong>Plan match:</strong> the CRM checks the exact selected office against verified carrier-network records by NPI + location.
+          <strong>Doctor search:</strong> CMS NPPES provides the doctor identity and practice locations. <strong>Plan match:</strong> the CRM now checks connected carrier directories live by NPI + selected office and saves verified results for reuse.
           {doctorNetworkLoading ? <span className="medicare-doctor-network-inline"> Checking selected doctors…</span> : null}
           {doctorNetworkError ? <span className="medicare-doctor-network-inline error"> {doctorNetworkError}</span> : null}
           {!doctorNetworkLoading && doctorNetworkPayload?.message ? <span className="medicare-doctor-network-inline"> {doctorNetworkPayload.message}</span> : null}
@@ -708,11 +712,19 @@ export default function MedicarePlanFinder() {
                           {selectedDoctorEntries.map(([slotId, doctor]) => {
                             const match = doctorNetworkPayload?.plans?.[plan.id]?.doctor_matches.find((item) => item.slot_id === slotId)
                             const status = match?.status || 'not_verified'
-                            const label = status === 'in_network' ? 'In network' : status === 'out_of_network' ? 'Out of network' : 'Not verified'
+                            const label = status === 'in_network'
+                              ? 'In network'
+                              : status === 'out_of_network'
+                                ? 'Out of network'
+                                : status === 'source_unavailable'
+                                  ? 'Carrier source not connected'
+                                  : 'Needs verification'
+                            const detail = match?.message || `${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`
                             return (
-                              <span className={`medicare-plan-doctor-match ${status}`} key={slotId} title={`${doctor.address ? `${doctor.address}, ` : ''}${doctor.city}, MS ${doctor.postal_code}`}>
+                              <span className={`medicare-plan-doctor-match ${status}`} key={slotId} title={detail}>
                                 <strong>{doctor.name}</strong>
                                 <small>{label} · {doctor.city}</small>
+                                {match?.verified_at ? <em>Checked {new Date(match.verified_at).toLocaleDateString()}</em> : null}
                               </span>
                             )
                           })}

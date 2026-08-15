@@ -2299,3 +2299,5 @@ tbody tr:hover { background: #f9fbfd; }
   .mobile-nav b,
   .mobile-signout b { font-size: 17px; }
 }
+.medicare-plan-doctor-match.source_unavailable{background:#f7f4ea;border-color:#d9ccb0;color:#6d5a2d}
+.medicare-plan-doctor-match em{font-size:9.5px;font-style:normal;opacity:.72;margin-top:1px}
