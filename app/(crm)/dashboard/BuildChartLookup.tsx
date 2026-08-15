@@ -54,7 +54,7 @@ export default function BuildChartLookup() {
   }
 
   return (
-    <section className="card card-pad build-lookup-card" style={{ marginTop: 20 }}>
+    <section className="card card-pad build-lookup-card dashboard-lookup-accent dashboard-lookup-accent-build" style={{ marginTop: 20 }}>
       <div className="build-lookup-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Height &amp; Weight Underwriting Lookup</h2>
@@ -69,7 +69,7 @@ export default function BuildChartLookup() {
       <div className="build-lookup-controls">
         <label className="label">Company
           <select
-            className="select"
+            className="select dashboard-field dashboard-field-build-company"
             value={selectedCompany}
             onChange={(event: ChangeEvent<HTMLSelectElement>) => {
               setSelectedCompany(event.target.value as CompanyKey | '')
@@ -87,7 +87,7 @@ export default function BuildChartLookup() {
 
         <label className="label">Height
           <select
-            className="select"
+            className="select dashboard-field dashboard-field-height"
             value={heightKey}
             onChange={(event: ChangeEvent<HTMLSelectElement>) => setHeightKey(event.target.value)}
             disabled={!exactCompany}

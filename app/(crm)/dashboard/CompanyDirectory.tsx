@@ -44,7 +44,7 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
   }
 
   return (
-    <section className="card card-pad company-directory-card" style={{ marginTop: 20 }}>
+    <section className="card card-pad company-directory-card dashboard-lookup-accent dashboard-lookup-accent-directory" style={{ marginTop: 20 }}>
       <div className="company-directory-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Company Contact Directory</h2>
@@ -55,7 +55,7 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
 
       <div className="company-directory-search-wrap">
         <input
-          className="input company-directory-search"
+          className="input company-directory-search dashboard-field dashboard-field-directory"
           value={query}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setQuery(event.target.value)

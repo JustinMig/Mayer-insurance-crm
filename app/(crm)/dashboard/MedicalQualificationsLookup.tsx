@@ -98,7 +98,7 @@ export default function MedicalQualificationsLookup({ carrierOptions }: Props) {
   }
 
   return (
-    <section className="card card-pad medical-lookup-card" style={{ marginTop: 20 }}>
+    <section className="card card-pad medical-lookup-card dashboard-lookup-accent dashboard-lookup-accent-medical" style={{ marginTop: 20 }}>
       <div className="build-lookup-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Medical Qualifications</h2>
@@ -113,7 +113,7 @@ export default function MedicalQualificationsLookup({ carrierOptions }: Props) {
       <div className="medical-lookup-controls">
         <label className="label">Carrier / product
           <select
-            className="select"
+            className="select dashboard-field dashboard-field-medical-carrier"
             value={carrier}
             onChange={(event: ChangeEvent<HTMLSelectElement>) => {
               setCarrier(event.target.value as MedicalCarrierKey | '')
@@ -129,7 +129,7 @@ export default function MedicalQualificationsLookup({ carrierOptions }: Props) {
 
         <label className="label">Condition or medication
           <input
-            className="input"
+            className="input dashboard-field dashboard-field-medication"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
