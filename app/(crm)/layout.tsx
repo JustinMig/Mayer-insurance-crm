@@ -63,7 +63,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="nav">
           <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
-          <Link prefetch={false} className="nav-link nav-medicare-plans" href="/medicare-plan-finder">MEDICARE PLAN FINDER</Link>
+          <a className="nav-link nav-medicare-plans" href="https://medicare.mayerig.com">MEDICARE PLAN FINDER</a>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
           {isJustinPortal && (
@@ -91,7 +91,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
       <nav className={`mobile-nav${isJustinPortal ? ' mobile-nav-six' : ''}`}>
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
-        <Link prefetch={false} href="/medicare-plan-finder"><b>▦</b><span>MEDICARE</span></Link>
+        <a href="https://medicare.mayerig.com"><b>▦</b><span>MEDICARE</span></a>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         {isJustinPortal && (
