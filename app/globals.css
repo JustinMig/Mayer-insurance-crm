@@ -1698,6 +1698,7 @@ tbody tr:hover { background: #f9fbfd; }
 }
 @media (max-width: 760px) {
   .mobile-nav.mobile-nav-five { grid-template-columns: repeat(5, 1fr); }
+  .mobile-nav.mobile-nav-six { grid-template-columns: repeat(6, 1fr); }
 }
 
 .mobile-leads-count { font-style: normal; }
@@ -2267,3 +2268,34 @@ tbody tr:hover { background: #f9fbfd; }
 .medicare-plan-doctor-match.out_of_network{background:#fff1ef;border-color:#e2b2aa;color:#853c34}
 .medicare-plan-doctor-match.not_verified{background:#f5f6f7;border-color:#d4d9dd;color:#59656d}
 @media(max-width:680px){.medicare-doctor-plan-filter-button{width:100%;max-width:none}.medicare-plan-doctor-match{min-width:0;max-width:none;flex:1 1 100%}}
+
+
+/* Cross-device optimization pass: mobile navigation and notch-safe layout. */
+@media (max-width: 760px) {
+  .mobile-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .mobile-nav.mobile-nav-six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .mobile-nav a,
+  .mobile-signout { min-width: 0; min-height: 56px; }
+  .mobile-nav a span,
+  .mobile-signout { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .topbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .content {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .mobile-nav {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@media (max-width: 390px) {
+  .mobile-nav a,
+  .mobile-signout { font-size: 9px; }
+  .mobile-nav b,
+  .mobile-signout b { font-size: 17px; }
+}

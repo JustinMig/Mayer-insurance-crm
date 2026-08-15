@@ -191,16 +191,18 @@ async function searchNppes(query: string) {
       last_name: `${words[words.length - 1]}*`
     })
     requests.push(params)
+  } else {
+    requests.push(nppesParams(query, 'first_name'))
+    requests.push(nppesParams(query, 'last_name'))
   }
-
-  requests.push(nppesParams(query, 'first_name'))
-  requests.push(nppesParams(query, 'last_name'))
 
   const responses = await Promise.allSettled(
     requests.map(async (params) => {
       const response = await fetch(`${NPPES_URL}?${params.toString()}`, {
         headers: { Accept: 'application/json' },
-        cache: 'no-store'
+        // NPPES is refreshed daily. A short server-side cache keeps autocomplete fast
+        // and avoids repeating the same public CMS request for every keystroke/session.
+        next: { revalidate: 60 * 60 * 6 }
       })
       if (!response.ok) throw new Error(`NPPES ${response.status}`)
       return response.json() as Promise<NppesResponse>
@@ -270,6 +272,10 @@ export async function GET(request: NextRequest) {
       source: 'CMS NPPES NPI Registry API 2.1',
       location_method: 'ZIP centroid distance',
       multiple_locations_preserved: true
+    }, {
+      headers: {
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300'
+      }
     })
   } catch {
     return NextResponse.json({ error: 'Unable to search the CMS doctor directory right now.' }, { status: 502 })
