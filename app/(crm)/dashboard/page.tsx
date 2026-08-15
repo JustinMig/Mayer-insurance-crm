@@ -4,6 +4,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
 import MedicalQualificationsLookup from './MedicalQualificationsLookup'
+import MedicarePlanFinder from './MedicarePlanFinder'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
 import { MEDICAL_CARRIER_OPTIONS } from '@/lib/medical-qualifications'
 import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
@@ -285,6 +286,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       )}
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
+
+      <MedicarePlanFinder />
 
       <BuildChartLookup />
 
