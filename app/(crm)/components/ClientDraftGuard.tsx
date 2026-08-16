@@ -17,6 +17,7 @@ type ClientDraft = {
   dirty: boolean
 }
 
+const ACTIVE_CLIENT_KEY = 'crm-active-client-id'
 const SENSITIVE_FIELD_PATTERN = /(ssn|drivers_license|medicare_number|medicaid_number|member_id|routing_number|account_number|debit_card|bank_)/i
 
 function isPersistableControl(element: Element): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
@@ -97,6 +98,27 @@ export default function ClientDraftGuard() {
   const draftKeyRef = useRef('')
   const afterSaveKeyRef = useRef('')
 
+  // Make CLIENT RECORDS behave like returning to an open workspace. If a client
+  // is still active, tapping Records from Dashboard/FEX brings that client back.
+  useEffect(() => {
+    const onRecordsClick = (event: MouseEvent) => {
+      if (pathname.match(/^\/clients\/[^/]+$/)) return
+      const target = event.target as Element | null
+      const link = target?.closest<HTMLAnchorElement>('a[href="/clients"]')
+      if (!link) return
+
+      const activeClientId = sessionStorage.getItem(ACTIVE_CLIENT_KEY)
+      if (!activeClientId) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      router.push(`/clients/${activeClientId}`)
+    }
+
+    document.addEventListener('click', onRecordsClick, true)
+    return () => document.removeEventListener('click', onRecordsClick, true)
+  }, [pathname, router])
+
   useEffect(() => {
     const match = pathname.match(/^\/clients\/([^/]+)$/)
     if (!match) {
@@ -107,6 +129,8 @@ export default function ClientDraftGuard() {
     }
 
     const clientId = match[1]
+    sessionStorage.setItem(ACTIVE_CLIENT_KEY, clientId)
+
     const draftKey = `crm-client-draft:${clientId}`
     const afterSaveKey = `crm-client-save-to-search:${clientId}`
     draftKeyRef.current = draftKey
@@ -116,6 +140,7 @@ export default function ClientDraftGuard() {
     if (searchParams.get('updated') === '1' && savedToSearch) {
       sessionStorage.removeItem(afterSaveKey)
       sessionStorage.removeItem(draftKey)
+      sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
       router.replace('/clients')
       return
     }
@@ -129,17 +154,19 @@ export default function ClientDraftGuard() {
     let attachedForm: HTMLFormElement | null = null
     let attachedBackLink: HTMLAnchorElement | null = null
 
-    const writeDraft = () => {
+    const writeDraftNow = () => {
       const form = formRef.current
       if (!form) return
+      try {
+        sessionStorage.setItem(draftKey, JSON.stringify(collectDraft(form, dirtyRef.current)))
+      } catch {
+        // If browser storage is unavailable, leave the live form untouched.
+      }
+    }
+
+    const writeDraft = () => {
       if (timer) clearTimeout(timer)
-      timer = setTimeout(() => {
-        try {
-          sessionStorage.setItem(draftKey, JSON.stringify(collectDraft(form, dirtyRef.current)))
-        } catch {
-          // If browser storage is unavailable, leave the live form untouched.
-        }
-      }, 120)
+      timer = setTimeout(writeDraftNow, 80)
     }
 
     const onFieldChange = () => {
@@ -147,19 +174,22 @@ export default function ClientDraftGuard() {
       writeDraft()
     }
     const onUiChange = () => writeDraft()
+    const onPageHide = () => writeDraftNow()
     const onSubmit = () => {
       if (timer) clearTimeout(timer)
       sessionStorage.removeItem(draftKey)
+      sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
       dirtyRef.current = false
     }
     const onBackToSearch = (event: MouseEvent) => {
       if (!dirtyRef.current) {
         sessionStorage.removeItem(draftKey)
+        sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
         return
       }
       event.preventDefault()
       event.stopPropagation()
-      writeDraft()
+      writeDraftNow()
       setShowPrompt(true)
     }
 
@@ -196,6 +226,7 @@ export default function ClientDraftGuard() {
       form.addEventListener('change', onFieldChange)
       form.addEventListener('toggle', onUiChange, true)
       form.addEventListener('submit', onSubmit)
+      window.addEventListener('pagehide', onPageHide)
 
       attachedBackLink = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href="/clients"]')).find(link => link.textContent?.trim().toLowerCase() === 'back to search') || null
       attachedBackLink?.addEventListener('click', onBackToSearch)
@@ -233,6 +264,7 @@ export default function ClientDraftGuard() {
         form.removeEventListener('change', onFieldChange)
         form.removeEventListener('toggle', onUiChange, true)
         form.removeEventListener('submit', onSubmit)
+        window.removeEventListener('pagehide', onPageHide)
       }
       attachedBackLink?.removeEventListener('click', onBackToSearch)
       if (formRef.current === form) formRef.current = null
@@ -242,6 +274,7 @@ export default function ClientDraftGuard() {
   function discardAndSearch() {
     if (draftKeyRef.current) sessionStorage.removeItem(draftKeyRef.current)
     if (afterSaveKeyRef.current) sessionStorage.removeItem(afterSaveKeyRef.current)
+    sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
     dirtyRef.current = false
     setShowPrompt(false)
     router.push('/clients')
@@ -251,6 +284,7 @@ export default function ClientDraftGuard() {
     const form = formRef.current
     if (!form) return
     if (afterSaveKeyRef.current) sessionStorage.setItem(afterSaveKeyRef.current, '1')
+    sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
     setShowPrompt(false)
     form.requestSubmit()
   }
