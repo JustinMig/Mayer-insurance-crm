@@ -31,6 +31,14 @@ function rewriteFexHtml(html: string) {
   return output
 }
 
+const frameHeaders = {
+  'content-type': 'text/html; charset=utf-8',
+  'cache-control': 'no-store',
+  'x-robots-tag': 'noindex, nofollow',
+  'content-security-policy': "frame-ancestors 'self'",
+  'x-frame-options': 'SAMEORIGIN'
+}
+
 export async function GET() {
   try {
     const response = await fetch(FEX_URL, {
@@ -44,24 +52,19 @@ export async function GET() {
     if (!response.ok) {
       return new Response('FEX Quotes is temporarily unavailable. Please reload this page.', {
         status: 502,
-        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }
+        headers: frameHeaders
       })
     }
 
     const html = rewriteFexHtml(await response.text())
     return new Response(html, {
       status: 200,
-      headers: {
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'no-store',
-        'x-robots-tag': 'noindex, nofollow',
-        'content-security-policy': "frame-ancestors 'self'"
-      }
+      headers: frameHeaders
     })
   } catch {
     return new Response('FEX Quotes is temporarily unavailable. Please reload this page.', {
       status: 502,
-      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }
+      headers: frameHeaders
     })
   }
 }
