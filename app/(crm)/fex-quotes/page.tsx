@@ -7,7 +7,6 @@ export default function FexQuotesPage() {
     <div className="live-fex-page">
       <div className="quote-tool-tabs" role="navigation" aria-label="Final expense quote tools">
         <Link prefetch={false} href="/fex-quotes" className="active">FEX Quotes</Link>
-        <Link prefetch={false} href="/american-amicable">American Amicable</Link>
         <Link prefetch={false} href="/test-quotes">Test Quotes</Link>
       </div>
 
@@ -41,7 +40,7 @@ export default function FexQuotesPage() {
         .live-fex-header p{margin:0;color:#64748b}
         .live-fex-frame-wrap{background:white;border:1px solid #cbd5e1;border-radius:14px;overflow:hidden;min-height:720px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
         .live-fex-frame{display:block;width:100%;height:calc(100vh - 235px);min-height:720px;border:0;background:white}
-        @media(max-width:760px){.quote-tool-tabs{width:100%}.quote-tool-tabs a{flex:1;min-width:0;padding:8px 10px;font-size:.78rem}.live-fex-header h1{font-size:1.55rem}.live-fex-header p{font-size:.9rem}.live-fex-frame-wrap{min-height:760px;border-radius:10px}.live-fex-frame{height:calc(100vh - 285px);min-height:760px}}
+        @media(max-width:760px){.quote-tool-tabs{width:100%}.quote-tool-tabs a{flex:1}.live-fex-header h1{font-size:1.55rem}.live-fex-header p{font-size:.9rem}.live-fex-frame-wrap{min-height:760px;border-radius:10px}.live-fex-frame{height:calc(100vh - 285px);min-height:760px}}
       `}</style>
     </div>
   )
