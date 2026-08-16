@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
 
 export async function proxy(request: NextRequest) {
-  // These endpoints are intentionally public: website lead intake and the
-  // short-lived FEX form diagnostic used during integration testing.
-  if (request.nextUrl.pathname === '/api/website-leads' || request.nextUrl.pathname === '/api/fex-debug') {
+  // These endpoints are intentionally public only during FEX integration testing.
+  if (
+    request.nextUrl.pathname === '/api/website-leads' ||
+    request.nextUrl.pathname === '/api/fex-debug' ||
+    request.nextUrl.pathname === '/api/fex-embed'
+  ) {
     return NextResponse.next()
   }
 
