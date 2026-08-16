@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-const FEX_QUOTES_URL = 'https://fexquotes.com/wqt/v1/webrate.pl?id=5436&fn=1&vrt=m&tgt=1&cpn=0&style=blackice'
+const FEX_QUOTES_URL = '/api/fex-embed'
 
 export default function FexQuotesPage() {
   return (
@@ -25,6 +25,7 @@ export default function FexQuotesPage() {
           title="FEX Quotes final expense quoter"
           loading="eager"
           referrerPolicy="strict-origin-when-cross-origin"
+          sandbox="allow-forms allow-scripts"
         />
       </div>
 
