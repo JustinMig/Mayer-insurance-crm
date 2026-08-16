@@ -49,6 +49,15 @@ function collectDraft(form: HTMLFormElement, dirty: boolean): ClientDraft {
   return { fields, openDetails, scrollY: window.scrollY, dirty }
 }
 
+function setNativeValue(element: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, value: string) {
+  const ownDescriptor = Object.getOwnPropertyDescriptor(element, 'value')
+  const prototype = Object.getPrototypeOf(element)
+  const prototypeDescriptor = Object.getOwnPropertyDescriptor(prototype, 'value')
+  const setter = prototypeDescriptor?.set || ownDescriptor?.set
+  if (setter) setter.call(element, value)
+  else element.value = value
+}
+
 function restoreFields(form: HTMLFormElement, draft: ClientDraft) {
   const byName = new Map<string, Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>>()
   Array.from(form.elements).forEach(element => {
@@ -64,15 +73,17 @@ function restoreFields(form: HTMLFormElement, draft: ClientDraft) {
     if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
       element.checked = Boolean(field.checked)
     } else {
-      element.value = field.value
+      setNativeValue(element, field.value)
     }
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+    element.dispatchEvent(new Event('change', { bubbles: true }))
   })
 
   Array.from(form.querySelectorAll('details')).forEach((detail, index) => {
     detail.open = draft.openDetails.includes(index)
   })
 
-  requestAnimationFrame(() => window.scrollTo({ top: draft.scrollY, behavior: 'auto' }))
+  requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: draft.scrollY, behavior: 'auto' })))
 }
 
 export default function ClientDraftGuard() {
@@ -112,34 +123,15 @@ export default function ClientDraftGuard() {
       sessionStorage.removeItem(afterSaveKey)
     }
 
-    const form = document.querySelector<HTMLFormElement>('form.client-profile-form')
-    if (!form) return
-    formRef.current = form
-
+    let disposed = false
+    let observer: MutationObserver | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
-    const stored = sessionStorage.getItem(draftKey)
-    if (stored) {
-      try {
-        const draft = JSON.parse(stored) as ClientDraft
-        dirtyRef.current = Boolean(draft.dirty)
-
-        const storedMedicationCount = draft.fields.filter(field => field.name === 'medication_name').length
-        const currentMedicationCount = form.querySelectorAll('[name="medication_name"]').length
-        const addMedicationButton = Array.from(form.querySelectorAll<HTMLButtonElement>('button[type="button"]')).find(button => button.textContent?.includes('Add Medication'))
-        if (addMedicationButton && storedMedicationCount > currentMedicationCount) {
-          for (let index = currentMedicationCount; index < storedMedicationCount; index += 1) addMedicationButton.click()
-          setTimeout(() => restoreFields(form, draft), 0)
-        } else {
-          restoreFields(form, draft)
-        }
-      } catch {
-        sessionStorage.removeItem(draftKey)
-      }
-    } else {
-      dirtyRef.current = false
-    }
+    let attachedForm: HTMLFormElement | null = null
+    let attachedBackLink: HTMLAnchorElement | null = null
 
     const writeDraft = () => {
+      const form = formRef.current
+      if (!form) return
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         try {
@@ -147,7 +139,7 @@ export default function ClientDraftGuard() {
         } catch {
           // If browser storage is unavailable, leave the live form untouched.
         }
-      }, 180)
+      }, 120)
     }
 
     const onFieldChange = () => {
@@ -160,13 +152,6 @@ export default function ClientDraftGuard() {
       sessionStorage.removeItem(draftKey)
       dirtyRef.current = false
     }
-
-    form.addEventListener('input', onFieldChange)
-    form.addEventListener('change', onFieldChange)
-    form.addEventListener('toggle', onUiChange, true)
-    form.addEventListener('submit', onSubmit)
-
-    const backLink = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href="/clients"]')).find(link => link.textContent?.trim().toLowerCase() === 'back to search')
     const onBackToSearch = (event: MouseEvent) => {
       if (!dirtyRef.current) {
         sessionStorage.removeItem(draftKey)
@@ -177,20 +162,80 @@ export default function ClientDraftGuard() {
       writeDraft()
       setShowPrompt(true)
     }
-    backLink?.addEventListener('click', onBackToSearch)
+
+    const attach = (form: HTMLFormElement) => {
+      if (disposed || attachedForm === form) return
+      attachedForm = form
+      formRef.current = form
+
+      const stored = sessionStorage.getItem(draftKey)
+      if (stored) {
+        try {
+          const draft = JSON.parse(stored) as ClientDraft
+          dirtyRef.current = Boolean(draft.dirty)
+
+          const storedMedicationCount = draft.fields.filter(field => field.name === 'medication_name').length
+          const currentMedicationCount = form.querySelectorAll('[name="medication_name"]').length
+          const addMedicationButton = Array.from(form.querySelectorAll<HTMLButtonElement>('button[type="button"]')).find(button => button.textContent?.includes('Add Medication'))
+
+          if (addMedicationButton && storedMedicationCount > currentMedicationCount) {
+            for (let index = currentMedicationCount; index < storedMedicationCount; index += 1) addMedicationButton.click()
+            setTimeout(() => { if (!disposed) restoreFields(form, draft) }, 40)
+          } else {
+            setTimeout(() => { if (!disposed) restoreFields(form, draft) }, 0)
+          }
+        } catch {
+          sessionStorage.removeItem(draftKey)
+          dirtyRef.current = false
+        }
+      } else {
+        dirtyRef.current = false
+      }
+
+      form.addEventListener('input', onFieldChange)
+      form.addEventListener('change', onFieldChange)
+      form.addEventListener('toggle', onUiChange, true)
+      form.addEventListener('submit', onSubmit)
+
+      attachedBackLink = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href="/clients"]')).find(link => link.textContent?.trim().toLowerCase() === 'back to search') || null
+      attachedBackLink?.addEventListener('click', onBackToSearch)
+    }
+
+    const tryAttach = () => {
+      const form = document.querySelector<HTMLFormElement>('form.client-profile-form')
+      if (form) {
+        attach(form)
+        observer?.disconnect()
+        observer = null
+        return true
+      }
+      return false
+    }
+
+    if (!tryAttach()) {
+      observer = new MutationObserver(() => tryAttach())
+      observer.observe(document.body, { childList: true, subtree: true })
+    }
 
     return () => {
+      disposed = true
+      observer?.disconnect()
       if (timer) clearTimeout(timer)
-      try {
-        sessionStorage.setItem(draftKey, JSON.stringify(collectDraft(form, dirtyRef.current)))
-      } catch {
-        // Ignore storage failures during navigation.
+
+      const form = attachedForm
+      if (form) {
+        try {
+          sessionStorage.setItem(draftKey, JSON.stringify(collectDraft(form, dirtyRef.current)))
+        } catch {
+          // Ignore storage failures during navigation.
+        }
+        form.removeEventListener('input', onFieldChange)
+        form.removeEventListener('change', onFieldChange)
+        form.removeEventListener('toggle', onUiChange, true)
+        form.removeEventListener('submit', onSubmit)
       }
-      form.removeEventListener('input', onFieldChange)
-      form.removeEventListener('change', onFieldChange)
-      form.removeEventListener('toggle', onUiChange, true)
-      form.removeEventListener('submit', onSubmit)
-      backLink?.removeEventListener('click', onBackToSearch)
+      attachedBackLink?.removeEventListener('click', onBackToSearch)
+      if (formRef.current === form) formRef.current = null
     }
   }, [pathname, router, searchKey, searchParams])
 
