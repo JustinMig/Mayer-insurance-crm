@@ -3,9 +3,9 @@ import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
 
 export async function proxy(request: NextRequest) {
-  // This endpoint is intentionally public so the MayerIG Squarespace form can
-  // submit leads without being redirected to the CRM login page.
-  if (request.nextUrl.pathname === '/api/website-leads') {
+  // These endpoints are intentionally public: website lead intake and the
+  // short-lived FEX form diagnostic used during integration testing.
+  if (request.nextUrl.pathname === '/api/website-leads' || request.nextUrl.pathname === '/api/fex-debug') {
     return NextResponse.next()
   }
 
