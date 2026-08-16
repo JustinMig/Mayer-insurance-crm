@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-const FEX_QUOTES_URL = 'https://fexquotes.com/wqt/v1/webquote.pl?id=5436&fn=1&vrt=m&tgt=1&cpn=0&style=blackice'
+const FEX_QUOTES_URL = 'https://fexquotes.com/wqt/v1/webrate.pl?id=5436&fn=1&vrt=m&tgt=1&cpn=0&style=blackice'
 
 export default function FexQuotesPage() {
   return (
@@ -14,7 +14,7 @@ export default function FexQuotesPage() {
         <div>
           <span>LIVE QUOTER</span>
           <h1>FEX Quotes</h1>
-          <p>Run the FEXQuotes.com final expense quoter and keep the quote results in this screen.</p>
+          <p>Use the FEXQuotes.com final expense quoting tool inside the CRM.</p>
         </div>
       </div>
 
