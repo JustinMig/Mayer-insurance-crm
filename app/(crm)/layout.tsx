@@ -91,6 +91,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
       <nav className={`mobile-nav${isJustinPortal ? ' mobile-nav-six' : ''}`}>
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
+        <Link prefetch={false} href="/fex-quotes"><b>$</b><span>FEX</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         {isJustinPortal && (
