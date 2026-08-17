@@ -114,6 +114,40 @@ export async function PATCH(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to clear unread messages.' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to mark messages read.' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const payload = await request.json().catch(() => ({})) as { message_ids?: string[] }
+    const requestedIds = Array.isArray(payload.message_ids) ? payload.message_ids.filter(Boolean) : []
+    if (!requestedIds.length) return NextResponse.json({ error: 'Choose at least one text to delete.' }, { status: 400 })
+
+    const { admin, clients } = await getAccessibleClients()
+    if (!admin) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+
+    const allowedClientIds = clients.map((client) => client.id)
+    if (!allowedClientIds.length) return NextResponse.json({ error: 'No accessible conversations.' }, { status: 403 })
+
+    const { data: allowedMessages, error: lookupError } = await admin
+      .from('client_sms_messages')
+      .select('id,client_id')
+      .in('id', requestedIds)
+      .in('client_id', allowedClientIds)
+
+    if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
+    const messageIds = (allowedMessages || []).map((row) => row.id)
+    if (!messageIds.length) return NextResponse.json({ error: 'No accessible texts selected.' }, { status: 403 })
+
+    const { error } = await admin
+      .from('client_sms_messages')
+      .delete()
+      .in('id', messageIds)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, deleted: messageIds.length })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to delete messages.' }, { status: 500 })
   }
 }
