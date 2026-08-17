@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
-export default function RetiredClientImportPage() {
-  redirect('/clients/document-import')
+export default function DisabledClientImportPage() {
+  redirect('/clients')
 }
