@@ -32,26 +32,27 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const isAgentPortal = profile?.role === 'agent'
   const isJustinPortal = isJustinWebsiteLeadUser(userId)
   let unreadWebsiteLeadCount = 0
-
-  const mailCountPromise = supabase
-    .from('crm_mail')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .is('read_at', null)
-    .is('removed_at', null)
-    .is('archived_at', null)
+  let unreadMailCount = 0
 
   if (isJustinPortal) {
-    const { count } = await supabase
-      .from('website_leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('assigned_agent_id', userId)
-      .is('read_at', null)
-    unreadWebsiteLeadCount = count || 0
+    const [leadCountResult, mailCountResult] = await Promise.all([
+      supabase
+        .from('website_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_agent_id', userId)
+        .is('read_at', null),
+      supabase
+        .from('crm_mail')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('read_at', null)
+        .is('removed_at', null)
+        .is('archived_at', null),
+    ])
+    unreadWebsiteLeadCount = leadCountResult.count || 0
+    unreadMailCount = mailCountResult.count || 0
   }
 
-  const { count: mailCount } = await mailCountPromise
-  const unreadMailCount = mailCount || 0
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
@@ -70,7 +71,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link prefetch={false} className="nav-link" href="/fex-quotes">FEX QUOTES</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
-          <Link prefetch={false} className="nav-link nav-leads" href="/mail-center"><span>MAIL CENTER</span>{unreadMailCount > 0 && <span className="nav-leads-count">{unreadMailCount}</span>}</Link>
+          {isJustinPortal && (
+            <Link prefetch={false} className="nav-link nav-leads" href="/mail-center"><span>MAIL CENTER</span>{unreadMailCount > 0 && <span className="nav-leads-count">{unreadMailCount}</span>}</Link>
+          )}
           {isJustinPortal && (
             <Link prefetch={false} className="nav-link nav-leads" href="/website-leads"><span>FORM SUBMISSIONS</span>{unreadWebsiteLeadCount > 0 && <span className="nav-leads-count">{unreadWebsiteLeadCount}</span>}</Link>
           )}
@@ -94,7 +97,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <Link prefetch={false} href="/fex-quotes"><b>$</b><span>FEX</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
-        <Link prefetch={false} className="mobile-leads-link" href="/mail-center"><b>✉</b><span>MAIL</span>{unreadMailCount > 0 && <i className="mobile-leads-count">{unreadMailCount}</i>}</Link>
+        {isJustinPortal && (
+          <Link prefetch={false} className="mobile-leads-link" href="/mail-center"><b>✉</b><span>MAIL</span>{unreadMailCount > 0 && <i className="mobile-leads-count">{unreadMailCount}</i>}</Link>
+        )}
         {isJustinPortal && (
           <Link prefetch={false} className="mobile-leads-link" href="/website-leads"><b>▤</b><span>FORMS</span>{unreadWebsiteLeadCount > 0 && <i className="mobile-leads-count">{unreadWebsiteLeadCount}</i>}</Link>
         )}
