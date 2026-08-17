@@ -4,6 +4,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
+import ClientTextingDock from './components/ClientTextingDock'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -54,6 +55,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     <div className="crm-shell">
       <ClientDraftGuard />
       <AddressAutoFill />
+      <ClientTextingDock />
       <aside className="sidebar">
         <div className="brand">
           <Link prefetch={false} className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`brand-bear${isIsaiahPortal ? ' brand-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
