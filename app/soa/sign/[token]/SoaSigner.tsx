@@ -12,6 +12,24 @@ type RequestPayload = {
   other_product?: string
 }
 
+function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+  const words = String(text || '').split(/\s+/).filter(Boolean)
+  let line = ''
+  let cursorY = y
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word
+    if (ctx.measureText(next).width > maxWidth && line) {
+      ctx.fillText(line, x, cursorY)
+      line = word
+      cursorY += lineHeight
+    } else {
+      line = next
+    }
+  }
+  if (line) ctx.fillText(line, x, cursorY)
+  return cursorY + lineHeight
+}
+
 export default function SoaSigner({ token }: { token: string }) {
   const [payload, setPayload] = useState<RequestPayload | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'submitting' | 'signed' | 'error'>('loading')
@@ -90,6 +108,98 @@ export default function SoaSigner({ token }: { token: string }) {
     setHasInk(false)
   }
 
+  function buildCompletedSoaPng() {
+    const signatureCanvas = canvasRef.current
+    if (!signatureCanvas || !payload) throw new Error('Unable to prepare the signed SOA.')
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 1400
+    canvas.height = 2400
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Unable to prepare the signed SOA.')
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = '#0f172a'
+    ctx.font = '700 46px Arial, sans-serif'
+    ctx.fillText('Mayer Insurance Group', 90, 105)
+    ctx.font = '700 34px Arial, sans-serif'
+    ctx.fillText('Scope of Sales Appointment Confirmation', 90, 165)
+
+    const signedAt = new Date()
+    ctx.font = '22px Arial, sans-serif'
+    ctx.fillStyle = '#334155'
+    ctx.fillText(`Appointment date: ${signedAt.toLocaleDateString('en-US')}`, 90, 220)
+    ctx.font = '19px Arial, sans-serif'
+    ctx.fillText(`SOA signed: ${signedAt.toLocaleString('en-US')}`, 90, 258)
+
+    ctx.fillStyle = '#0f172a'
+    ctx.font = '22px Arial, sans-serif'
+    let y = 315
+    y = wrapCanvasText(ctx, 'This Scope of Appointment documents the health-related Medicare product types the beneficiary has requested to discuss with the agent named below.', 90, y, 1210, 32) + 10
+    y = wrapCanvasText(ctx, 'Signing this form does not obligate the beneficiary to enroll, does not affect current or future Medicare enrollment status, and does not automatically enroll the beneficiary in any plan.', 90, y, 1210, 32) + 28
+
+    ctx.font = '700 28px Arial, sans-serif'
+    ctx.fillText('Beneficiary', 90, y)
+    y += 42
+    ctx.font = '23px Arial, sans-serif'
+    ctx.fillText(`Name: ${payload.beneficiary_name || 'Client'}`, 90, y)
+    y += 36
+    ctx.fillText(`Phone: ${payload.beneficiary_phone || 'Not provided'}`, 90, y)
+    y += 36
+    y = wrapCanvasText(ctx, `Address: ${payload.beneficiary_address || 'Not provided'}`, 90, y, 1210, 34) + 24
+
+    ctx.font = '700 28px Arial, sans-serif'
+    ctx.fillText('Agent', 90, y)
+    y += 42
+    ctx.font = '23px Arial, sans-serif'
+    ctx.fillText(`Name: ${payload.agent_name || 'Agent'}`, 90, y)
+    y += 36
+    if (payload.agent_email) {
+      ctx.fillText(`Email: ${payload.agent_email}`, 90, y)
+      y += 36
+    }
+    y += 18
+
+    ctx.font = '700 28px Arial, sans-serif'
+    ctx.fillText('Products requested for discussion', 90, y)
+    y += 42
+    ctx.font = '22px Arial, sans-serif'
+    const products = [...(payload.products || [])]
+    if (payload.other_product) products.push(payload.other_product)
+    const list = products.length ? products : ['Medicare-related health products requested by beneficiary']
+    for (const product of list) {
+      y = wrapCanvasText(ctx, `• ${product}`, 110, y, 1170, 31) + 2
+    }
+    y += 24
+
+    ctx.font = '700 28px Arial, sans-serif'
+    ctx.fillText('Beneficiary acknowledgement', 90, y)
+    y += 42
+    ctx.font = '21px Arial, sans-serif'
+    y = wrapCanvasText(ctx, 'By signing below, I confirm that I requested discussion of the health-related product types selected above. I understand that I am under no obligation to enroll in a plan, my current or future Medicare enrollment status will not be affected by signing this form, and I will not be automatically enrolled in any plan.', 90, y, 1210, 30) + 10
+    y = wrapCanvasText(ctx, 'The agent may discuss only the product types agreed to on this Scope of Appointment. If I request discussion of a different product type, an updated or new Scope of Appointment must be documented before that additional product type is discussed.', 90, y, 1210, 30) + 10
+    y = wrapCanvasText(ctx, 'For scheduled individual Medicare marketing appointments, CMS timing requirements may require the Scope of Appointment to be documented at least 48 hours in advance, subject to applicable exceptions.', 90, y, 1210, 30) + 30
+
+    ctx.font = '700 27px Arial, sans-serif'
+    ctx.fillText('Beneficiary signature', 90, y)
+    y += 20
+    ctx.strokeStyle = '#cbd5e1'
+    ctx.lineWidth = 2
+    ctx.strokeRect(90, y, 1210, 300)
+    ctx.drawImage(signatureCanvas, 110, y + 20, 1170, 260)
+    y += 345
+
+    ctx.font = '21px Arial, sans-serif'
+    ctx.fillStyle = '#475569'
+    ctx.fillText(`Signed electronically: ${signedAt.toLocaleString('en-US')}`, 90, y)
+    y += 38
+    ctx.font = '18px Arial, sans-serif'
+    wrapCanvasText(ctx, 'Generated and stored by Mayer Insurance Group CRM. Retain according to applicable carrier and CMS requirements.', 90, y, 1210, 27)
+
+    return canvas.toDataURL('image/png')
+  }
+
   async function submit() {
     if (!canvasRef.current || !hasInk || state !== 'ready') {
       setMessage('Please sign in the signature box first.')
@@ -101,7 +211,7 @@ export default function SoaSigner({ token }: { token: string }) {
       const response = await fetch(`/api/soa/sign/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_data_url: canvasRef.current.toDataURL('image/png') })
+        body: JSON.stringify({ document_data_url: buildCompletedSoaPng() })
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to save your signed Scope of Appointment.')
