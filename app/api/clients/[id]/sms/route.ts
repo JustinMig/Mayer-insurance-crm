@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
 
   const { data, error } = await supabase
     .from('client_sms_messages')
-    .select('id,direction,body,from_number,to_number,twilio_message_sid,status,error_code,error_message,created_at,updated_at')
+    .select('id,direction,body,from_number,to_number,twilio_message_sid,status,error_code,error_message,read_at,created_at,updated_at')
     .eq('client_id', id)
     .order('created_at', { ascending: true })
     .limit(200)
@@ -30,6 +30,24 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
     phone: client.phone || '',
     client_name: [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Client'
   })
+}
+
+export async function PATCH(_request: NextRequest, { params }: { params: Params }) {
+  const { id } = await params
+  const { supabase } = await getCrmSession()
+  const { data: client } = await loadClient(supabase, id)
+  if (!client) return NextResponse.json({ error: 'Client not found.' }, { status: 404 })
+
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('client_sms_messages')
+    .update({ read_at: now, updated_at: now })
+    .eq('client_id', id)
+    .eq('direction', 'inbound')
+    .is('read_at', null)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Params }) {
@@ -54,7 +72,8 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       direction: 'outbound',
       body,
       to_number: to,
-      status: 'sending'
+      status: 'sending',
+      read_at: new Date().toISOString()
     })
     .select('id')
     .single()
