@@ -82,7 +82,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
           <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
         </header>
-        <main className="content"><UnreadSmsDashboardCard />{children}</main>
+        <main className="content"><UnreadSmsDashboardCard viewerName={profile?.full_name || ''} />{children}</main>
       </div>
 
       <nav className="mobile-nav">
