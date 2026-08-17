@@ -3,12 +3,14 @@ import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
 
 export async function proxy(request: NextRequest) {
-  // Public webhook/intake endpoints must bypass CRM login redirects.
-  // They perform their own source/signature validation inside the route.
+  // Public webhook/intake/signature endpoints must bypass CRM login redirects.
+  // They perform their own source/token validation inside the route.
   if (
     request.nextUrl.pathname === '/api/website-leads' ||
     request.nextUrl.pathname === '/api/twilio/incoming' ||
-    request.nextUrl.pathname === '/api/twilio/status'
+    request.nextUrl.pathname === '/api/twilio/status' ||
+    request.nextUrl.pathname.startsWith('/api/soa/sign/') ||
+    request.nextUrl.pathname.startsWith('/soa/sign/')
   ) {
     return NextResponse.next()
   }
