@@ -5,6 +5,7 @@ import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
 import ClientTextingDock from './components/ClientTextingDock'
+import UnreadSmsDashboardCard from './components/UnreadSmsDashboardCard'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -81,7 +82,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
           <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
         </header>
-        <main className="content">{children}</main>
+        <main className="content"><UnreadSmsDashboardCard />{children}</main>
       </div>
 
       <nav className="mobile-nav">
