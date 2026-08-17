@@ -1,5 +1,7 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import { CRM_GMAIL_LABEL, gmailConfigured, syncCrmMail } from '@/lib/gmail-mail'
 import MailCenterRefresh from './MailCenterRefresh'
 
@@ -17,6 +19,8 @@ function formatDate(value: string) {
 export default async function MailCenterPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const { supabase, userId } = await getCrmSession()
+  if (!isJustinWebsiteLeadUser(userId)) notFound()
+
   const configured = gmailConfigured()
   const { data: connection } = await supabase.from('gmail_connections').select('gmail_email').eq('user_id', userId).maybeSingle()
   const connected = Boolean(connection)
