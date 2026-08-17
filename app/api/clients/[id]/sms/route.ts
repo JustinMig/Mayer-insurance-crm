@@ -25,7 +25,11 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
     .limit(200)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ messages: data || [], phone: client.phone || '' })
+  return NextResponse.json({
+    messages: data || [],
+    phone: client.phone || '',
+    client_name: [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Client'
+  })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Params }) {
