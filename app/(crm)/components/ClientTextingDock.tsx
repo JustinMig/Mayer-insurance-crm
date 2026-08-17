@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 type SmsMessage = {
   id: string
@@ -9,6 +9,7 @@ type SmsMessage = {
   body: string
   status: string
   error_code: string | null
+  read_at?: string | null
   created_at: string
 }
 
@@ -41,10 +42,12 @@ const styles: Record<string, CSSProperties> = {
 
 export default function ClientTextingDock() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const clientId = useMemo(() => {
     const match = pathname.match(/^\/clients\/([^/]+)$/)
     return match?.[1] || ''
   }, [pathname])
+  const openFromDashboard = searchParams.get('text') === '1'
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<SmsMessage[]>([])
   const [phone, setPhone] = useState('')
@@ -64,18 +67,32 @@ export default function ClientTextingDock() {
     }
   }
 
+  async function markRead() {
+    if (!clientId) return
+    await fetch(`/api/clients/${clientId}/sms`, { method: 'PATCH', cache: 'no-store' }).catch(() => null)
+  }
+
+  async function openThread() {
+    setOpen(true)
+    await Promise.all([load(), markRead()])
+  }
+
   useEffect(() => {
-    setOpen(false)
+    setOpen(openFromDashboard)
     setMessages([])
     setBody('')
     setStatus('')
     if (!clientId) return
     void load()
-  }, [clientId])
+    if (openFromDashboard) void markRead()
+  }, [clientId, openFromDashboard])
 
   useEffect(() => {
     if (!open || !clientId) return
-    const timer = window.setInterval(() => void load(), 7000)
+    const timer = window.setInterval(() => {
+      void load()
+      void markRead()
+    }, 7000)
     return () => window.clearInterval(timer)
   }, [open, clientId])
 
@@ -106,7 +123,7 @@ export default function ClientTextingDock() {
 
   return (
     <>
-      <button type="button" style={styles.dock} onClick={() => { setOpen(true); void load() }} aria-label={`Text ${clientName}`}>
+      <button type="button" style={styles.dock} onClick={() => { void openThread() }} aria-label={`Text ${clientName}`}>
         ✉ <span>TEXT</span>
       </button>
       {open ? (
@@ -122,7 +139,7 @@ export default function ClientTextingDock() {
                   <div>{message.body}</div>
                   <small style={styles.meta}>{new Date(message.created_at).toLocaleString()} · {message.status}{message.error_code ? ` · Error ${message.error_code}` : ''}</small>
                 </div>
-              )) : <div style={styles.empty}>No messages yet. Send the first test text below.</div>}
+              )) : <div style={styles.empty}>No messages yet. Send the first text below.</div>}
             </div>
             <div style={styles.compose}>
               <textarea className="textarea" style={styles.textarea} value={body} onChange={(e) => setBody(e.target.value)} maxLength={1500} placeholder="Type a text message…" disabled={!phone || sending} />
