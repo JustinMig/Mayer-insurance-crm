@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
-import { archiveMail, markMailRead, moveMail, removeMail } from '../actions'
+import { archiveMail, moveMail, removeMail } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,9 @@ export default async function MailMessagePage({ params }: { params: Promise<{ id
   const { supabase, userId } = await getCrmSession()
   const { data: message } = await supabase.from('crm_mail').select('*').eq('id', id).eq('user_id', userId).is('removed_at', null).maybeSingle()
   if (!message) notFound()
-  if (!message.read_at) await markMailRead(id)
+  if (!message.read_at) {
+    await supabase.from('crm_mail').update({ read_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
+  }
   const attachments = Array.isArray(message.attachments) ? message.attachments : []
 
   return (
