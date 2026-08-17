@@ -18,6 +18,12 @@ export default function FileDropZone({ label, accept = 'image/*,.pdf,.txt,.doc,.
     void onFile(file)
   }
 
+  function openPicker() {
+    if (disabled || !inputRef.current) return
+    inputRef.current.value = ''
+    inputRef.current.click()
+  }
+
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setDragging(false)
@@ -31,10 +37,10 @@ export default function FileDropZone({ label, accept = 'image/*,.pdf,.txt,.doc,.
       onDragOver={(event) => { event.preventDefault(); if (!disabled) event.dataTransfer.dropEffect = 'copy' }}
       onDragLeave={(event) => { event.preventDefault(); if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false) }}
       onDrop={handleDrop}
-      onClick={() => { if (!disabled) inputRef.current?.click() }}
+      onClick={openPicker}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      onKeyDown={(event) => { if (!disabled && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); inputRef.current?.click() } }}
+      onKeyDown={(event) => { if (!disabled && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openPicker() } }}
       aria-disabled={disabled}
     >
       <strong>{label}</strong>
@@ -46,8 +52,9 @@ export default function FileDropZone({ label, accept = 'image/*,.pdf,.txt,.doc,.
         disabled={disabled}
         accept={accept}
         onChange={(event) => {
-          chooseFile(event.target.files?.[0])
+          const file = event.target.files?.[0]
           event.target.value = ''
+          chooseFile(file)
         }}
       />
     </div>
