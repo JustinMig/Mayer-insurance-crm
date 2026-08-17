@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
 
     const admin = createAdminClient()
     const { data: assignedAgent } = client.assigned_agent_id
-      ? await admin.from('profiles').select('id,full_name,email').eq('id', client.assigned_agent_id).maybeSingle()
+      ? await admin.from('profiles').select('id,full_name').eq('id', client.assigned_agent_id).maybeSingle()
       : { data: null }
 
     const token = crypto.randomBytes(32).toString('base64url')
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
           beneficiary_phone: client.phone || phone,
           beneficiary_address: address,
           agent_name: assignedAgent?.full_name || profile.full_name || 'Agent',
-          agent_email: assignedAgent?.email || '',
+          agent_email: '',
           products,
           other_product: otherProduct
         }
