@@ -3,9 +3,13 @@ import { NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/proxy'
 
 export async function proxy(request: NextRequest) {
-  // This endpoint is intentionally public so the MayerIG Squarespace form can
-  // submit leads without being redirected to the CRM login page.
-  if (request.nextUrl.pathname === '/api/website-leads') {
+  // Public webhook/intake endpoints must bypass CRM login redirects.
+  // They perform their own source/signature validation inside the route.
+  if (
+    request.nextUrl.pathname === '/api/website-leads' ||
+    request.nextUrl.pathname === '/api/twilio/incoming' ||
+    request.nextUrl.pathname === '/api/twilio/status'
+  ) {
     return NextResponse.next()
   }
 
