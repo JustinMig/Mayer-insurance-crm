@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import { archiveMail, moveMail, removeMail } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,8 @@ function formatDate(value: string) {
 export default async function MailMessagePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, userId } = await getCrmSession()
+  if (!isJustinWebsiteLeadUser(userId)) notFound()
+
   const { data: message } = await supabase.from('crm_mail').select('*').eq('id', id).eq('user_id', userId).is('removed_at', null).maybeSingle()
   if (!message) notFound()
   if (!message.read_at) {
