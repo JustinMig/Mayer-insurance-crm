@@ -17,6 +17,8 @@ type Conversation = {
   client_id: string
   client_name: string
   phone: string
+  assigned_agent_id: string | null
+  agent_name: string
   unread_count: number
   latest_body: string
   latest_at: string
@@ -24,16 +26,19 @@ type Conversation = {
 }
 
 type Tab = 'unread' | 'read'
+type AgentBoard = 'all' | 'justin' | 'isaiah'
 
-export default function MessagesCenter() {
+export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }: { viewerName?: string; initialAgent?: string }) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [totalUnread, setTotalUnread] = useState(0)
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<Tab>('unread')
+  const [agentBoard, setAgentBoard] = useState<AgentBoard>(initialAgent === 'isaiah' ? 'isaiah' : initialAgent === 'justin' ? 'justin' : 'all')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const isSheena = viewerName.trim().toLowerCase() === 'sheena hester'
 
   async function load() {
     try {
@@ -56,9 +61,25 @@ export default function MessagesCenter() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const unreadConversations = useMemo(() => conversations.filter((c) => c.unread_count > 0), [conversations])
-  const readConversations = useMemo(() => conversations.filter((c) => c.unread_count === 0), [conversations])
+  useEffect(() => {
+    function collapseWhenClickingOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement | null
+      if (!target?.closest('[data-message-conversation]')) setOpenIds(new Set())
+    }
+    document.addEventListener('mousedown', collapseWhenClickingOutside)
+    return () => document.removeEventListener('mousedown', collapseWhenClickingOutside)
+  }, [])
+
+  const boardConversations = useMemo(() => {
+    if (!isSheena || agentBoard === 'all') return conversations
+    const wanted = agentBoard === 'justin' ? 'justin mayer' : 'isaiah hernandez'
+    return conversations.filter((c) => c.agent_name.trim().toLowerCase() === wanted)
+  }, [conversations, agentBoard, isSheena])
+
+  const unreadConversations = useMemo(() => boardConversations.filter((c) => c.unread_count > 0), [boardConversations])
+  const readConversations = useMemo(() => boardConversations.filter((c) => c.unread_count === 0), [boardConversations])
   const visibleConversations = activeTab === 'unread' ? unreadConversations : readConversations
+  const boardUnread = unreadConversations.reduce((sum, c) => sum + c.unread_count, 0)
 
   function toggleMessageSelected(id: string) {
     setSelectedMessages((current) => {
@@ -89,19 +110,11 @@ export default function MessagesCenter() {
   }
 
   async function openConversation(conversation: Conversation) {
+    setOpenIds((current) => current.has(conversation.client_id) ? new Set() : new Set([conversation.client_id]))
     if (conversation.unread_count > 0) {
-      setOpenIds((current) => new Set(current).add(conversation.client_id))
       await markRead([conversation.client_id])
       setActiveTab('read')
-      return
     }
-
-    setOpenIds((current) => {
-      const next = new Set(current)
-      if (next.has(conversation.client_id)) next.delete(conversation.client_id)
-      else next.add(conversation.client_id)
-      return next
-    })
   }
 
   async function deleteSelected() {
@@ -132,11 +145,11 @@ export default function MessagesCenter() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div className="clients-page-heading">
           <h1>Messages</h1>
-          <p className="subtle">Unread conversations move to Read automatically when you open them.</p>
+          <p className="subtle">Unread conversations move to Read automatically when opened. Clicking outside collapses the conversation.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <strong style={{ fontSize: 22 }}>{totalUnread}</strong><span className="subtle">new</span>
+            <strong style={{ fontSize: 22 }}>{isSheena ? boardUnread : totalUnread}</strong><span className="subtle">new</span>
           </div>
           <button type="button" className="btn btn-secondary" disabled={!selectedMessages.size || busy} onClick={() => void deleteSelected()}>
             {busy ? 'Working…' : `DELETE SELECTED${selectedMessages.size ? ` (${selectedMessages.size})` : ''}`}
@@ -144,11 +157,19 @@ export default function MessagesCenter() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
-        <button type="button" className={activeTab === 'unread' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => setActiveTab('unread')}>
-          UNREAD ({totalUnread})
+      {isSheena ? (
+        <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
+          <button type="button" className={agentBoard === 'justin' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => { setAgentBoard('justin'); setOpenIds(new Set()) }}>JUSTIN MESSAGES</button>
+          <button type="button" className={agentBoard === 'isaiah' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => { setAgentBoard('isaiah'); setOpenIds(new Set()) }}>ISAIAH MESSAGES</button>
+          <button type="button" className={agentBoard === 'all' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => { setAgentBoard('all'); setOpenIds(new Set()) }}>ALL</button>
+        </div>
+      ) : null}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: isSheena ? 10 : 18, flexWrap: 'wrap' }}>
+        <button type="button" className={activeTab === 'unread' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => { setActiveTab('unread'); setOpenIds(new Set()) }}>
+          UNREAD ({boardUnread})
         </button>
-        <button type="button" className={activeTab === 'read' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => setActiveTab('read')}>
+        <button type="button" className={activeTab === 'read' ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => { setActiveTab('read'); setOpenIds(new Set()) }}>
           READ ({readConversations.length})
         </button>
       </div>
@@ -164,7 +185,7 @@ export default function MessagesCenter() {
         {visibleConversations.map((conversation) => {
           const isOpen = openIds.has(conversation.client_id)
           return (
-            <article className="card" key={conversation.client_id} style={{ overflow: 'hidden', border: conversation.unread_count > 0 ? '2px solid #b78b3f' : undefined }}>
+            <article data-message-conversation className="card" key={conversation.client_id} style={{ overflow: 'hidden', border: conversation.unread_count > 0 ? '2px solid #b78b3f' : undefined }}>
               <button
                 type="button"
                 onClick={() => void openConversation(conversation)}
@@ -173,7 +194,7 @@ export default function MessagesCenter() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <div>
                     <strong>{conversation.client_name}</strong>
-                    <div className="subtle" style={{ fontSize: 12 }}>{conversation.phone || 'No phone number saved'}</div>
+                    <div className="subtle" style={{ fontSize: 12 }}>{conversation.phone || 'No phone number saved'}{isSheena ? ` · ${conversation.agent_name}` : ''}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     {conversation.unread_count > 0 ? <span style={{ background: '#10263f', color: '#fff', borderRadius: 999, padding: '5px 9px', fontSize: 12, fontWeight: 900 }}>{conversation.unread_count} unread</span> : <span className="subtle" style={{ fontSize: 12 }}>Read</span>}
