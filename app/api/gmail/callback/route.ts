@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import { saveGmailConnection } from '@/lib/gmail-mail'
 
 export const dynamic = 'force-dynamic'
@@ -8,6 +9,8 @@ const CRM_ORIGIN = 'https://crm.mayerig.com'
 
 export async function GET(request: NextRequest) {
   const { supabase, userId } = await getCrmSession()
+  if (!isJustinWebsiteLeadUser(userId)) return NextResponse.redirect(new URL('/dashboard', CRM_ORIGIN))
+
   const code = request.nextUrl.searchParams.get('code')
   const state = request.nextUrl.searchParams.get('state')
   const cookie = request.cookies.get('crm_gmail_oauth_state')?.value || ''
