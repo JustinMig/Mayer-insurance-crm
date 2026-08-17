@@ -31,26 +31,17 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const isAgentPortal = profile?.role === 'agent'
   const isJustinPortal = isJustinWebsiteLeadUser(userId)
-  let unreadWebsiteLeadCount = 0
   let unreadMailCount = 0
 
   if (isJustinPortal) {
-    const [leadCountResult, mailCountResult] = await Promise.all([
-      supabase
-        .from('website_leads')
-        .select('id', { count: 'exact', head: true })
-        .eq('assigned_agent_id', userId)
-        .is('read_at', null),
-      supabase
-        .from('crm_mail')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .is('read_at', null)
-        .is('removed_at', null)
-        .is('archived_at', null),
-    ])
-    unreadWebsiteLeadCount = leadCountResult.count || 0
-    unreadMailCount = mailCountResult.count || 0
+    const { count } = await supabase
+      .from('crm_mail')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('read_at', null)
+      .is('removed_at', null)
+      .is('archived_at', null)
+    unreadMailCount = count || 0
   }
 
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
@@ -74,9 +65,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           {isJustinPortal && (
             <Link prefetch={false} className="nav-link nav-leads" href="/mail-center"><span>MAIL CENTER</span>{unreadMailCount > 0 && <span className="nav-leads-count">{unreadMailCount}</span>}</Link>
           )}
-          {isJustinPortal && (
-            <Link prefetch={false} className="nav-link nav-leads" href="/website-leads"><span>FORM SUBMISSIONS</span>{unreadWebsiteLeadCount > 0 && <span className="nav-leads-count">{unreadWebsiteLeadCount}</span>}</Link>
-          )}
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -92,16 +80,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <main className="content">{children}</main>
       </div>
 
-      <nav className={`mobile-nav${isJustinPortal ? ' mobile-nav-six' : ''}`}>
+      <nav className="mobile-nav">
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
         <Link prefetch={false} href="/fex-quotes"><b>$</b><span>FEX</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         {isJustinPortal && (
           <Link prefetch={false} className="mobile-leads-link" href="/mail-center"><b>✉</b><span>MAIL</span>{unreadMailCount > 0 && <i className="mobile-leads-count">{unreadMailCount}</i>}</Link>
-        )}
-        {isJustinPortal && (
-          <Link prefetch={false} className="mobile-leads-link" href="/website-leads"><b>▤</b><span>FORMS</span>{unreadWebsiteLeadCount > 0 && <i className="mobile-leads-count">{unreadWebsiteLeadCount}</i>}</Link>
         )}
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
