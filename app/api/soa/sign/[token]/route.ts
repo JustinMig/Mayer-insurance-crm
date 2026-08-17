@@ -13,17 +13,27 @@ function tokenHash(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
+function requestIp(request: NextRequest) {
+  const forwarded = request.headers.get('x-forwarded-for') || ''
+  const first = forwarded.split(',')[0]?.trim()
+  return first || request.headers.get('x-real-ip') || 'Unavailable'
+}
+
+function requestUserAgent(request: NextRequest) {
+  return (request.headers.get('user-agent') || 'Unavailable').slice(0, 1000)
+}
+
 async function loadRequest(token: string) {
   const admin = createAdminClient()
   const { data } = await admin
     .from('soa_signature_requests')
-    .select('id,agency_id,client_id,requested_by,phone,request_payload,status,expires_at,signed_at,document_id')
+    .select('id,agency_id,client_id,requested_by,phone,request_payload,status,expires_at,opened_at,signed_at,document_id,opened_ip,signed_ip,opened_user_agent,signed_user_agent,signed_document_sha256')
     .eq('token_hash', tokenHash(token))
     .maybeSingle()
   return { admin, data }
 }
 
-export async function GET(_request: NextRequest, { params }: { params: Params }) {
+export async function GET(request: NextRequest, { params }: { params: Params }) {
   const { token } = await params
   const { admin, data } = await loadRequest(token)
   if (!data) return NextResponse.json({ error: 'This signing link is not valid.' }, { status: 404 })
@@ -34,11 +44,31 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
   }
   if (data.status === 'canceled' || data.status === 'expired') return NextResponse.json({ error: 'This signing link is no longer active.' }, { status: 410 })
 
-  if (data.status === 'sent') {
-    await admin.from('soa_signature_requests').update({ status: 'opened', opened_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', data.id)
+  const openedAt = data.opened_at || new Date().toISOString()
+  const openedIp = data.opened_ip || requestIp(request)
+  const openedUserAgent = data.opened_user_agent || requestUserAgent(request)
+
+  if (data.status === 'sent' || !data.opened_at || !data.opened_ip || !data.opened_user_agent) {
+    await admin.from('soa_signature_requests').update({
+      status: data.status === 'sent' ? 'opened' : data.status,
+      opened_at: openedAt,
+      opened_ip: openedIp,
+      opened_user_agent: openedUserAgent,
+      updated_at: new Date().toISOString()
+    }).eq('id', data.id)
   }
 
-  return NextResponse.json({ status: 'ready', request: data.request_payload, expires_at: data.expires_at })
+  return NextResponse.json({
+    status: 'ready',
+    request: data.request_payload,
+    expires_at: data.expires_at,
+    audit: {
+      request_id: data.id,
+      opened_at: openedAt,
+      ip_address: openedIp,
+      user_agent: openedUserAgent
+    }
+  })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Params }) {
@@ -51,7 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       return NextResponse.json({ error: 'This signing link is no longer active.' }, { status: 410 })
     }
 
-    const body = await request.json().catch(() => ({})) as { document_data_url?: string }
+    const body = await request.json().catch(() => ({})) as { document_data_url?: string; client_user_agent?: string }
     const documentDataUrl = String(body.document_data_url || '')
     if (!documentDataUrl.startsWith('data:image/png;base64,') || documentDataUrl.length > 12_000_000) {
       return NextResponse.json({ error: 'The signed SOA could not be prepared. Please try signing again.' }, { status: 400 })
@@ -64,6 +94,9 @@ export async function POST(request: NextRequest, { params }: { params: Params })
     }
 
     const signedAt = new Date()
+    const signedIp = requestIp(request)
+    const signedUserAgent = (String(body.client_user_agent || '').trim() || requestUserAgent(request)).slice(0, 1000)
+    const documentSha256 = crypto.createHash('sha256').update(bytes).digest('hex')
     const payload = (data.request_payload || {}) as { beneficiary_name?: string }
     const safeName = String(payload.beneficiary_name || 'Client').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Client'
     const fileName = `Signed_SOA_${safeName}_${signedAt.toISOString().slice(0, 10)}.png`
@@ -95,7 +128,15 @@ export async function POST(request: NextRequest, { params }: { params: Params })
 
     await admin
       .from('soa_signature_requests')
-      .update({ status: 'signed', signed_at: signedAt.toISOString(), document_id: document.id, updated_at: signedAt.toISOString() })
+      .update({
+        status: 'signed',
+        signed_at: signedAt.toISOString(),
+        signed_ip: signedIp,
+        signed_user_agent: signedUserAgent,
+        signed_document_sha256: documentSha256,
+        document_id: document.id,
+        updated_at: signedAt.toISOString()
+      })
       .eq('id', data.id)
 
     await admin.from('audit_log').insert({
@@ -103,10 +144,21 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       actor_id: data.requested_by,
       client_id: data.client_id,
       action: 'soa.signed_by_text',
-      details: { signature_request_id: data.id, document_id: document.id, mime_type: 'image/png' }
+      details: {
+        signature_request_id: data.id,
+        document_id: document.id,
+        mime_type: 'image/png',
+        opened_at: data.opened_at,
+        opened_ip: data.opened_ip,
+        signed_at: signedAt.toISOString(),
+        signed_ip: signedIp,
+        signed_user_agent: signedUserAgent,
+        document_sha256: documentSha256,
+        recipient_phone: data.phone
+      }
     })
 
-    return NextResponse.json({ ok: true, signed_at: signedAt.toISOString() })
+    return NextResponse.json({ ok: true, signed_at: signedAt.toISOString(), signed_ip: signedIp, request_id: data.id, document_sha256: documentSha256 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to save the signed SOA.' }, { status: 500 })
   }
