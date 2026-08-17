@@ -18,7 +18,7 @@ type SmsRow = {
 
 async function getAccessibleClients() {
   const { userId, profile } = await getCrmSession()
-  if (!profile?.agency_id) return { admin: null, clients: [] as any[] }
+  if (!profile?.agency_id) return { admin: null, clients: [] as any[], profile: null as any }
 
   const admin = createAdminClient()
   const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
@@ -30,29 +30,35 @@ async function getAccessibleClients() {
   if (!canSeeAgency) query = query.eq('assigned_agent_id', userId)
   const { data, error } = await query
   if (error) throw new Error(error.message)
-  return { admin, clients: data || [] }
+  return { admin, clients: data || [], profile }
 }
 
 export async function GET() {
   try {
-    const { admin, clients } = await getAccessibleClients()
-    if (!admin || !clients.length) return NextResponse.json({ total_unread: 0, conversations: [] })
+    const { admin, clients, profile } = await getAccessibleClients()
+    if (!admin || !profile || !clients.length) return NextResponse.json({ total_unread: 0, conversations: [] })
 
     const clientIds = clients.map((client) => client.id)
-    const { data: messages, error } = await admin
-      .from('client_sms_messages')
-      .select('id,client_id,direction,body,status,error_code,read_at,created_at')
-      .in('client_id', clientIds)
-      .order('created_at', { ascending: false })
-      .limit(1500)
+    const [{ data: messages, error }, { data: profiles }] = await Promise.all([
+      admin
+        .from('client_sms_messages')
+        .select('id,client_id,direction,body,status,error_code,read_at,created_at')
+        .in('client_id', clientIds)
+        .order('created_at', { ascending: false })
+        .limit(1500),
+      admin.from('profiles').select('id,full_name').eq('agency_id', profile.agency_id)
+    ])
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    const profileMap = new Map((profiles || []).map((row) => [row.id, row.full_name || 'Agent']))
     const clientMap = new Map(clients.map((client) => [client.id, client]))
     const grouped = new Map<string, {
       client_id: string
       client_name: string
       phone: string
+      assigned_agent_id: string | null
+      agent_name: string
       unread_count: number
       latest_body: string
       latest_at: string
@@ -68,6 +74,8 @@ export async function GET() {
           client_id: row.client_id,
           client_name: [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Client',
           phone: client.phone || '',
+          assigned_agent_id: client.assigned_agent_id || null,
+          agent_name: profileMap.get(client.assigned_agent_id) || 'Unassigned',
           unread_count: 0,
           latest_body: row.body || '',
           latest_at: row.created_at,
@@ -140,11 +148,7 @@ export async function DELETE(request: NextRequest) {
     const messageIds = (allowedMessages || []).map((row) => row.id)
     if (!messageIds.length) return NextResponse.json({ error: 'No accessible texts selected.' }, { status: 403 })
 
-    const { error } = await admin
-      .from('client_sms_messages')
-      .delete()
-      .in('id', messageIds)
-
+    const { error } = await admin.from('client_sms_messages').delete().in('id', messageIds)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, deleted: messageIds.length })
   } catch (error) {
