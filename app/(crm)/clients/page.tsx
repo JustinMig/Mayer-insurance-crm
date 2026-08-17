@@ -163,6 +163,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       if (!showAll && product === 'life_medicare') query = query.eq('is_life', true).eq('is_medicare', true)
       if (!showAll && product === 'non_life') query = query.eq('is_life', false)
       if (!showAll && product === 'non_medicare') query = query.eq('is_medicare', false)
+      if (!showAll && product === 'non_life_non_medicare') query = query.eq('is_life', false).eq('is_medicare', false)
       if (showAll && totalCountAgentId) query = query.eq('assigned_agent_id', totalCountAgentId)
       else if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
       if (!showAll && healthClientIds) query = query.in('id', healthClientIds)
@@ -228,6 +229,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
           <option value="life_medicare">Life + Medicare</option>
           <option value="non_life">Non-Life</option>
           <option value="non_medicare">Non-Medicare</option>
+          <option value="non_life_non_medicare">Non-Life + Non-Medicare</option>
         </select>
 
         <select className="select" name="sort" defaultValue={sort} style={{ width: 190 }} aria-label="Sort clients">
