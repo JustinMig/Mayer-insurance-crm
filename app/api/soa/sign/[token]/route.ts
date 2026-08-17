@@ -9,93 +9,8 @@ const BUCKET = 'client-documents'
 
 type Params = Promise<{ token: string }>
 
-type SoaPayload = {
-  beneficiary_name?: string
-  beneficiary_phone?: string
-  beneficiary_address?: string
-  agent_name?: string
-  agent_email?: string
-  products?: string[]
-  other_product?: string
-}
-
 function tokenHash(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex')
-}
-
-function xml(value: unknown) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;')
-}
-
-function wrap(value: string, max = 82) {
-  const words = String(value || '').trim().split(/\s+/).filter(Boolean)
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word
-    if (next.length > max && line) {
-      lines.push(line)
-      line = word
-    } else line = next
-  }
-  if (line) lines.push(line)
-  return lines
-}
-
-function textLines(lines: string[], x: number, y: number, size = 24, gap = 34, weight = 400) {
-  return lines.map((line, index) => `<text x="${x}" y="${y + index * gap}" font-size="${size}" font-weight="${weight}" font-family="Arial, Helvetica, sans-serif" fill="#0f172a">${xml(line)}</text>`).join('')
-}
-
-function buildSignedSoaSvg(payload: SoaPayload, signatureDataUrl: string, signedAt: Date) {
-  const products = [...(Array.isArray(payload.products) ? payload.products : [])]
-  if (payload.other_product) products.push(payload.other_product)
-  let y = 250
-  const chunks: string[] = []
-  const add = (lines: string[], size = 24, gap = 34, weight = 400, spaceAfter = 20) => {
-    chunks.push(textLines(lines, 90, y, size, gap, weight))
-    y += Math.max(1, lines.length) * gap + spaceAfter
-  }
-
-  add(['Mayer Insurance Group'], 44, 50, 700, 8)
-  add(['Scope of Sales Appointment Confirmation'], 32, 42, 700, 18)
-  add([`Appointment date: ${signedAt.toLocaleDateString('en-US')}`], 22, 30, 400, 8)
-  add([`SOA signed: ${signedAt.toLocaleString('en-US')}`], 19, 28, 400, 28)
-  add(wrap('This Scope of Appointment documents the health-related Medicare product types the beneficiary has requested to discuss with the agent named below.'), 22, 31, 400, 10)
-  add(wrap('Signing this form does not obligate the beneficiary to enroll, does not affect current or future Medicare enrollment status, and does not automatically enroll the beneficiary in any plan.'), 22, 31, 400, 28)
-
-  add(['Beneficiary'], 27, 36, 700, 6)
-  add([`Name: ${payload.beneficiary_name || 'Not provided'}`, `Phone: ${payload.beneficiary_phone || 'Not provided'}`], 23, 33, 400, 4)
-  add(wrap(`Address: ${payload.beneficiary_address || 'Not provided'}`), 23, 33, 400, 26)
-
-  add(['Agent'], 27, 36, 700, 6)
-  add([`Name: ${payload.agent_name || 'Agent'}`, `Email: ${payload.agent_email || 'Not provided'}`], 23, 33, 400, 26)
-
-  add(['Products requested for discussion'], 27, 36, 700, 8)
-  for (const product of products.length ? products : ['Medicare-related health products requested by beneficiary']) {
-    add(wrap(`• ${product}`, 78), 22, 31, 400, 2)
-  }
-  y += 18
-
-  add(['Beneficiary acknowledgement'], 27, 36, 700, 8)
-  add(wrap('By signing below, I confirm that I requested discussion of the health-related product types selected above. I understand that I am under no obligation to enroll in a plan, my current or future Medicare enrollment status will not be affected by signing this form, and I will not be automatically enrolled in any plan.'), 21, 30, 400, 8)
-  add(wrap('The agent may discuss only the product types agreed to on this Scope of Appointment. If I request discussion of a different product type, an updated or new Scope of Appointment must be documented before that additional product type is discussed.'), 21, 30, 400, 8)
-  add(wrap('For scheduled individual Medicare marketing appointments, CMS timing requirements may require the Scope of Appointment to be documented at least 48 hours in advance, subject to applicable exceptions.'), 21, 30, 400, 26)
-
-  add(['Beneficiary signature'], 26, 36, 700, 8)
-  const sigY = y
-  chunks.push(`<rect x="90" y="${sigY}" width="1210" height="300" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>`)
-  chunks.push(`<image href="${xml(signatureDataUrl)}" x="110" y="${sigY + 20}" width="1170" height="260" preserveAspectRatio="xMidYMid meet"/>`)
-  y += 340
-  add([`Signed electronically: ${signedAt.toLocaleString('en-US')}`], 21, 30, 400, 8)
-  add(wrap('Generated and stored by Mayer Insurance Group CRM. Retain according to applicable carrier and CMS requirements.'), 18, 27, 400, 0)
-
-  const height = Math.max(2300, y + 100)
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="${height}" viewBox="0 0 1400 ${height}"><rect width="1400" height="${height}" fill="#ffffff"/>${chunks.join('')}</svg>`
 }
 
 async function loadRequest(token: string) {
@@ -136,22 +51,27 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       return NextResponse.json({ error: 'This signing link is no longer active.' }, { status: 410 })
     }
 
-    const body = await request.json().catch(() => ({})) as { signature_data_url?: string }
-    const signature = String(body.signature_data_url || '')
-    if (!signature.startsWith('data:image/png;base64,') || signature.length > 3_000_000) {
-      return NextResponse.json({ error: 'Please provide a valid signature.' }, { status: 400 })
+    const body = await request.json().catch(() => ({})) as { document_data_url?: string }
+    const documentDataUrl = String(body.document_data_url || '')
+    if (!documentDataUrl.startsWith('data:image/png;base64,') || documentDataUrl.length > 12_000_000) {
+      return NextResponse.json({ error: 'The signed SOA could not be prepared. Please try signing again.' }, { status: 400 })
+    }
+
+    const encoded = documentDataUrl.slice('data:image/png;base64,'.length)
+    const bytes = Buffer.from(encoded, 'base64')
+    if (!bytes.length || bytes.length > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'The signed SOA file is too large. Please try signing again.' }, { status: 413 })
     }
 
     const signedAt = new Date()
-    const payload = (data.request_payload || {}) as SoaPayload
-    const svg = buildSignedSoaSvg(payload, signature, signedAt)
+    const payload = (data.request_payload || {}) as { beneficiary_name?: string }
     const safeName = String(payload.beneficiary_name || 'Client').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Client'
-    const fileName = `Signed_SOA_${safeName}_${signedAt.toISOString().slice(0, 10)}.svg`
+    const fileName = `Signed_SOA_${safeName}_${signedAt.toISOString().slice(0, 10)}.png`
     const storagePath = `${data.agency_id}/${data.client_id}/${crypto.randomUUID()}-${fileName}`
 
     const { error: uploadError } = await admin.storage
       .from(BUCKET)
-      .upload(storagePath, Buffer.from(svg, 'utf8'), { contentType: 'image/svg+xml', upsert: false })
+      .upload(storagePath, bytes, { contentType: 'image/png', upsert: false })
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
     const { data: document, error: documentError } = await admin
@@ -162,7 +82,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
         uploaded_by: data.requested_by,
         storage_path: storagePath,
         file_name: fileName,
-        mime_type: 'image/svg+xml',
+        mime_type: 'image/png',
         document_type: 'scope_of_appointment'
       })
       .select('id')
@@ -183,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       actor_id: data.requested_by,
       client_id: data.client_id,
       action: 'soa.signed_by_text',
-      details: { signature_request_id: data.id, document_id: document.id }
+      details: { signature_request_id: data.id, document_id: document.id, mime_type: 'image/png' }
     })
 
     return NextResponse.json({ ok: true, signed_at: signedAt.toISOString() })
