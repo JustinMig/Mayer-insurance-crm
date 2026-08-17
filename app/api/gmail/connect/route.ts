@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import { gmailAuthUrl, gmailConfigured } from '@/lib/gmail-mail'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,8 @@ const CRM_ORIGIN = 'https://crm.mayerig.com'
 
 export async function GET(request: NextRequest) {
   const { userId } = await getCrmSession()
-  if (!gmailConfigured()) return NextResponse.redirect(new URL('/mail-center?setup=1', request.url))
+  if (!isJustinWebsiteLeadUser(userId)) return NextResponse.redirect(new URL('/dashboard', CRM_ORIGIN))
+  if (!gmailConfigured()) return NextResponse.redirect(new URL('/mail-center?setup=1', CRM_ORIGIN))
 
   const state = crypto.randomBytes(24).toString('hex')
   const response = NextResponse.redirect(gmailAuthUrl(CRM_ORIGIN, state))
