@@ -6,6 +6,7 @@ import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
 import ClientTextingDock from './components/ClientTextingDock'
 import UnreadSmsDashboardCard from './components/UnreadSmsDashboardCard'
+import SoaTextBridge from './components/SoaTextBridge'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -58,6 +59,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <ClientDraftGuard />
       <AddressAutoFill />
       <ClientTextingDock />
+      <SoaTextBridge />
       <aside className="sidebar">
         <div className="brand">
           <Link prefetch={false} className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`brand-bear${isIsaiahPortal ? ' brand-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
