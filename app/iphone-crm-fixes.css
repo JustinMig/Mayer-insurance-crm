@@ -1,0 +1,104 @@
+/* iPhone CRM navigation + save controls */
+@media (max-width: 760px) {
+  /* Keep every available navigation action on one equal-width row. */
+  .mobile-nav {
+    grid-template-columns: none !important;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .mobile-nav a,
+  .mobile-signout {
+    min-width: 0;
+    min-height: 50px;
+    padding: 6px 1px !important;
+    font-size: 9.5px !important;
+    line-height: 1.05;
+  }
+
+  .mobile-nav a {
+    gap: 2px !important;
+  }
+
+  .mobile-nav b,
+  .mobile-signout b {
+    font-size: 16px !important;
+    line-height: 1 !important;
+  }
+
+  .mobile-signout {
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    width: 100%;
+  }
+
+  .crm-shell {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* New Client: keep Save Client available directly below the phone header. */
+  .add-client-form .add-client-save-row {
+    position: fixed;
+    top: calc(72px + env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 40;
+    width: auto;
+    padding: 0;
+    margin: 0;
+  }
+
+  .add-client-form .add-client-save-row .btn {
+    width: auto !important;
+    min-width: 112px;
+    padding: 9px 12px;
+    border: 1px solid rgba(255,255,255,.75);
+    box-shadow: 0 5px 18px rgba(16,38,63,.22);
+  }
+
+  /* Saved client: move the existing Save Changes control to the same top position. */
+  .client-profile-form .sticky-save-bar {
+    position: fixed;
+    top: calc(72px + env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: auto !important;
+    z-index: 40;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .client-profile-form .sticky-save-bar .subtle {
+    display: none;
+  }
+
+  .client-profile-form .sticky-save-bar .btn {
+    width: auto !important;
+    min-width: 112px;
+    padding: 9px 12px;
+    border: 1px solid rgba(255,255,255,.75);
+    box-shadow: 0 5px 18px rgba(16,38,63,.22);
+  }
+}
+
+@media (max-width: 390px) {
+  .mobile-nav a,
+  .mobile-signout {
+    font-size: 8.5px !important;
+  }
+
+  .mobile-nav b,
+  .mobile-signout b {
+    font-size: 15px !important;
+  }
+
+  .add-client-form .add-client-save-row .btn,
+  .client-profile-form .sticky-save-bar .btn {
+    min-width: 104px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
