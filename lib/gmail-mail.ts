@@ -4,6 +4,7 @@ type SupabaseLike = any
 
 export const CRM_GMAIL_LABEL = 'Send to CRM'
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+const GMAIL_DETAIL_CONCURRENCY = 8
 
 function clientId() { return process.env.GOOGLE_GMAIL_CLIENT_ID || '' }
 function clientSecret() { return process.env.GOOGLE_GMAIL_CLIENT_SECRET || '' }
@@ -127,6 +128,41 @@ function walkParts(part: any, result: { text: string; html: string; attachments:
   for (const child of part?.parts || []) walkParts(child, result)
 }
 
+async function fetchFullMessage(item: { id: string; threadId: string }, headers: Record<string, string>, userId: string) {
+  const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}?format=full`, { headers, cache: 'no-store' })
+  if (!msgRes.ok) return null
+  const msg = await msgRes.json() as any
+  const parsed = { text: '', html: '', attachments: [] as any[] }
+  walkParts(msg.payload, parsed)
+  if (!parsed.text && msg.payload?.mimeType === 'text/plain') parsed.text = decodeBase64Url(msg.payload?.body?.data)
+  if (!parsed.html && msg.payload?.mimeType === 'text/html') parsed.html = decodeBase64Url(msg.payload?.body?.data)
+
+  const fromRaw = header(msg.payload?.headers, 'From')
+  const from = parseAddress(fromRaw)
+  const received = msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString()
+  const now = new Date().toISOString()
+
+  return {
+    user_id: userId,
+    gmail_message_id: item.id,
+    gmail_thread_id: item.threadId,
+    sender_name: from.name || null,
+    sender_email: from.email || null,
+    recipients: header(msg.payload?.headers, 'To') || null,
+    cc: header(msg.payload?.headers, 'Cc') || null,
+    reply_to: header(msg.payload?.headers, 'Reply-To') || null,
+    message_date: header(msg.payload?.headers, 'Date') || null,
+    subject: header(msg.payload?.headers, 'Subject') || '(no subject)',
+    snippet: msg.snippet || null,
+    body_text: parsed.text || null,
+    body_html: parsed.html || null,
+    received_at: received,
+    attachments: parsed.attachments,
+    full_synced_at: now,
+    updated_at: now,
+  }
+}
+
 export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
   if (!gmailConfigured()) return { connected: false, configured: false, labelMissing: false, imported: 0, updated: 0 }
   const accessToken = await getAccessToken(supabase, userId)
@@ -143,49 +179,36 @@ export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
   const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams}`, { headers, cache: 'no-store' })
   if (!listRes.ok) throw new Error('Unable to list CRM Gmail messages')
   const list = await listRes.json() as { messages?: Array<{ id: string; threadId: string }> }
-  let imported = 0
-  let updated = 0
+  const items = list.messages || []
+  if (!items.length) return { connected: true, configured: true, labelMissing: false, imported: 0, updated: 0 }
 
-  for (const item of list.messages || []) {
-    const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}?format=full`, { headers, cache: 'no-store' })
-    if (!msgRes.ok) continue
-    const msg = await msgRes.json() as any
-    const parsed = { text: '', html: '', attachments: [] as any[] }
-    walkParts(msg.payload, parsed)
-    if (!parsed.text && msg.payload?.mimeType === 'text/plain') parsed.text = decodeBase64Url(msg.payload?.body?.data)
-    if (!parsed.html && msg.payload?.mimeType === 'text/html') parsed.html = decodeBase64Url(msg.payload?.body?.data)
+  const messageIds = items.map(item => item.id)
+  const { data: existingRows, error: existingError } = await supabase
+    .from('crm_mail')
+    .select('gmail_message_id,full_synced_at')
+    .eq('user_id', userId)
+    .in('gmail_message_id', messageIds)
+  if (existingError) throw new Error(existingError.message)
 
-    const fromRaw = header(msg.payload?.headers, 'From')
-    const from = parseAddress(fromRaw)
-    const received = msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString()
-    const values = {
-      user_id: userId,
-      gmail_message_id: item.id,
-      gmail_thread_id: item.threadId,
-      sender_name: from.name || null,
-      sender_email: from.email || null,
-      recipients: header(msg.payload?.headers, 'To') || null,
-      cc: header(msg.payload?.headers, 'Cc') || null,
-      reply_to: header(msg.payload?.headers, 'Reply-To') || null,
-      message_date: header(msg.payload?.headers, 'Date') || null,
-      subject: header(msg.payload?.headers, 'Subject') || '(no subject)',
-      snippet: msg.snippet || null,
-      body_text: parsed.text || null,
-      body_html: parsed.html || null,
-      received_at: received,
-      attachments: parsed.attachments,
-      updated_at: new Date().toISOString(),
-    }
+  const existingMap = new Map((existingRows || []).map((row: any) => [String(row.gmail_message_id), row.full_synced_at]))
+  const pendingItems = items.filter(item => !existingMap.get(item.id))
+  if (!pendingItems.length) return { connected: true, configured: true, labelMissing: false, imported: 0, updated: 0 }
 
-    const { data: existing } = await supabase.from('crm_mail').select('id').eq('user_id', userId).eq('gmail_message_id', item.id).maybeSingle()
-    if (existing?.id) {
-      const { error } = await supabase.from('crm_mail').update(values).eq('id', existing.id).eq('user_id', userId)
-      if (!error) updated += 1
-    } else {
-      const { error } = await supabase.from('crm_mail').insert(values)
-      if (!error) imported += 1
-    }
+  const rows: any[] = []
+  for (let index = 0; index < pendingItems.length; index += GMAIL_DETAIL_CONCURRENCY) {
+    const batch = pendingItems.slice(index, index + GMAIL_DETAIL_CONCURRENCY)
+    const fetched = await Promise.all(batch.map(item => fetchFullMessage(item, headers, userId)))
+    rows.push(...fetched.filter(Boolean))
   }
+
+  if (!rows.length) return { connected: true, configured: true, labelMissing: false, imported: 0, updated: 0 }
+
+  const imported = rows.filter(row => !existingMap.has(String(row.gmail_message_id))).length
+  const updated = rows.length - imported
+  const { error: upsertError } = await supabase
+    .from('crm_mail')
+    .upsert(rows, { onConflict: 'user_id,gmail_message_id' })
+  if (upsertError) throw new Error(upsertError.message)
 
   return { connected: true, configured: true, labelMissing: false, imported, updated }
 }
