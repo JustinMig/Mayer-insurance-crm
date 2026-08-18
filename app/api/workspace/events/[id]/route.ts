@@ -68,16 +68,17 @@ async function resolveClient(
 async function loadExisting(id: string) {
   const { supabase, userId, profile } = await getCrmSession()
   if (!profile?.agency_id) return { error: NextResponse.json({ error: 'Not authorized.' }, { status: 403 }) }
+  const agencyId = profile.agency_id
 
   const { data: existing } = await supabase
     .from('workspace_calendar_events')
     .select('id,assigned_agent_id,client_id,status')
     .eq('id', id)
-    .eq('agency_id', profile.agency_id)
+    .eq('agency_id', agencyId)
     .maybeSingle()
 
   if (!existing) return { error: NextResponse.json({ error: 'Calendar item not found or access denied.' }, { status: 404 }) }
-  return { supabase, userId, profile, existing }
+  return { supabase, userId, profile, agencyId, existing }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Params }) {
@@ -85,7 +86,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
     const { id } = await params
     const context = await loadExisting(id)
     if ('error' in context) return context.error
-    const { supabase, userId, profile, existing } = context
+    const { supabase, userId, profile, agencyId, existing } = context
     const body = await request.json().catch(() => ({})) as Record<string, unknown>
     const action = cleanText(body.action, 30).toLowerCase()
 
@@ -98,7 +99,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
         .select('id,status,completed_at')
         .single()
       if (error || !data) return NextResponse.json({ error: error?.message || 'Unable to complete calendar item.' }, { status: 400 })
-      await supabase.from('audit_log').insert({ agency_id: profile.agency_id, actor_id: userId, client_id: existing.client_id, action: 'workspace.calendar_completed', details: { event_id: id } })
+      await supabase.from('audit_log').insert({ agency_id: agencyId, actor_id: userId, client_id: existing.client_id, action: 'workspace.calendar_completed', details: { event_id: id } })
       return NextResponse.json({ event: data })
     }
 
@@ -113,7 +114,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
         .select('id,status,reschedule_note,reschedule_requested_at')
         .single()
       if (error || !data) return NextResponse.json({ error: error?.message || 'Unable to mark calendar item for reschedule.' }, { status: 400 })
-      await supabase.from('audit_log').insert({ agency_id: profile.agency_id, actor_id: userId, client_id: existing.client_id, action: 'workspace.calendar_reschedule_requested', details: { event_id: id, note } })
+      await supabase.from('audit_log').insert({ agency_id: agencyId, actor_id: userId, client_id: existing.client_id, action: 'workspace.calendar_reschedule_requested', details: { event_id: id, note } })
       return NextResponse.json({ event: data })
     }
 
@@ -131,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
     if (startTime && endTime && endTime < startTime) return NextResponse.json({ error: 'End time cannot be before start time.' }, { status: 400 })
 
     const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
-    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, cleanText(body.client_id, 100))
+    const clientId = await resolveClient(supabase, agencyId, ownerId, cleanText(body.client_id, 100))
     const wasNeedsReschedule = existing.status === 'needs_reschedule'
     const { data, error } = await supabase
       .from('workspace_calendar_events')
@@ -163,13 +164,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
   const { id } = await params
   const context = await loadExisting(id)
   if ('error' in context) return context.error
-  const { supabase, userId, profile, existing } = context
+  const { supabase, userId, agencyId, existing } = context
 
   const { data, error } = await supabase
     .from('workspace_calendar_events')
     .delete()
     .eq('id', id)
-    .eq('agency_id', profile.agency_id)
+    .eq('agency_id', agencyId)
     .select('id')
     .maybeSingle()
 
@@ -177,7 +178,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
   if (!data) return NextResponse.json({ error: 'Calendar item not found or access denied.' }, { status: 404 })
 
   await supabase.from('audit_log').insert({
-    agency_id: profile.agency_id,
+    agency_id: agencyId,
     actor_id: userId,
     client_id: existing.client_id,
     action: 'workspace.calendar_deleted',
