@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import WorkspaceClient from './WorkspaceClient'
+import WorkspaceLeadCollapseController from './WorkspaceLeadCollapseController'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,11 +36,14 @@ export default async function WorkspacePage() {
   }
 
   return (
-    <WorkspaceClient
-      viewerId={userId}
-      viewerName={profile.full_name || ''}
-      isManager={isManager}
-      agents={agents}
-    />
+    <>
+      <WorkspaceLeadCollapseController />
+      <WorkspaceClient
+        viewerId={userId}
+        viewerName={profile.full_name || ''}
+        isManager={isManager}
+        agents={agents}
+      />
+    </>
   )
 }
