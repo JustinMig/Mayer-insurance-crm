@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canSeeAllClients } from '@/lib/client-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export async function GET() {
   if (!profile?.agency_id) return NextResponse.json({ total: 0, conversations: [], boards: {} })
 
   const admin = createAdminClient()
-  const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
+  const canSeeAgency = canSeeAllClients(profile.role)
   const { data, error } = await admin.rpc('crm_sms_conversation_summaries', {
     p_agency_id: profile.agency_id,
     p_user_id: userId,
