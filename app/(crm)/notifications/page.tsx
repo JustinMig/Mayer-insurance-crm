@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getCrmSession } from '@/lib/crm-session'
-import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
+import { interestList, isJustinWebsiteLeadUser, type WebsiteLead } from '@/lib/website-leads'
 import { CRM_GMAIL_LABEL, gmailConfigured, syncCrmMail } from '@/lib/gmail-mail'
 import MailCenterRefresh from '../mail-center/MailCenterRefresh'
 import MessagesCenter from '../messages/MessagesCenter'
@@ -8,7 +8,7 @@ import MessagesCenter from '../messages/MessagesCenter'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type SearchParams = Promise<{ tab?: string; connected?: string; gmail_error?: string; agent?: string }>
+type SearchParams = Promise<{ tab?: string; connected?: string; gmail_error?: string; agent?: string; deleted?: string }>
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
@@ -17,9 +17,9 @@ function formatDate(value: string) {
 export default async function NotificationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const { supabase, userId, profile } = await getCrmSession()
-  const canUseMail = isJustinWebsiteLeadUser(userId)
-  const requestedTab = params.tab === 'text' ? 'text' : 'mail'
-  const activeTab = !canUseMail ? 'text' : requestedTab
+  const canUseMailAndForms = isJustinWebsiteLeadUser(userId)
+  const requestedTab = params.tab === 'text' ? 'text' : params.tab === 'forms' ? 'forms' : 'mail'
+  const activeTab = !canUseMailAndForms && requestedTab !== 'text' ? 'text' : requestedTab
   const rawAgent = params.agent
   const initialAgent = rawAgent === 'isaiah' ? 'isaiah' : rawAgent === 'justin' ? 'justin' : 'all'
 
@@ -29,8 +29,10 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   let configured = false
   let labelMissing = false
   let gmailEmail = ''
+  let forms: WebsiteLead[] = []
+  let unreadFormsCount = 0
 
-  if (canUseMail) {
+  if (canUseMailAndForms) {
     configured = gmailConfigured()
     const { data: connection } = await supabase.from('gmail_connections').select('gmail_email').eq('user_id', userId).maybeSingle()
     connected = Boolean(connection)
@@ -45,7 +47,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       }
     }
 
-    const [{ data: mailRows, error }, { count }] = await Promise.all([
+    const [mailResult, mailUnreadResult, formsResult, formsUnreadResult] = await Promise.all([
       supabase.from('crm_mail')
         .select('id,sender_name,sender_email,subject,snippet,received_at,read_at')
         .eq('user_id', userId)
@@ -58,30 +60,48 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         .eq('user_id', userId)
         .is('read_at', null)
         .is('removed_at', null)
-        .is('archived_at', null)
+        .is('archived_at', null),
+      supabase.from('website_leads')
+        .select('id,first_name,last_name,phone,email,interests,comments,status,source,read_at,created_at,updated_at,sms_consent')
+        .eq('assigned_agent_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase.from('website_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_agent_id', userId)
+        .is('read_at', null)
     ])
-    if (error) throw new Error(error.message)
-    mail = mailRows || []
-    unreadMailCount = count || 0
+
+    if (mailResult.error) throw new Error(mailResult.error.message)
+    if (formsResult.error) throw new Error(formsResult.error.message)
+    mail = mailResult.data || []
+    unreadMailCount = mailUnreadResult.count || 0
+    forms = (formsResult.data || []) as WebsiteLead[]
+    unreadFormsCount = formsUnreadResult.count || 0
   }
 
   return (
     <>
       <div className="clients-page-heading">
         <h1>Notifications</h1>
-        <p className="subtle">Mail and client text messages in one place.</p>
+        <p className="subtle">Mail, client text messages, and website form submissions in one place.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-        {canUseMail && (
+        {canUseMailAndForms && (
           <Link prefetch={false} href="/notifications?tab=mail" className={`btn ${activeTab === 'mail' ? 'btn-primary' : 'btn-secondary'}`}>
             MAIL{unreadMailCount > 0 ? ` (${unreadMailCount})` : ''}
           </Link>
         )}
         <Link prefetch={false} href="/notifications?tab=text" className={`btn ${activeTab === 'text' ? 'btn-primary' : 'btn-secondary'}`}>TEXT MESSAGES</Link>
+        {canUseMailAndForms && (
+          <Link prefetch={false} href="/notifications?tab=forms" className={`btn ${activeTab === 'forms' ? 'btn-primary' : 'btn-secondary'}`}>
+            FORMS{unreadFormsCount > 0 ? ` (${unreadFormsCount})` : ''}
+          </Link>
+        )}
       </div>
 
-      {activeTab === 'mail' && canUseMail ? (
+      {activeTab === 'mail' && canUseMailAndForms ? (
         <>
           <section className="card card-pad" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
@@ -119,6 +139,37 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                 ))}
               </div>
             ) : <div className="empty">No CRM mail yet.</div>}
+          </section>
+        </>
+      ) : activeTab === 'forms' && canUseMailAndForms ? (
+        <>
+          {params.deleted === '1' && <div className="notice" style={{ marginTop: 16 }}>Form submission deleted.</div>}
+          <section className="card card-pad website-leads-summary" style={{ marginTop: 16 }}>
+            <div><span className="subtle">New submissions</span><strong>{unreadFormsCount}</strong></div>
+            <div><span className="subtle">Total shown</span><strong>{forms.length}</strong></div>
+          </section>
+          <section className="card" style={{ marginTop: 16 }}>
+            {forms.length ? (
+              <div className="website-leads-list">
+                {forms.map((lead) => {
+                  const interests = interestList(lead.interests)
+                  return (
+                    <Link prefetch={false} className={`website-lead-row${lead.read_at ? '' : ' is-new'}`} href={`/website-leads/${lead.id}`} key={lead.id}>
+                      <div className="website-lead-main">
+                        <div className="website-lead-title">
+                          <strong>{lead.first_name} {lead.last_name}</strong>
+                          {!lead.read_at && <span className="website-lead-new-badge">NEW</span>}
+                          {lead.sms_consent && <span className="website-lead-new-badge" style={{ background: '#e7f7ed', color: '#176b38' }}>SMS OK</span>}
+                        </div>
+                        <span>{lead.phone} · {lead.email}</span>
+                        {interests.length > 0 && <span>Coverage: {interests.join(', ')}</span>}
+                      </div>
+                      <div className="website-lead-meta"><span>{formatDate(lead.created_at)}</span><b>Open ›</b></div>
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : <div className="empty">No website form submissions yet.</div>}
           </section>
         </>
       ) : (
