@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
-import MedicalQualificationsLookup from './MedicalQualificationsLookup'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
-import { MEDICAL_CARRIER_OPTIONS } from '@/lib/medical-qualifications'
 import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 
 export const dynamic = 'force-dynamic'
@@ -72,6 +70,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     if (websiteLeadCountError) throw new Error(`Unable to load website form notifications: ${websiteLeadCountError.message}`)
     unreadWebsiteLeadCount = count || 0
   }
+
   const isIsaiahPortal = currentProfile.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const params = searchParams ? await searchParams : {}
   const now = new Date()
@@ -126,12 +125,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       : Promise.resolve({ data: [], error: null })
   ])
 
-  if (premiumRollupResult.error) {
-    throw new Error(`Unable to load Life Insurance premium totals: ${premiumRollupResult.error.message}`)
-  }
-  if (clientStatsResult.error) {
-    throw new Error(`Unable to load dashboard client totals: ${clientStatsResult.error.message}`)
-  }
+  if (premiumRollupResult.error) throw new Error(`Unable to load Life Insurance premium totals: ${premiumRollupResult.error.message}`)
+  if (clientStatsResult.error) throw new Error(`Unable to load dashboard client totals: ${clientStatsResult.error.message}`)
 
   const premiumRows = (premiumRollupResult.data || []) as PremiumRollupRow[]
   const clientRows = (clientStatsResult.data || []) as Array<{
@@ -164,10 +159,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       const rowYear = Number(row.effective_year || currentYear)
       const rowMonth = Number(row.effective_month) - 1
 
-      // The top-row Monthly Premium card always reflects the actual current month.
-      if (rowYear === currentYear && rowMonth === currentMonth) {
-        currentMonthPremium += amount
-      }
+      if (rowYear === currentYear && rowMonth === currentMonth) currentMonthPremium += amount
 
       if (isIsaiahPortal) {
         if (rowYear === selectedPremiumYear) {
@@ -194,12 +186,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
-        <div className="clients-page-heading"><h1>Dashboard</h1><p className="subtle">Your client database at a glance.</p></div>
-        <div className="dashboard-client-actions">
-          <Link prefetch={false} href="/clients/document-import" className="btn btn-secondary">IMPORT FROM FILES</Link>
-          <Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link>
-        </div>
+      <div className="clients-page-heading">
+        <h1>Dashboard</h1>
+        <p className="subtle">Your client database at a glance.</p>
       </div>
 
       {isJustinPortal && unreadWebsiteLeadCount > 0 && (
@@ -223,7 +212,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
                 <div className="dashboard-agent-stat"><span>Medicare Clients</span><strong>{agent.medicareClients}</strong></div>
                 <div className="dashboard-agent-stat"><span>Life Clients</span><strong>{agent.lifeClients}</strong></div>
                 <div className="dashboard-agent-stat"><span>Turning 65 in {currentYear}</span><strong>{agent.turning65}</strong></div>
-                <div className="dashboard-agent-stat premium"><span>Monthly Premium · {monthNames[currentMonth]}</span><strong>{money(agent.currentMonthPremium)}</strong></div>
+                <div className="dashboard-agent-stat premium dashboard-premium-combined">
+                  <div><span>Monthly Premium · {monthNames[currentMonth]}</span><strong>{money(agent.currentMonthPremium)}</strong></div>
+                  <div className="dashboard-premium-divider"><span>Yearly Total · {currentYear}</span><strong>{money(agent.currentYearPremium)}</strong></div>
+                </div>
               </div>
             </div>
           ))}
@@ -234,7 +226,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <div className="card card-pad stat"><span>Medicare Clients</span><strong>{dashboardStats[0]?.medicareClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Life Clients</span><strong>{dashboardStats[0]?.lifeClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0}</strong></div>
-          <div className="card card-pad stat dashboard-monthly-premium-stat"><span>Monthly Premium · {monthNames[currentMonth]} {currentYear}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+          <div className="card card-pad stat dashboard-monthly-premium-stat dashboard-premium-combined">
+            <div><span>Monthly Premium · {monthNames[currentMonth]} {currentYear}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+            <div className="dashboard-premium-divider"><span>Yearly Total · {currentYear}</span><strong>{money(dashboardStats[0]?.currentYearPremium || 0)}</strong></div>
+          </div>
         </section>
       )}
 
@@ -268,37 +263,18 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
             </div>
           </form>
         </section>
-      ) : (
-        <section className="dashboard-premium-grid" style={{ marginTop: 20 }}>
-          <div style={{ display: 'grid', gap: 14 }}>
-            {dashboardStats.map((agent) => (
-              <div className="card card-pad premium-total-card" key={agent.agentId}>
-                <span className="premium-card-label">{isManager ? `${agent.agentName} — Life Insurance Premium` : 'My Life Insurance Premium'} — {currentYear}</span>
-                <strong className="premium-total-value">{money(agent.currentYearPremium)}</strong>
-                <p className="subtle" style={{ margin: '8px 0 0' }}>
-                  {isManager ? `${agent.agentName}'s` : 'Your'} total Life Insurance premium for policies effective in {currentYear}.
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      ) : null}
 
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
-
-
       <BuildChartLookup />
 
-      <MedicalQualificationsLookup carrierOptions={MEDICAL_CARRIER_OPTIONS} />
-
-      <section className="card card-pad" style={{ marginTop: 20 }}>
-        <h2>Quick actions</h2>
-        <div className="toolbar" style={{ marginBottom: 0 }}>
-          <Link prefetch={false} href="/clients/new" className="btn btn-primary">NEW CLIENT</Link>
-          <Link prefetch={false} href="/clients" className="btn btn-secondary">CLIENT RECORDS</Link>
-          <Link prefetch={false} href="/clients?turn65=1" className="btn btn-secondary">Turn 65 list</Link>
-        </div>
-      </section>
+      <style>{`
+        .dashboard-premium-combined{background:#18324a!important;border-color:#18324a!important;color:#fff!important;display:grid!important;gap:12px!important}
+        .dashboard-premium-combined span,.dashboard-premium-combined strong{color:#fff!important}
+        .dashboard-premium-combined>div{display:grid;gap:4px}
+        .dashboard-premium-divider{border-top:1px solid rgba(255,255,255,.28);padding-top:12px}
+        .dashboard-premium-combined strong{font-size:1.3rem}
+      `}</style>
     </>
   )
 }
