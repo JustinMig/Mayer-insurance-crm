@@ -12,7 +12,7 @@ export async function GET() {
     theme_color: '#c99620',
     icons: [
       {
-        src: '/calendar-icon.png',
+        src: '/calendar-icon-v2.png',
         sizes: '180x180',
         type: 'image/png',
         purpose: 'any'
