@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type SmsMessage = {
   id: string
@@ -22,7 +22,6 @@ type Conversation = {
   unread_count: number
   latest_body: string
   latest_at: string
-  messages: SmsMessage[]
 }
 
 type Tab = 'unread' | 'read'
@@ -32,15 +31,20 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [totalUnread, setTotalUnread] = useState(0)
   const [openIds, setOpenIds] = useState<Set<string>>(new Set())
+  const [threadMessages, setThreadMessages] = useState<Record<string, SmsMessage[]>>({})
+  const [threadLoading, setThreadLoading] = useState<Set<string>>(new Set())
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<Tab>('unread')
   const [agentBoard, setAgentBoard] = useState<AgentBoard>(initialAgent === 'isaiah' ? 'isaiah' : initialAgent === 'justin' ? 'justin' : 'all')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const loadingRef = useRef(false)
   const isSheena = viewerName.trim().toLowerCase() === 'sheena hester'
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (loadingRef.current || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
+    loadingRef.current = true
     try {
       const response = await fetch('/api/sms/conversations', { cache: 'no-store' })
       const result = await response.json().catch(() => ({}))
@@ -51,15 +55,43 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load messages.')
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
-  }
+  }, [])
+
+  const loadThread = useCallback(async (clientId: string) => {
+    setThreadLoading((current) => new Set(current).add(clientId))
+    try {
+      const response = await fetch(`/api/clients/${clientId}/sms`, { cache: 'no-store' })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Unable to load this conversation.')
+      setThreadMessages((current) => ({ ...current, [clientId]: Array.isArray(result.messages) ? result.messages : [] }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load this conversation.')
+    } finally {
+      setThreadLoading((current) => {
+        const next = new Set(current)
+        next.delete(clientId)
+        return next
+      })
+    }
+  }, [])
 
   useEffect(() => {
     void load()
-    const timer = window.setInterval(() => void load(), 15000)
-    return () => window.clearInterval(timer)
-  }, [])
+    const timer = window.setInterval(() => void load(), 15_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [load])
 
   useEffect(() => {
     function collapseWhenClickingOutside(event: MouseEvent) {
@@ -91,8 +123,7 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
   }
 
   async function markRead(clientIds: string[]) {
-    if (!clientIds.length || busy) return
-    setBusy(true)
+    if (!clientIds.length) return false
     try {
       const response = await fetch('/api/sms/conversations', {
         method: 'PATCH',
@@ -101,19 +132,26 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to mark messages read.')
-      await load()
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to mark messages read.')
-    } finally {
-      setBusy(false)
+      return false
     }
   }
 
   async function openConversation(conversation: Conversation) {
-    setOpenIds((current) => current.has(conversation.client_id) ? new Set() : new Set([conversation.client_id]))
+    if (openIds.has(conversation.client_id)) {
+      setOpenIds(new Set())
+      return
+    }
+
+    setOpenIds(new Set([conversation.client_id]))
     if (conversation.unread_count > 0) {
       await markRead([conversation.client_id])
+      await Promise.all([loadThread(conversation.client_id), load()])
       setActiveTab('read')
+    } else {
+      await loadThread(conversation.client_id)
     }
   }
 
@@ -132,7 +170,8 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to delete selected texts.')
       setSelectedMessages(new Set())
-      await load()
+      const openId = Array.from(openIds)[0]
+      await Promise.all([load(), openId ? loadThread(openId) : Promise.resolve()])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to delete selected texts.')
     } finally {
@@ -145,7 +184,7 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div className="clients-page-heading">
           <h1>Messages</h1>
-          <p className="subtle">Unread conversations move to Read automatically when opened. Clicking outside collapses the conversation.</p>
+          <p className="subtle">Conversation summaries stay lightweight. The full text history loads only when you open a client.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -184,6 +223,8 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
 
         {visibleConversations.map((conversation) => {
           const isOpen = openIds.has(conversation.client_id)
+          const messages = threadMessages[conversation.client_id] || []
+          const isThreadLoading = threadLoading.has(conversation.client_id)
           return (
             <article data-message-conversation className="card" key={conversation.client_id} style={{ overflow: 'hidden', border: conversation.unread_count > 0 ? '2px solid #b78b3f' : undefined }}>
               <button
@@ -212,7 +253,9 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
                     <Link prefetch={false} href={`/clients/${conversation.client_id}?text=1`} className="btn btn-primary btn-small">OPEN CLIENT</Link>
                   </div>
-                  {conversation.messages.map((message) => (
+                  {isThreadLoading ? <div className="subtle">Loading conversation…</div> : null}
+                  {!isThreadLoading && !messages.length ? <div className="subtle">No text history found.</div> : null}
+                  {messages.map((message) => (
                     <label key={message.id} style={{ justifySelf: message.direction === 'outbound' ? 'end' : 'start', maxWidth: '86%', display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
                       <input type="checkbox" checked={selectedMessages.has(message.id)} onChange={() => toggleMessageSelected(message.id)} style={{ marginTop: 10 }} />
                       <div style={{ padding: '10px 12px', borderRadius: 12, background: message.direction === 'outbound' ? '#dfeaf3' : '#fff', border: message.direction === 'inbound' ? '1px solid #dbe3ea' : undefined }}>
