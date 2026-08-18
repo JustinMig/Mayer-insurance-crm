@@ -4,7 +4,16 @@ import { getCrmSession } from '@/lib/crm-session'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const BUCKET = 'client-documents'
 type Params = Promise<{ id: string }>
+
+function safeFileName(name: string) {
+  const cleaned = String(name || 'lead-photo')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return cleaned.slice(0, 120) || 'lead-photo'
+}
 
 export async function POST(_request: NextRequest, { params }: { params: Params }) {
   const { id } = await params
@@ -13,7 +22,7 @@ export async function POST(_request: NextRequest, { params }: { params: Params }
 
   const { data: lead, error: leadError } = await supabase
     .from('workspace_leads')
-    .select('id,agency_id,assigned_agent_id,first_name,last_name,date_of_birth,product_type,notes,status,client_id')
+    .select('id,agency_id,assigned_agent_id,first_name,last_name,date_of_birth,phone,product_type,is_medicare,is_life,is_retirement,notes,status,client_id,photo_storage_path,photo_file_name,photo_mime_type')
     .eq('id', id)
     .eq('agency_id', profile.agency_id)
     .maybeSingle()
@@ -21,6 +30,10 @@ export async function POST(_request: NextRequest, { params }: { params: Params }
   if (leadError) return NextResponse.json({ error: leadError.message }, { status: 400 })
   if (!lead) return NextResponse.json({ error: 'Lead not found or access denied.' }, { status: 404 })
   if (lead.status === 'converted' && lead.client_id) return NextResponse.json({ client_id: lead.client_id, already_converted: true })
+
+  const isMedicare = Boolean(lead.is_medicare || lead.product_type === 'medicare')
+  const isLife = Boolean(lead.is_life || lead.product_type === 'life')
+  const isRetirement = Boolean(lead.is_retirement || lead.product_type === 'retirement')
 
   const { data: client, error: clientError } = await supabase
     .from('clients')
@@ -30,9 +43,10 @@ export async function POST(_request: NextRequest, { params }: { params: Params }
       first_name: lead.first_name,
       last_name: lead.last_name,
       date_of_birth: lead.date_of_birth,
-      is_medicare: lead.product_type === 'medicare',
-      is_life: lead.product_type === 'life',
-      is_retirement: lead.product_type === 'retirement',
+      phone: lead.phone || null,
+      is_medicare: isMedicare,
+      is_life: isLife,
+      is_retirement: isRetirement,
       notes: lead.notes || null
     })
     .select('id')
@@ -40,15 +54,73 @@ export async function POST(_request: NextRequest, { params }: { params: Params }
 
   if (clientError || !client) return NextResponse.json({ error: clientError?.message || 'Unable to create client record.' }, { status: 400 })
 
+  let copiedPhotoPath: string | null = null
+  let documentId: string | null = null
+
+  if (lead.photo_storage_path) {
+    const { data: photoBlob, error: downloadError } = await supabase.storage.from(BUCKET).download(lead.photo_storage_path)
+    if (downloadError || !photoBlob) {
+      await supabase.from('clients').delete().eq('id', client.id)
+      return NextResponse.json({ error: downloadError?.message || 'Unable to transfer the lead photo.' }, { status: 400 })
+    }
+
+    const fileName = safeFileName(lead.photo_file_name || 'lead-photo.jpg')
+    const mimeType = lead.photo_mime_type || photoBlob.type || 'image/jpeg'
+    copiedPhotoPath = `${lead.agency_id}/${client.id}/${crypto.randomUUID()}-${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(copiedPhotoPath, photoBlob, { contentType: mimeType, upsert: false })
+    if (uploadError) {
+      await supabase.from('clients').delete().eq('id', client.id)
+      return NextResponse.json({ error: uploadError.message }, { status: 400 })
+    }
+
+    const { data: document, error: documentError } = await supabase
+      .from('documents')
+      .insert({
+        agency_id: lead.agency_id,
+        client_id: client.id,
+        uploaded_by: userId,
+        storage_path: copiedPhotoPath,
+        file_name: fileName,
+        mime_type: mimeType,
+        document_type: 'lead_photo'
+      })
+      .select('id')
+      .single()
+
+    if (documentError || !document) {
+      await supabase.storage.from(BUCKET).remove([copiedPhotoPath])
+      await supabase.from('clients').delete().eq('id', client.id)
+      return NextResponse.json({ error: documentError?.message || 'Unable to attach the lead photo to the client.' }, { status: 400 })
+    }
+    documentId = document.id
+  }
+
   const now = new Date().toISOString()
+  const leadUpdate: Record<string, unknown> = {
+    status: 'converted',
+    client_id: client.id,
+    converted_at: now,
+    updated_at: now
+  }
+  if (copiedPhotoPath) leadUpdate.photo_storage_path = copiedPhotoPath
+
   const { error: updateError } = await supabase
     .from('workspace_leads')
-    .update({ status: 'converted', client_id: client.id, converted_at: now, updated_at: now })
+    .update(leadUpdate)
     .eq('id', lead.id)
 
   if (updateError) {
+    if (documentId) await supabase.from('documents').delete().eq('id', documentId)
+    if (copiedPhotoPath) await supabase.storage.from(BUCKET).remove([copiedPhotoPath])
     await supabase.from('clients').delete().eq('id', client.id)
     return NextResponse.json({ error: updateError.message }, { status: 400 })
+  }
+
+  if (copiedPhotoPath && lead.photo_storage_path && copiedPhotoPath !== lead.photo_storage_path) {
+    await supabase.storage.from(BUCKET).remove([lead.photo_storage_path])
   }
 
   await supabase.from('audit_log').insert({
@@ -56,7 +128,14 @@ export async function POST(_request: NextRequest, { params }: { params: Params }
     actor_id: userId,
     client_id: client.id,
     action: 'workspace.lead_converted',
-    details: { lead_id: lead.id, assigned_agent_id: lead.assigned_agent_id, product_type: lead.product_type }
+    details: {
+      lead_id: lead.id,
+      assigned_agent_id: lead.assigned_agent_id,
+      is_medicare: isMedicare,
+      is_life: isLife,
+      is_retirement: isRetirement,
+      photo_transferred: Boolean(copiedPhotoPath)
+    }
   })
 
   return NextResponse.json({ client_id: client.id })
