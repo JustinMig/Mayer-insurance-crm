@@ -8,18 +8,27 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const { supabase, userId, profile } = await getCrmSession()
-  if (!profile?.agency_id) return NextResponse.json({ total: 0, mail: 0, text: 0 })
+  if (!profile?.agency_id) return NextResponse.json({ total: 0, mail: 0, text: 0, forms: 0 })
 
   let mail = 0
+  let forms = 0
   if (isJustinWebsiteLeadUser(userId)) {
-    const { count } = await supabase
-      .from('crm_mail')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .is('read_at', null)
-      .is('removed_at', null)
-      .is('archived_at', null)
-    mail = count || 0
+    const [{ count: mailCount }, { count: formCount }] = await Promise.all([
+      supabase
+        .from('crm_mail')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('read_at', null)
+        .is('removed_at', null)
+        .is('archived_at', null),
+      supabase
+        .from('website_leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_agent_id', userId)
+        .is('read_at', null)
+    ])
+    mail = mailCount || 0
+    forms = formCount || 0
   }
 
   const admin = createAdminClient()
@@ -41,5 +50,5 @@ export async function GET() {
     text = count || 0
   }
 
-  return NextResponse.json({ total: mail + text, mail, text })
+  return NextResponse.json({ total: mail + text + forms, mail, text, forms })
 }
