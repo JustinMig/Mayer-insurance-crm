@@ -46,6 +46,24 @@ async function resolveOwner(
   return target.id
 }
 
+async function resolveClient(
+  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
+  agencyId: string,
+  ownerId: string,
+  requestedClient: string
+) {
+  if (!requestedClient) return null
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', requestedClient)
+    .eq('agency_id', agencyId)
+    .eq('assigned_agent_id', ownerId)
+    .maybeSingle()
+  if (!client) throw new Error('That client is not in the selected agent client book.')
+  return client.id
+}
+
 export async function GET(request: NextRequest) {
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
@@ -60,7 +78,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('workspace_calendar_events')
-    .select('id,assigned_agent_id,title,event_type,event_date,start_time,end_time,notes,created_at,updated_at')
+    .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
     .eq('agency_id', profile.agency_id)
     .gte('event_date', from)
     .lte('event_date', to)
@@ -92,20 +110,23 @@ export async function POST(request: NextRequest) {
     if (startTime && endTime && endTime < startTime) return NextResponse.json({ error: 'End time cannot be before start time.' }, { status: 400 })
 
     const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
+    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, cleanText(body.client_id, 100))
     const { data, error } = await supabase
       .from('workspace_calendar_events')
       .insert({
         agency_id: profile.agency_id,
         assigned_agent_id: ownerId,
         created_by: userId,
+        client_id: clientId,
         title,
         event_type: eventType,
         event_date: eventDate,
         start_time: startTime || null,
         end_time: endTime || null,
-        notes: notes || null
+        notes: notes || null,
+        status: 'scheduled'
       })
-      .select('id,assigned_agent_id,title,event_type,event_date,start_time,end_time,notes,created_at,updated_at')
+      .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
       .single()
 
     if (error || !data) return NextResponse.json({ error: error?.message || 'Unable to save calendar item.' }, { status: 400 })
@@ -113,7 +134,7 @@ export async function POST(request: NextRequest) {
     await supabase.from('audit_log').insert({
       agency_id: profile.agency_id,
       actor_id: userId,
-      client_id: null,
+      client_id: clientId,
       action: 'workspace.calendar_created',
       details: { event_id: data.id, assigned_agent_id: ownerId, event_type: eventType, event_date: eventDate }
     })
