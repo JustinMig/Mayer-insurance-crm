@@ -4,6 +4,13 @@ import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+function safeNextPath() {
+  if (typeof window === 'undefined') return '/dashboard'
+  const value = new URLSearchParams(window.location.search).get('next')
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard'
+  return value
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [error, setError] = useState('')
@@ -23,7 +30,7 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    router.replace('/dashboard')
+    router.replace(safeNextPath())
     router.refresh()
   }
 
