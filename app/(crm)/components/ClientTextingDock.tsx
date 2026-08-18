@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
 type SmsMessage = {
@@ -55,46 +55,71 @@ export default function ClientTextingDock() {
   const [body, setBody] = useState('')
   const [status, setStatus] = useState('')
   const [sending, setSending] = useState(false)
+  const loadingRef = useRef(false)
 
-  async function load() {
-    if (!clientId) return
-    const response = await fetch(`/api/clients/${clientId}/sms`, { cache: 'no-store' })
-    const result = await response.json().catch(() => ({}))
-    if (response.ok) {
-      setMessages(result.messages || [])
+  const load = useCallback(async () => {
+    if (!clientId || loadingRef.current) return false
+    loadingRef.current = true
+    try {
+      const response = await fetch(`/api/clients/${clientId}/sms`, { cache: 'no-store' })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) return false
+      const nextMessages = Array.isArray(result.messages) ? result.messages as SmsMessage[] : []
+      setMessages(nextMessages)
       setPhone(result.phone || '')
       setClientName(result.client_name || 'Client')
+      return nextMessages.some((message) => message.direction === 'inbound' && !message.read_at)
+    } finally {
+      loadingRef.current = false
     }
-  }
+  }, [clientId])
 
-  async function markRead() {
+  const markRead = useCallback(async () => {
     if (!clientId) return
     await fetch(`/api/clients/${clientId}/sms`, { method: 'PATCH', cache: 'no-store' }).catch(() => null)
-  }
+  }, [clientId])
 
   async function openThread() {
     setOpen(true)
-    await Promise.all([load(), markRead()])
+    await markRead()
+    await load()
   }
 
   useEffect(() => {
     setOpen(openFromDashboard)
     setMessages([])
+    setPhone('')
+    setClientName('Client')
     setBody('')
     setStatus('')
-    if (!clientId) return
-    void load()
-    if (openFromDashboard) void markRead()
-  }, [clientId, openFromDashboard])
+    if (!clientId || !openFromDashboard) return
+    void (async () => {
+      await markRead()
+      await load()
+    })()
+  }, [clientId, openFromDashboard, load, markRead])
 
   useEffect(() => {
     if (!open || !clientId) return
-    const timer = window.setInterval(() => {
-      void load()
-      void markRead()
-    }, 7000)
-    return () => window.clearInterval(timer)
-  }, [open, clientId])
+
+    const refresh = async () => {
+      if (document.visibilityState === 'hidden') return
+      const hasUnread = await load()
+      if (hasUnread) await markRead()
+    }
+
+    const timer = window.setInterval(() => void refresh(), 10_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [open, clientId, load, markRead])
 
   if (!clientId) return null
 
@@ -130,7 +155,7 @@ export default function ClientTextingDock() {
         <div style={styles.backdrop} role="dialog" aria-modal="true" aria-label={`Text ${clientName}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
           <section style={styles.panel}>
             <div style={styles.head}>
-              <div style={styles.headText}><strong>Text {clientName}</strong><span style={styles.phone}>{phone || 'No phone number saved'}</span></div>
+              <div style={styles.headText}><strong>Text {clientName}</strong><span style={styles.phone}>{phone || 'Loading phone number…'}</span></div>
               <button type="button" className="btn btn-secondary btn-small" onClick={() => setOpen(false)}>Close</button>
             </div>
             <div style={styles.thread}>
