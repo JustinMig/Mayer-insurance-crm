@@ -13,8 +13,8 @@ export async function GET() {
       theme_color: '#0b1f3a',
       icons: [
         {
-          src: '/leads-icon.png',
-          sizes: '180x180',
+          src: '/mayer-leads-icon-v2.png',
+          sizes: '512x512',
           type: 'image/png',
           purpose: 'any'
         }
@@ -23,7 +23,7 @@ export async function GET() {
     {
       headers: {
         'Content-Type': 'application/manifest+json',
-        'Cache-Control': 'public, max-age=3600'
+        'Cache-Control': 'public, max-age=300, must-revalidate'
       }
     }
   )
