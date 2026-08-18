@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard'
+  return value
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -28,7 +33,8 @@ export async function updateSession(request: NextRequest) {
 
   // A stale/invalid refresh token can otherwise be retried on every request,
   // which is especially noticeable in Safari. Clear only Supabase auth cookies
-  // and send the browser to a clean login state.
+  // and send the browser to a clean login state while preserving the page that
+  // originally launched the web app (for example /calendar).
   const staleRefreshToken = Boolean(
     error && (
       error.code === 'refresh_token_not_found' ||
@@ -40,6 +46,7 @@ export async function updateSession(request: NextRequest) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     loginUrl.search = ''
+    if (path !== '/login') loginUrl.searchParams.set('next', `${path}${request.nextUrl.search}`)
     const cleanResponse = path === '/login' ? NextResponse.next({ request }) : NextResponse.redirect(loginUrl)
 
     request.cookies.getAll().forEach(({ name }) => {
@@ -55,12 +62,17 @@ export async function updateSession(request: NextRequest) {
   if (!loggedIn && !publicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.search = ''
+    url.searchParams.set('next', `${path}${request.nextUrl.search}`)
     return NextResponse.redirect(url)
   }
 
   if (loggedIn && path === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    const nextPath = safeNextPath(request.nextUrl.searchParams.get('next'))
+    const [nextPathname, nextSearch = ''] = nextPath.split('?')
+    url.pathname = nextPathname
+    url.search = nextSearch ? `?${nextSearch}` : ''
     return NextResponse.redirect(url)
   }
 
