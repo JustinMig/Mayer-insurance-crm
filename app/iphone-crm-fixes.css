@@ -115,6 +115,103 @@ html, body {
     border: 1px solid rgba(255,255,255,.75);
     box-shadow: 0 5px 18px rgba(16,38,63,.22);
   }
+
+  /* Calendar: fit all seven days inside the iPhone viewport with no horizontal date scrolling. */
+  .workspace-panel,
+  .workspace-calendar-scroll,
+  .workspace-calendar-grid,
+  .workspace-calendar-day,
+  .workspace-calendar-weekday {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .workspace-calendar-scroll {
+    width: 100% !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  .workspace-calendar-grid {
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  }
+
+  .workspace-calendar-weekday {
+    padding: 7px 1px !important;
+    font-size: .66rem !important;
+    line-height: 1 !important;
+    overflow: hidden;
+  }
+
+  .workspace-calendar-day {
+    min-height: 72px !important;
+    padding: 4px 2px !important;
+    overflow: hidden;
+  }
+
+  .workspace-day-number {
+    display: block;
+    padding: 1px 2px !important;
+    font-size: .78rem !important;
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  /* On a phone, appointments become compact agent-colored dots; tapping the date still opens the full day. */
+  .workspace-day-events {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: center;
+    gap: 3px !important;
+    margin-top: 6px !important;
+    padding: 0 1px;
+    overflow: hidden;
+  }
+
+  .workspace-event {
+    display: block !important;
+    width: 8px !important;
+    min-width: 8px !important;
+    height: 8px !important;
+    min-height: 8px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: #64748b !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .workspace-event.justin { background: #2563eb !important; }
+  .workspace-event.isaiah { background: #dc2626 !important; }
+  .workspace-event > * { display: none !important; }
+
+  .workspace-more-count {
+    width: 100%;
+    padding: 1px 0 0 !important;
+    font-size: .55rem !important;
+    line-height: 1 !important;
+    text-align: center;
+  }
+
+  /* The day modal already has the add action, so hide the tiny per-cell plus on narrow screens. */
+  .workspace-day-add {
+    display: none !important;
+  }
+
+  .workspace-calendar-controls {
+    width: 100%;
+    align-items: center !important;
+  }
+
+  .workspace-calendar-controls > strong {
+    font-size: .92rem;
+  }
 }
 
 @media (max-width: 390px) {
@@ -133,5 +230,25 @@ html, body {
     min-width: 104px;
     padding: 8px 10px;
     font-size: 12px;
+  }
+
+  .workspace-calendar-weekday {
+    font-size: .61rem !important;
+  }
+
+  .workspace-calendar-day {
+    min-height: 66px !important;
+    padding-inline: 1px !important;
+  }
+
+  .workspace-day-number {
+    font-size: .72rem !important;
+  }
+
+  .workspace-event {
+    width: 7px !important;
+    min-width: 7px !important;
+    height: 7px !important;
+    min-height: 7px !important;
   }
 }
