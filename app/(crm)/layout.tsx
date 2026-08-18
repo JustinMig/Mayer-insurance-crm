@@ -40,7 +40,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="crm-shell">
-      <style>{'a[href="/clients/document-import"]{display:none!important}'}</style>
+      <style>{'a[href="/clients/document-import"]{display:none!important}.dashboard-form-alert{display:none!important}'}</style>
       <ClientDraftGuard />
       <AddressAutoFill />
       <ClientTextingDock />
