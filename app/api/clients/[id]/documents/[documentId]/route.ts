@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const runtime = 'nodejs'
 const BUCKET = 'client-documents'
@@ -59,7 +60,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   return NextResponse.redirect(signed.signedUrl)
 }
 
-
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string; documentId: string }> }) {
   const { id: clientId, documentId } = await context.params
   const supabase = await createClient()
@@ -78,6 +78,20 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     .maybeSingle()
 
   if (!document) return NextResponse.json({ error: 'File not found or access denied.' }, { status: 404 })
+
+  const admin = createAdminClient()
+  const { data: protectedRequest } = await admin
+    .from('soa_signature_requests')
+    .select('id')
+    .eq('status', 'signed')
+    .or(`document_id.eq.${documentId},certificate_document_id.eq.${documentId}`)
+    .maybeSingle()
+
+  if (protectedRequest) {
+    return NextResponse.json({
+      error: 'This file is part of a completed electronic SOA audit record and is locked. Create a new SOA instead of deleting or replacing the signed record.'
+    }, { status: 409 })
+  }
 
   const { error: storageError } = await supabase.storage.from(BUCKET).remove([document.storage_path])
   if (storageError) return NextResponse.json({ error: storageError.message || 'Could not delete the stored file.' }, { status: 403 })
