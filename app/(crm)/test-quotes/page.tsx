@@ -7,6 +7,7 @@ export default function TestQuotesPage() {
       <div className="quote-tool-tabs" role="navigation" aria-label="Final expense quote tools">
         <Link prefetch={false} href="/fex-quotes">FEX Quotes</Link>
         <Link prefetch={false} href="/test-quotes" className="active">Test Quotes</Link>
+        <Link prefetch={false} href="/fex-quotes/medical-qualifications">Medical Qualifications</Link>
       </div>
       <FexQuoteEngine />
       <style>{`
