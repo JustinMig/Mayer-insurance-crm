@@ -3,6 +3,14 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import type { CompanyContact } from '@/lib/company-contacts'
 
+const NASSAU_CONTACT: CompanyContact = {
+  company: 'Nassau',
+  phones: ['(800) 541-0171'],
+  faxes: [],
+  emails: [],
+  notes: []
+}
+
 function normalized(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9@.]+/g, ' ').trim()
 }
@@ -21,22 +29,27 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
   const [query, setQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState('')
 
+  const directoryContacts = useMemo(() => {
+    const withoutDuplicate = contacts.filter((contact) => contact.company.trim().toLowerCase() !== 'nassau')
+    return [...withoutDuplicate, NASSAU_CONTACT]
+  }, [contacts])
+
   const selected = useMemo(
-    () => contacts.find((contact) => contact.company === selectedCompany) || null,
-    [contacts, selectedCompany]
+    () => directoryContacts.find((contact) => contact.company === selectedCompany) || null,
+    [directoryContacts, selectedCompany]
   )
 
   const matches = useMemo(() => {
     const needle = normalized(query)
     if (!needle) return []
     const terms = needle.split(/\s+/).filter(Boolean)
-    return contacts
+    return directoryContacts
       .filter((contact) => {
         const haystack = searchableText(contact)
         return terms.every((term) => haystack.includes(term))
       })
       .slice(0, 12)
-  }, [contacts, query])
+  }, [directoryContacts, query])
 
   function choose(contact: CompanyContact) {
     setSelectedCompany(contact.company)
@@ -50,7 +63,7 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
           <h2 style={{ marginBottom: 4 }}>Company Contact Directory</h2>
           <p className="subtle" style={{ margin: 0 }}>Search an insurance company to find its phone, fax, email, and notes.</p>
         </div>
-        <span className="company-directory-count">{contacts.length} companies</span>
+        <span className="company-directory-count">{directoryContacts.length} companies</span>
       </div>
 
       <div className="company-directory-search-wrap">
