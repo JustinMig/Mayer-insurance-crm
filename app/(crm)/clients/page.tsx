@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
+import { canDeleteClients, canSeeAllClients } from '@/lib/client-access'
 import ClientsResults from './ClientsResults'
 
 type SearchParams = Promise<{
@@ -39,8 +40,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const { supabase, userId, profile: currentProfile } = await getCrmSession()
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
-  const canFilterByAgent = currentProfile.role === 'admin' || currentProfile.role === 'manager'
-  const canBulkDelete = canFilterByAgent
+  const canFilterByAgent = canSeeAllClients(currentProfile.role)
+  const canBulkDelete = canDeleteClients(currentProfile.role)
 
   const agentsPromise = canFilterByAgent
     ? supabase
@@ -81,22 +82,23 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   const agentNames: Record<string, string> = Object.fromEntries(agents.map((agent) => [agent.id, agent.full_name]))
   if (userId && currentProfile.full_name) agentNames[userId] = currentProfile.full_name
 
+  // Managers can view either agent or the whole agency. Every other login is
+  // explicitly scoped to the client records assigned to that signed-in user.
   const totalCountAgentId = canFilterByAgent ? selectedAgent : userId
-  const statsCountAgentId = currentProfile.role === 'admin' ? userId : totalCountAgentId
   let totalClientCount = 0
   let totalMedicareCount = 0
   let totalNonMedicareCount = 0
   let totalCountError = ''
 
-  if (statsCountAgentId || canFilterByAgent) {
+  if (totalCountAgentId || canFilterByAgent) {
     let allCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true })
     let medicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', true)
     let nonMedicareCountQuery = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_medicare', false)
 
-    if (statsCountAgentId) {
-      allCountQuery = allCountQuery.eq('assigned_agent_id', statsCountAgentId)
-      medicareCountQuery = medicareCountQuery.eq('assigned_agent_id', statsCountAgentId)
-      nonMedicareCountQuery = nonMedicareCountQuery.eq('assigned_agent_id', statsCountAgentId)
+    if (totalCountAgentId) {
+      allCountQuery = allCountQuery.eq('assigned_agent_id', totalCountAgentId)
+      medicareCountQuery = medicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
+      nonMedicareCountQuery = nonMedicareCountQuery.eq('assigned_agent_id', totalCountAgentId)
     }
 
     const [allResult, medicareResult, nonMedicareResult] = await Promise.all([
@@ -137,6 +139,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         .from('clients')
         .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, county, state, is_medicare, is_life, is_retirement')
 
+      // Defense in depth in addition to database RLS. Managers alone may omit
+      // the agent filter or intentionally choose another agent's book.
+      if (!canFilterByAgent) query = query.eq('assigned_agent_id', userId)
+      else if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
+
       if (sort === 'first_name') {
         query = query.order('first_name', { ascending: true, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false })
       } else if (sort === 'county') {
@@ -164,8 +171,6 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       if (!showAll && product === 'non_life') query = query.eq('is_life', false)
       if (!showAll && product === 'non_medicare') query = query.eq('is_medicare', false)
       if (!showAll && product === 'non_life_non_medicare') query = query.eq('is_life', false).eq('is_medicare', false)
-      if (showAll && totalCountAgentId) query = query.eq('assigned_agent_id', totalCountAgentId)
-      else if (selectedAgent) query = query.eq('assigned_agent_id', selectedAgent)
       if (!showAll && healthClientIds) query = query.in('id', healthClientIds)
       if (!showAll && turn65) {
         const birthYear = new Date().getFullYear() - 65
@@ -257,13 +262,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
               <div className="clients-stat-label">Total clients</div>
               <div className="clients-stat-value">{totalClientCount}</div>
               <div style={{ marginTop: 6 }}>
-                {currentProfile.role === 'admin'
-                  ? `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                  : canFilterByAgent
-                    ? selectedAgent
-                      ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                      : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
-                    : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
+                {canFilterByAgent
+                  ? selectedAgent
+                    ? `${agentNames[selectedAgent] || 'This agent'} has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                    : `Your agency has ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`
+                  : `You have ${totalClientCount} client${totalClientCount === 1 ? '' : 's'} in total.`}
               </div>
             </div>
             <div className="card clients-stat-card medicare">
