@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
+import { canAssignClients } from '@/lib/client-access'
 import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
 import ClientTextingDock from './components/ClientTextingDock'
@@ -37,10 +38,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
   const brandLogoAlt = isIsaiahPortal ? 'PLATINUM - Financial Group - PF logo' : 'Mayer Insurance Group bear'
+  const canAssignClientRecords = canAssignClients(profile?.role)
 
   return (
     <div className="crm-shell">
-      <style>{'a[href="/clients/document-import"]{display:none!important}.dashboard-form-alert{display:none!important}'}</style>
+      <style>{`a[href="/clients/document-import"]{display:none!important}.dashboard-form-alert{display:none!important}${canAssignClientRecords ? '' : '.intake-group-agent{display:none!important}'}`}</style>
       <ClientDraftGuard />
       <AddressAutoFill />
       <ClientTextingDock />
