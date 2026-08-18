@@ -86,11 +86,28 @@ export default function MedicareDocuments(props: Props) {
     setUploading(true)
     setStatus('Uploading…')
     try {
-      const form = new FormData()
-      form.set('file', file)
-      form.set('document_type', documentType)
-      if (preferredName) form.set('file_name', preferredName)
-      const response = await fetch(`/api/clients/${props.clientId}/documents`, { method: 'POST', body: form })
+      // Materialize the file before sending it. iPad/iPhone Safari can create a
+      // valid File object but send an empty multipart/FormData body after a
+      // drag/drop or Files picker handoff. Sending the ArrayBuffer directly
+      // avoids WebKit's multipart upload path entirely.
+      const bytes = await file.arrayBuffer()
+      if (!bytes.byteLength) throw new Error('The selected file is empty. Please choose the file again.')
+
+      const fileName = preferredName || file.name || 'document'
+      const params = new URLSearchParams({
+        file_name: fileName,
+        document_type: documentType
+      })
+
+      const response = await fetch(`/api/clients/${props.clientId}/documents?${params.toString()}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-Upload-Size': String(bytes.byteLength)
+        },
+        body: bytes,
+        cache: 'no-store'
+      })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Upload failed.')
       setDocuments(current => [result.document, ...current])
