@@ -19,9 +19,9 @@ export const metadata: Metadata = {
     title: 'Mayer Leads'
   },
   icons: {
-    icon: [{ url: '/mayer-leads-icon-v2.png', sizes: '512x512', type: 'image/png' }],
-    apple: [{ url: '/mayer-leads-icon-v2.png', sizes: '512x512', type: 'image/png' }],
-    shortcut: [{ url: '/mayer-leads-icon-v2.png', sizes: '512x512', type: 'image/png' }]
+    icon: [{ url: '/mayer-leads-icon-v3.png', sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: '/mayer-leads-icon-v3.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: [{ url: '/mayer-leads-icon-v3.png', sizes: '180x180', type: 'image/png' }]
   }
 }
 
