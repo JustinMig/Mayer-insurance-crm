@@ -33,22 +33,37 @@ export async function GET() {
 
   const admin = createAdminClient()
   const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
-  let clientQuery = admin.from('clients').select('id').eq('agency_id', profile.agency_id)
-  if (!canSeeAgency) clientQuery = clientQuery.eq('assigned_agent_id', userId)
-
-  const { data: clients } = await clientQuery
-  const clientIds = (clients || []).map((client) => client.id)
   let text = 0
 
-  if (clientIds.length) {
+  if (canSeeAgency) {
+    const { data: agencyUsers } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('agency_id', profile.agency_id)
+      .eq('active', true)
+
+    const userIds = (agencyUsers || []).map((row) => row.id)
+    if (userIds.length) {
+      const { count } = await admin
+        .from('client_sms_messages')
+        .select('id', { count: 'exact', head: true })
+        .in('user_id', userIds)
+        .eq('direction', 'inbound')
+        .is('read_at', null)
+      text = count || 0
+    }
+  } else {
     const { count } = await admin
       .from('client_sms_messages')
       .select('id', { count: 'exact', head: true })
-      .in('client_id', clientIds)
+      .eq('user_id', userId)
       .eq('direction', 'inbound')
       .is('read_at', null)
     text = count || 0
   }
 
-  return NextResponse.json({ total: mail + text + forms, mail, text, forms })
+  return NextResponse.json(
+    { total: mail + text + forms, mail, text, forms },
+    { headers: { 'Cache-Control': 'private, no-store' } }
+  )
 }
