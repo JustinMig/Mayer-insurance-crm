@@ -21,7 +21,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Keep authenticated app/API requests protected, but do not run Proxy for
-    // Next.js build assets or public PWA/image files that never need auth.
-    '/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest|calendar\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'
+    // Next.js build assets or public PWA/image/manifest files that never need auth.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'
   ]
 }
