@@ -5,94 +5,58 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-type SmsRow = {
-  id: string
-  client_id: string
-  direction: 'inbound' | 'outbound'
-  body: string
-  status: string
-  error_code: string | null
-  read_at: string | null
-  created_at: string
+async function getContext() {
+  const { userId, profile } = await getCrmSession()
+  if (!profile?.agency_id) return { admin: null, profile: null as any, userId, canSeeAgency: false }
+  return {
+    admin: createAdminClient(),
+    profile,
+    userId,
+    canSeeAgency: profile.role === 'admin' || profile.role === 'manager'
+  }
 }
 
-async function getAccessibleClients() {
-  const { userId, profile } = await getCrmSession()
-  if (!profile?.agency_id) return { admin: null, clients: [] as any[], profile: null as any }
-
-  const admin = createAdminClient()
-  const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
+async function accessibleClientIds(admin: ReturnType<typeof createAdminClient>, agencyId: string, userId: string, canSeeAgency: boolean, requestedIds: string[]) {
+  if (!requestedIds.length) return []
   let query = admin
     .from('clients')
-    .select('id,first_name,last_name,phone,assigned_agent_id')
-    .eq('agency_id', profile.agency_id)
-
+    .select('id')
+    .eq('agency_id', agencyId)
+    .in('id', requestedIds)
   if (!canSeeAgency) query = query.eq('assigned_agent_id', userId)
   const { data, error } = await query
   if (error) throw new Error(error.message)
-  return { admin, clients: data || [], profile }
+  return (data || []).map((row) => row.id)
 }
 
 export async function GET() {
   try {
-    const { admin, clients, profile } = await getAccessibleClients()
-    if (!admin || !profile || !clients.length) return NextResponse.json({ total_unread: 0, conversations: [] })
+    const { admin, profile, userId, canSeeAgency } = await getContext()
+    if (!admin || !profile?.agency_id) return NextResponse.json({ total_unread: 0, conversations: [] })
 
-    const clientIds = clients.map((client) => client.id)
-    const [{ data: messages, error }, { data: profiles }] = await Promise.all([
-      admin
-        .from('client_sms_messages')
-        .select('id,client_id,direction,body,status,error_code,read_at,created_at')
-        .in('client_id', clientIds)
-        .order('created_at', { ascending: false })
-        .limit(1500),
-      admin.from('profiles').select('id,full_name').eq('agency_id', profile.agency_id)
-    ])
+    const { data, error } = await admin.rpc('crm_sms_conversation_summaries', {
+      p_agency_id: profile.agency_id,
+      p_user_id: userId,
+      p_can_see_agency: canSeeAgency
+    })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    const profileMap = new Map((profiles || []).map((row) => [row.id, row.full_name || 'Agent']))
-    const clientMap = new Map(clients.map((client) => [client.id, client]))
-    const grouped = new Map<string, {
-      client_id: string
-      client_name: string
-      phone: string
-      assigned_agent_id: string | null
-      agent_name: string
-      unread_count: number
-      latest_body: string
-      latest_at: string
-      messages: SmsRow[]
-    }>()
-
-    for (const row of (messages || []) as SmsRow[]) {
-      const client = clientMap.get(row.client_id)
-      if (!client) continue
-      let conversation = grouped.get(row.client_id)
-      if (!conversation) {
-        conversation = {
-          client_id: row.client_id,
-          client_name: [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Client',
-          phone: client.phone || '',
-          assigned_agent_id: client.assigned_agent_id || null,
-          agent_name: profileMap.get(client.assigned_agent_id) || 'Unassigned',
-          unread_count: 0,
-          latest_body: row.body || '',
-          latest_at: row.created_at,
-          messages: []
-        }
-        grouped.set(row.client_id, conversation)
-      }
-      if (row.direction === 'inbound' && !row.read_at) conversation.unread_count += 1
-      conversation.messages.push(row)
-    }
-
-    const conversations = Array.from(grouped.values()).map((conversation) => ({
-      ...conversation,
-      messages: conversation.messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const conversations = (data || []).map((row: any) => ({
+      client_id: row.client_id,
+      client_name: row.client_name || 'Client',
+      phone: row.phone || '',
+      assigned_agent_id: row.assigned_agent_id || null,
+      agent_name: row.agent_name || 'Unassigned',
+      unread_count: Number(row.unread_count || 0),
+      latest_body: row.latest_body || '',
+      latest_at: row.latest_at
     }))
-    const totalUnread = conversations.reduce((sum, conversation) => sum + conversation.unread_count, 0)
-    return NextResponse.json({ total_unread: totalUnread, conversations })
+    const totalUnread = conversations.reduce((sum: number, conversation: any) => sum + conversation.unread_count, 0)
+
+    return NextResponse.json(
+      { total_unread: totalUnread, conversations },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    )
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load messages.' }, { status: 500 })
   }
@@ -101,14 +65,13 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const payload = await request.json().catch(() => ({})) as { client_ids?: string[] }
-    const requestedIds = Array.isArray(payload.client_ids) ? payload.client_ids.filter(Boolean) : []
+    const requestedIds = Array.isArray(payload.client_ids) ? Array.from(new Set(payload.client_ids.filter(Boolean))).slice(0, 100) : []
     if (!requestedIds.length) return NextResponse.json({ error: 'Choose at least one client conversation.' }, { status: 400 })
 
-    const { admin, clients } = await getAccessibleClients()
-    if (!admin) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+    const { admin, profile, userId, canSeeAgency } = await getContext()
+    if (!admin || !profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
-    const allowed = new Set(clients.map((client) => client.id))
-    const clientIds = requestedIds.filter((id) => allowed.has(id))
+    const clientIds = await accessibleClientIds(admin, profile.agency_id, userId, canSeeAgency, requestedIds)
     if (!clientIds.length) return NextResponse.json({ error: 'No accessible conversations selected.' }, { status: 403 })
 
     const now = new Date().toISOString()
@@ -129,23 +92,21 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const payload = await request.json().catch(() => ({})) as { message_ids?: string[] }
-    const requestedIds = Array.isArray(payload.message_ids) ? payload.message_ids.filter(Boolean) : []
+    const requestedIds = Array.isArray(payload.message_ids) ? Array.from(new Set(payload.message_ids.filter(Boolean))).slice(0, 200) : []
     if (!requestedIds.length) return NextResponse.json({ error: 'Choose at least one text to delete.' }, { status: 400 })
 
-    const { admin, clients } = await getAccessibleClients()
-    if (!admin) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+    const { admin, profile, userId, canSeeAgency } = await getContext()
+    if (!admin || !profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
-    const allowedClientIds = clients.map((client) => client.id)
-    if (!allowedClientIds.length) return NextResponse.json({ error: 'No accessible conversations.' }, { status: 403 })
-
-    const { data: allowedMessages, error: lookupError } = await admin
+    const { data: candidateMessages, error: lookupError } = await admin
       .from('client_sms_messages')
       .select('id,client_id')
       .in('id', requestedIds)
-      .in('client_id', allowedClientIds)
-
     if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
-    const messageIds = (allowedMessages || []).map((row) => row.id)
+
+    const candidateClientIds = Array.from(new Set((candidateMessages || []).map((row) => row.client_id)))
+    const allowedClientIds = new Set(await accessibleClientIds(admin, profile.agency_id, userId, canSeeAgency, candidateClientIds))
+    const messageIds = (candidateMessages || []).filter((row) => allowedClientIds.has(row.client_id)).map((row) => row.id)
     if (!messageIds.length) return NextResponse.json({ error: 'No accessible texts selected.' }, { status: 403 })
 
     const { error } = await admin.from('client_sms_messages').delete().in('id', messageIds)
