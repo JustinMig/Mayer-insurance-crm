@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
@@ -171,9 +172,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
 
   return (
     <>
-      <div className="clients-page-heading">
-        <h1>Dashboard</h1>
-        <p className="subtle">Your client database at a glance.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
+        <div className="clients-page-heading">
+          <h1>Dashboard</h1>
+          <p className="subtle">Your client database at a glance.</p>
+        </div>
+        <Link prefetch={false} href="/workspace" className="btn btn-primary">WORKSPACE</Link>
       </div>
 
       {isManager ? (
