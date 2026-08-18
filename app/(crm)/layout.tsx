@@ -1,12 +1,11 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
-import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
 import ClientTextingDock from './components/ClientTextingDock'
-import UnreadSmsDashboardCard from './components/UnreadSmsDashboardCard'
 import SoaTextBridge from './components/SoaTextBridge'
+import NotificationsNavLink from './components/NotificationsNavLink'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -31,23 +30,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
-  const { supabase, userId, profile } = await getCrmSession()
+  const { profile } = await getCrmSession()
 
   const isAgentPortal = profile?.role === 'agent'
-  const isJustinPortal = isJustinWebsiteLeadUser(userId)
-  let unreadMailCount = 0
-
-  if (isJustinPortal) {
-    const { count } = await supabase
-      .from('crm_mail')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .is('read_at', null)
-      .is('removed_at', null)
-      .is('archived_at', null)
-    unreadMailCount = count || 0
-  }
-
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
@@ -70,9 +55,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link prefetch={false} className="nav-link" href="/fex-quotes">FEX QUOTES</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
-          {isJustinPortal && (
-            <Link prefetch={false} className="nav-link nav-leads" href="/mail-center"><span>MAIL CENTER</span>{unreadMailCount > 0 && <span className="nav-leads-count">{unreadMailCount}</span>}</Link>
-          )}
+          <NotificationsNavLink />
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -85,7 +68,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           </div>
           <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
         </header>
-        <main className="content"><UnreadSmsDashboardCard viewerName={profile?.full_name || ''} />{children}</main>
+        <main className="content">{children}</main>
       </div>
 
       <nav className="mobile-nav">
@@ -93,9 +76,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <Link prefetch={false} href="/fex-quotes"><b>$</b><span>FEX</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
-        {isJustinPortal && (
-          <Link prefetch={false} className="mobile-leads-link" href="/mail-center"><b>✉</b><span>MAIL</span>{unreadMailCount > 0 && <i className="mobile-leads-count">{unreadMailCount}</i>}</Link>
-        )}
+        <NotificationsNavLink mobile />
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>
