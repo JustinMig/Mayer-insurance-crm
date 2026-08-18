@@ -4,8 +4,8 @@ import { getCrmSession } from '@/lib/crm-session'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const PRODUCTS = new Set(['medicare', 'life', 'retirement'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const FIELDS = 'id,assigned_agent_id,first_name,last_name,date_of_birth,phone,product_type,is_medicare,is_life,is_retirement,notes,status,client_id,photo_storage_path,photo_file_name,photo_mime_type,photo_uploaded_at,created_at,updated_at'
 
 function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max)
@@ -17,6 +17,10 @@ function validDate(value: string) {
   const [y, m, d] = value.split('-').map(Number)
   const date = new Date(Date.UTC(y, m - 1, d))
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
+}
+
+function bool(value: unknown) {
+  return value === true || value === 'true' || value === 1 || value === '1'
 }
 
 async function resolveOwner(
@@ -48,7 +52,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('workspace_leads')
-    .select('id,assigned_agent_id,first_name,last_name,date_of_birth,product_type,notes,status,client_id,created_at,updated_at')
+    .select(FIELDS)
     .eq('agency_id', profile.agency_id)
     .order('created_at', { ascending: false })
     .limit(500)
@@ -66,13 +70,17 @@ export async function POST(request: NextRequest) {
     const firstName = cleanText(body.first_name, 100)
     const lastName = cleanText(body.last_name, 100)
     const dob = cleanText(body.date_of_birth, 10)
-    const product = cleanText(body.product_type, 30).toLowerCase()
+    const phone = cleanText(body.phone, 60)
+    const isMedicare = bool(body.is_medicare)
+    const isLife = bool(body.is_life)
+    const isRetirement = bool(body.is_retirement)
     const notes = cleanText(body.notes, 5000)
 
     if (!firstName || !lastName) return NextResponse.json({ error: 'First and last name are required.' }, { status: 400 })
     if (dob && !validDate(dob)) return NextResponse.json({ error: 'Enter a valid date of birth.' }, { status: 400 })
-    if (!PRODUCTS.has(product)) return NextResponse.json({ error: 'Choose Medicare, Life, or Retirement.' }, { status: 400 })
+    if (!isMedicare && !isLife && !isRetirement) return NextResponse.json({ error: 'Choose at least one: Life Insurance, Medicare, or Retirement.' }, { status: 400 })
 
+    const productType = isMedicare ? 'medicare' : isLife ? 'life' : 'retirement'
     const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
     const { data, error } = await supabase
       .from('workspace_leads')
@@ -83,10 +91,14 @@ export async function POST(request: NextRequest) {
         first_name: firstName,
         last_name: lastName,
         date_of_birth: dob || null,
-        product_type: product,
+        phone: phone || null,
+        product_type: productType,
+        is_medicare: isMedicare,
+        is_life: isLife,
+        is_retirement: isRetirement,
         notes: notes || null
       })
-      .select('id,assigned_agent_id,first_name,last_name,date_of_birth,product_type,notes,status,client_id,created_at,updated_at')
+      .select(FIELDS)
       .single()
 
     if (error || !data) return NextResponse.json({ error: error?.message || 'Unable to save lead.' }, { status: 400 })
@@ -96,7 +108,7 @@ export async function POST(request: NextRequest) {
       actor_id: userId,
       client_id: null,
       action: 'workspace.lead_created',
-      details: { lead_id: data.id, assigned_agent_id: ownerId, product_type: product }
+      details: { lead_id: data.id, assigned_agent_id: ownerId, is_medicare: isMedicare, is_life: isLife, is_retirement: isRetirement }
     })
 
     return NextResponse.json({ lead: data })
