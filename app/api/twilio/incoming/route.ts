@@ -21,18 +21,43 @@ export async function POST(request: NextRequest) {
   if (!from || !sid) return new NextResponse('<Response></Response>', { status: 200, headers: { 'Content-Type': 'text/xml' } })
 
   const admin = createAdminClient()
-  const digits = from.replace(/\D/g, '')
-  const last10 = digits.slice(-10)
-  const last7 = digits.slice(-7)
+  let client: { id: string; assigned_agent_id: string | null; phone: string | null } | null = null
 
-  const { data: candidates } = await admin
-    .from('clients')
-    .select('id, assigned_agent_id, phone')
-    .not('phone', 'is', null)
-    .ilike('phone', `%${last7}%`)
-    .limit(25)
+  // Prefer the client thread that most recently sent a message to this exact number.
+  // This makes replies to individual and mass texts return to the same CRM conversation.
+  const { data: recentOutbound } = await admin
+    .from('client_sms_messages')
+    .select('client_id')
+    .eq('direction', 'outbound')
+    .eq('to_number', from)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  const client = (candidates || []).find((row) => normalizeUsPhone(String(row.phone || '')).replace(/\D/g, '').slice(-10) === last10)
+  if (recentOutbound?.client_id) {
+    const { data: recentClient } = await admin
+      .from('clients')
+      .select('id, assigned_agent_id, phone')
+      .eq('id', recentOutbound.client_id)
+      .maybeSingle()
+    client = recentClient || null
+  }
+
+  // Fallback for a client who texts before any CRM outbound message exists.
+  if (!client) {
+    const digits = from.replace(/\D/g, '')
+    const last10 = digits.slice(-10)
+    const last7 = digits.slice(-7)
+
+    const { data: candidates } = await admin
+      .from('clients')
+      .select('id, assigned_agent_id, phone')
+      .not('phone', 'is', null)
+      .ilike('phone', `%${last7}%`)
+      .limit(25)
+
+    client = (candidates || []).find((row) => normalizeUsPhone(String(row.phone || '')).replace(/\D/g, '').slice(-10) === last10) || null
+  }
 
   if (client?.assigned_agent_id) {
     await admin.from('client_sms_messages').upsert({
