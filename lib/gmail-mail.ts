@@ -116,8 +116,9 @@ function walkParts(part: any, result: { text: string; html: string; attachments:
   const mime = String(part?.mimeType || '')
   const filename = String(part?.filename || '')
   const attachmentId = part?.body?.attachmentId
-  if (filename && attachmentId) {
-    result.attachments.push({ filename, mimeType: mime, attachmentId, size: part?.body?.size || 0 })
+  const contentId = header(part?.headers, 'Content-ID').replace(/[<>]/g, '')
+  if (attachmentId) {
+    result.attachments.push({ filename: filename || 'Attachment', mimeType: mime, attachmentId, size: part?.body?.size || 0, contentId: contentId || null })
   } else if (mime === 'text/plain' && part?.body?.data) {
     result.text += decodeBase64Url(part.body.data)
   } else if (mime === 'text/html' && part?.body?.data) {
@@ -127,27 +128,25 @@ function walkParts(part: any, result: { text: string; html: string; attachments:
 }
 
 export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
-  if (!gmailConfigured()) return { connected: false, configured: false, labelMissing: false, imported: 0 }
+  if (!gmailConfigured()) return { connected: false, configured: false, labelMissing: false, imported: 0, updated: 0 }
   const accessToken = await getAccessToken(supabase, userId)
-  if (!accessToken) return { connected: false, configured: true, labelMissing: false, imported: 0 }
+  if (!accessToken) return { connected: false, configured: true, labelMissing: false, imported: 0, updated: 0 }
   const headers = { Authorization: `Bearer ${accessToken}` }
 
   const labelsRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', { headers, cache: 'no-store' })
   if (!labelsRes.ok) throw new Error('Unable to read Gmail labels')
   const labelsJson = await labelsRes.json() as { labels?: Array<{ id: string; name: string }> }
   const crmLabel = labelsJson.labels?.find(label => label.name === CRM_GMAIL_LABEL)
-  if (!crmLabel) return { connected: true, configured: true, labelMissing: true, imported: 0 }
+  if (!crmLabel) return { connected: true, configured: true, labelMissing: true, imported: 0, updated: 0 }
 
   const listParams = new URLSearchParams({ labelIds: crmLabel.id, maxResults: '50' })
   const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams}`, { headers, cache: 'no-store' })
   if (!listRes.ok) throw new Error('Unable to list CRM Gmail messages')
   const list = await listRes.json() as { messages?: Array<{ id: string; threadId: string }> }
   let imported = 0
+  let updated = 0
 
   for (const item of list.messages || []) {
-    const { data: existing } = await supabase.from('crm_mail').select('id').eq('user_id', userId).eq('gmail_message_id', item.id).maybeSingle()
-    if (existing) continue
-
     const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}?format=full`, { headers, cache: 'no-store' })
     if (!msgRes.ok) continue
     const msg = await msgRes.json() as any
@@ -159,24 +158,36 @@ export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
     const fromRaw = header(msg.payload?.headers, 'From')
     const from = parseAddress(fromRaw)
     const received = msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString()
-    const { error } = await supabase.from('crm_mail').insert({
+    const values = {
       user_id: userId,
       gmail_message_id: item.id,
       gmail_thread_id: item.threadId,
       sender_name: from.name || null,
       sender_email: from.email || null,
       recipients: header(msg.payload?.headers, 'To') || null,
+      cc: header(msg.payload?.headers, 'Cc') || null,
+      reply_to: header(msg.payload?.headers, 'Reply-To') || null,
+      message_date: header(msg.payload?.headers, 'Date') || null,
       subject: header(msg.payload?.headers, 'Subject') || '(no subject)',
       snippet: msg.snippet || null,
       body_text: parsed.text || null,
       body_html: parsed.html || null,
       received_at: received,
       attachments: parsed.attachments,
-    })
-    if (!error) imported += 1
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data: existing } = await supabase.from('crm_mail').select('id').eq('user_id', userId).eq('gmail_message_id', item.id).maybeSingle()
+    if (existing?.id) {
+      const { error } = await supabase.from('crm_mail').update(values).eq('id', existing.id).eq('user_id', userId)
+      if (!error) updated += 1
+    } else {
+      const { error } = await supabase.from('crm_mail').insert(values)
+      if (!error) imported += 1
+    }
   }
 
-  return { connected: true, configured: true, labelMissing: false, imported }
+  return { connected: true, configured: true, labelMissing: false, imported, updated }
 }
 
 export async function gmailAttachment(supabase: SupabaseLike, userId: string, messageId: string, attachmentId: string) {
