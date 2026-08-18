@@ -1,4 +1,28 @@
 /* iPhone CRM navigation + save controls */
+
+/* Fixed gradient backgrounds cause unnecessary repainting during scroll, especially in Safari. */
+html, body {
+  background-attachment: scroll !important;
+}
+
+@media (max-width: 1024px) {
+  /* The cards are already almost opaque, so blur adds GPU work without meaningful visual benefit. */
+  .card,
+  .topbar,
+  .mobile-nav,
+  .sticky-save-bar {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .topbar { background: rgba(248,247,242,.98) !important; }
+  .mobile-nav { background: rgba(248,247,242,.985) !important; }
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+}
+
 @media (max-width: 760px) {
   /* Keep every available navigation action on one equal-width row. */
   .mobile-nav {
@@ -15,6 +39,7 @@
     padding: 6px 1px !important;
     font-size: 9.5px !important;
     line-height: 1.05;
+    touch-action: manipulation;
   }
 
   .mobile-nav a {
@@ -36,6 +61,14 @@
 
   .crm-shell {
     padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .btn,
+  input,
+  select,
+  textarea,
+  summary {
+    touch-action: manipulation;
   }
 
   /* New Client: keep Save Client available directly below the phone header. */
