@@ -1,6 +1,5 @@
 import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const runtime = 'nodejs'
@@ -19,6 +18,8 @@ type SoaPayload = {
   products?: string[]
   other_product?: string
 }
+
+type CertificateLine = { text: string; size?: number; bold?: boolean; gap?: number }
 
 function tokenHash(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex')
@@ -55,7 +56,53 @@ function wrapText(value: string, max = 88) {
   return lines.length ? lines : ['']
 }
 
-async function buildCertificatePdf(input: {
+function pdfSafe(value: string) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildSimplePdf(lines: CertificateLine[]) {
+  let y = 748
+  const commands: string[] = []
+  for (const line of lines) {
+    const size = line.size || 10
+    const font = line.bold ? 'F2' : 'F1'
+    commands.push(`BT /${font} ${size} Tf 54 ${y} Td (${pdfSafe(line.text)}) Tj ET`)
+    y -= size + (line.gap ?? 5)
+  }
+  const stream = commands.join('\n')
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+    `<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`
+  ]
+
+  let pdf = '%PDF-1.4\n%MayerIG\n'
+  const offsets: number[] = [0]
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'))
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+  })
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii')
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += '0000000000 65535 f \n'
+  for (let index = 1; index <= objects.length; index += 1) {
+    pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return Buffer.from(pdf, 'ascii')
+}
+
+function buildCertificatePdf(input: {
   requestId: string
   phone: string
   payload: SoaPayload
@@ -70,68 +117,51 @@ async function buildCertificatePdf(input: {
   documentFileName: string
   documentSha256: string
 }) {
-  const pdf = await PDFDocument.create()
-  const page = pdf.addPage([612, 792])
-  const regular = await pdf.embedFont(StandardFonts.Helvetica)
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
-  const dark = rgb(0.08, 0.15, 0.25)
-  const muted = rgb(0.28, 0.34, 0.42)
-  let y = 744
-
-  const drawLine = (text: string, size = 10, isBold = false, indent = 0) => {
-    page.drawText(text, { x: 54 + indent, y, size, font: isBold ? bold : regular, color: dark })
-    y -= size + 6
+  const lines: CertificateLine[] = []
+  const add = (text: string, options: Omit<CertificateLine, 'text'> = {}) => lines.push({ text, ...options })
+  const wrapped = (text: string, max = 88, options: Omit<CertificateLine, 'text'> = {}) => {
+    wrapText(text, max).forEach(line => add(line, options))
   }
-  const drawWrapped = (text: string, size = 10, isBold = false, indent = 0, max = 90) => {
-    for (const line of wrapText(text, max)) drawLine(line, size, isBold, indent)
+  const section = (title: string) => {
+    add(' ', { size: 5, gap: 2 })
+    add(title, { size: 12, bold: true, gap: 5 })
   }
-  const gap = (amount = 8) => { y -= amount }
 
-  drawLine('MAYER INSURANCE GROUP', 15, true)
-  drawLine('SOA Certificate of Completion', 20, true)
-  drawLine('Electronic Signature Audit Record', 11, false)
-  gap(8)
+  add('MAYER INSURANCE GROUP', { size: 14, bold: true, gap: 6 })
+  add('SOA Certificate of Completion', { size: 20, bold: true, gap: 7 })
+  add('Electronic Signature Audit Record', { size: 11, gap: 7 })
 
-  page.drawLine({ start: { x: 54, y }, end: { x: 558, y }, thickness: 1, color: rgb(0.82, 0.85, 0.89) })
-  gap(18)
+  section('Envelope / Request Details')
+  wrapped(`SOA Request ID: ${input.requestId}`)
+  wrapped(`Beneficiary: ${input.payload.beneficiary_name || 'Client'}`)
+  wrapped(`Recipient phone: ${input.phone || input.payload.beneficiary_phone || 'Not provided'}`)
+  wrapped(`Beneficiary address: ${input.payload.beneficiary_address || 'Not provided'}`)
+  wrapped(`Agent: ${input.payload.agent_name || 'Agent'}`)
+  if (input.payload.agent_email) wrapped(`Agent email: ${input.payload.agent_email}`)
 
-  drawLine('Envelope / Request Details', 12, true)
-  drawWrapped(`SOA Request ID: ${input.requestId}`)
-  drawWrapped(`Beneficiary: ${input.payload.beneficiary_name || 'Client'}`)
-  drawWrapped(`Recipient phone: ${input.phone || input.payload.beneficiary_phone || 'Not provided'}`)
-  drawWrapped(`Beneficiary address: ${input.payload.beneficiary_address || 'Not provided'}`)
-  drawWrapped(`Agent: ${input.payload.agent_name || 'Agent'}`)
-  if (input.payload.agent_email) drawWrapped(`Agent email: ${input.payload.agent_email}`)
-  gap(8)
+  section('Event History')
+  wrapped(`Created / sent: ${input.createdAt ? new Date(input.createdAt).toLocaleString('en-US') : 'Recorded in CRM message history'}`)
+  wrapped(`Opened: ${input.openedAt ? new Date(input.openedAt).toLocaleString('en-US') : 'Not separately recorded'}`)
+  wrapped(`Opened IP: ${input.openedIp || 'Unavailable'}`)
+  wrapped(`Signed / submitted: ${new Date(input.signedAt).toLocaleString('en-US')}`)
+  wrapped(`Signed IP: ${input.signedIp}`)
 
-  drawLine('Event History', 12, true)
-  drawWrapped(`Created / sent: ${input.createdAt ? new Date(input.createdAt).toLocaleString('en-US') : 'Recorded in CRM message history'}`)
-  drawWrapped(`Opened: ${input.openedAt ? new Date(input.openedAt).toLocaleString('en-US') : 'Not separately recorded'}`)
-  drawWrapped(`Opened IP: ${input.openedIp || 'Unavailable'}`)
-  drawWrapped(`Signed / submitted: ${new Date(input.signedAt).toLocaleString('en-US')}`)
-  drawWrapped(`Signed IP: ${input.signedIp}`)
-  gap(8)
+  section('Device / Browser Evidence')
+  wrapped(`Opened device/browser: ${shortUserAgent(input.openedUserAgent || 'Unavailable')}`, 96, { size: 9 })
+  wrapped(`Signing device/browser: ${shortUserAgent(input.signedUserAgent)}`, 96, { size: 9 })
 
-  drawLine('Device / Browser Evidence', 12, true)
-  drawWrapped(`Opened device/browser: ${shortUserAgent(input.openedUserAgent || 'Unavailable')}`, 9, false, 0, 100)
-  drawWrapped(`Signing device/browser: ${shortUserAgent(input.signedUserAgent)}`, 9, false, 0, 100)
-  gap(8)
+  section('Signed Document Integrity')
+  wrapped(`Signed SOA document ID: ${input.documentId}`, 88, { size: 9 })
+  wrapped(`Signed SOA file: ${input.documentFileName}`, 88, { size: 9 })
+  wrapped(`SHA-256 fingerprint: ${input.documentSha256}`, 76, { size: 9 })
 
-  drawLine('Signed Document Integrity', 12, true)
-  drawWrapped(`Signed SOA document ID: ${input.documentId}`, 9)
-  drawWrapped(`Signed SOA file: ${input.documentFileName}`, 9)
-  drawWrapped(`SHA-256 fingerprint: ${input.documentSha256}`, 9, false, 0, 76)
-  gap(8)
+  section('Record Statement')
+  wrapped('This certificate was generated automatically by Mayer Insurance Group CRM when the beneficiary submitted the electronic signature. The signed SOA and this certificate are locked as immutable CRM records after completion.', 96, { size: 9 })
+  wrapped('IP addresses identify the network connection observed by the CRM and are not a guarantee of an exact physical or GPS location.', 96, { size: 9 })
+  add(' ', { size: 5, gap: 2 })
+  add(`Certificate generated: ${new Date(input.signedAt).toLocaleString('en-US')}`, { size: 8 })
 
-  drawLine('Record Statement', 12, true)
-  drawWrapped('This certificate was generated automatically by Mayer Insurance Group CRM when the beneficiary submitted the electronic signature. The signed SOA and this certificate are locked as immutable CRM records after completion.', 9, false, 0, 98)
-  gap(6)
-  drawWrapped('IP addresses identify the network connection observed by the CRM and are not a guarantee of an exact physical or GPS location.', 9, false, 0, 98)
-
-  page.drawText('Certificate generated by Mayer Insurance Group CRM', { x: 54, y: 38, size: 8, font: regular, color: muted })
-  page.drawText(`Generated: ${new Date(input.signedAt).toLocaleString('en-US')}`, { x: 356, y: 38, size: 8, font: regular, color: muted })
-
-  return Buffer.from(await pdf.save())
+  return buildSimplePdf(lines)
 }
 
 async function loadRequest(token: string) {
@@ -238,7 +268,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       return NextResponse.json({ error: documentError?.message || 'Unable to save signed SOA.' }, { status: 500 })
     }
 
-    const certificateBytes = await buildCertificatePdf({
+    const certificateBytes = buildCertificatePdf({
       requestId: data.id,
       phone: data.phone,
       payload,
