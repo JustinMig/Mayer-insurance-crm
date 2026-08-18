@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canSeeAllClients } from '@/lib/client-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ async function getContext() {
     admin: createAdminClient(),
     profile,
     userId,
-    canSeeAgency: profile.role === 'admin' || profile.role === 'manager'
+    canSeeAgency: canSeeAllClients(profile.role)
   }
 }
 
