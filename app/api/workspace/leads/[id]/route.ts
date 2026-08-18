@@ -119,6 +119,11 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
     .maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Lead not found or access denied.' }, { status: 404 })
 
+  if (existing.photo_storage_path) {
+    const { error: photoError } = await supabase.storage.from(BUCKET).remove([existing.photo_storage_path])
+    if (photoError) return NextResponse.json({ error: photoError.message }, { status: 400 })
+  }
+
   const { data, error } = await supabase
     .from('workspace_leads')
     .delete()
@@ -130,10 +135,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!data) return NextResponse.json({ error: 'Lead not found or access denied.' }, { status: 404 })
-
-  if (existing.photo_storage_path) {
-    await supabase.storage.from(BUCKET).remove([existing.photo_storage_path])
-  }
 
   await supabase.from('audit_log').insert({
     agency_id: profile.agency_id,
