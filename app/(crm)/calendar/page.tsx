@@ -19,9 +19,9 @@ export const metadata: Metadata = {
     title: 'Mayer Calendar'
   },
   icons: {
-    icon: [{ url: '/calendar-icon.png', sizes: '180x180', type: 'image/png' }],
-    apple: [{ url: '/calendar-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: [{ url: '/calendar-icon.png', sizes: '180x180', type: 'image/png' }]
+    icon: [{ url: '/calendar-icon-v2.png', sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: '/calendar-icon-v2.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: [{ url: '/calendar-icon-v2.png', sizes: '180x180', type: 'image/png' }]
   }
 }
 
