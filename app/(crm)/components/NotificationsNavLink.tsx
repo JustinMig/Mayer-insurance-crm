@@ -7,24 +7,80 @@ type Props = {
   mobile?: boolean
 }
 
-export default function NotificationsNavLink({ mobile = false }: Props) {
-  const [total, setTotal] = useState(0)
+type Listener = (total: number) => void
 
-  async function load() {
+let sharedTotal = 0
+let pollTimer: number | null = null
+let inFlight: Promise<void> | null = null
+let eventsAttached = false
+const listeners = new Set<Listener>()
+
+function publish(total: number) {
+  sharedTotal = total
+  listeners.forEach((listener) => listener(total))
+}
+
+async function refreshUnread() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  if (inFlight) return inFlight
+
+  inFlight = (async () => {
     try {
       const response = await fetch('/api/notifications/unread', { cache: 'no-store' })
       const result = await response.json().catch(() => ({}))
-      if (response.ok) setTotal(Number(result.total || 0))
+      if (response.ok) publish(Number(result.total || 0))
     } catch {
       // Keep navigation usable if the unread counter cannot refresh.
+    } finally {
+      inFlight = null
     }
-  }
+  })()
 
-  useEffect(() => {
-    void load()
-    const timer = window.setInterval(() => void load(), 15000)
-    return () => window.clearInterval(timer)
-  }, [])
+  return inFlight
+}
+
+function onVisibleOrFocus() {
+  if (document.visibilityState === 'visible') void refreshUnread()
+}
+
+function startSharedPolling() {
+  if (typeof window === 'undefined') return
+  if (!pollTimer) {
+    void refreshUnread()
+    pollTimer = window.setInterval(() => void refreshUnread(), 15_000)
+  }
+  if (!eventsAttached) {
+    document.addEventListener('visibilitychange', onVisibleOrFocus)
+    window.addEventListener('focus', onVisibleOrFocus)
+    eventsAttached = true
+  }
+}
+
+function stopSharedPollingIfUnused() {
+  if (typeof window === 'undefined' || listeners.size > 0) return
+  if (pollTimer) window.clearInterval(pollTimer)
+  pollTimer = null
+  if (eventsAttached) {
+    document.removeEventListener('visibilitychange', onVisibleOrFocus)
+    window.removeEventListener('focus', onVisibleOrFocus)
+    eventsAttached = false
+  }
+}
+
+function subscribe(listener: Listener) {
+  listeners.add(listener)
+  listener(sharedTotal)
+  startSharedPolling()
+  return () => {
+    listeners.delete(listener)
+    stopSharedPollingIfUnused()
+  }
+}
+
+export default function NotificationsNavLink({ mobile = false }: Props) {
+  const [total, setTotal] = useState(sharedTotal)
+
+  useEffect(() => subscribe(setTotal), [])
 
   if (mobile) {
     return (
