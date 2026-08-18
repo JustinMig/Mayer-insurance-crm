@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canSeeAllClients } from '@/lib/client-access'
 import { normalizeUsPhone, sendTwilioSms } from '@/lib/twilio'
 
 export const runtime = 'nodejs'
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
     const admin = createAdminClient()
-    const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
+    const canSeeAgency = canSeeAllClients(profile.role)
     let clientQuery = admin
       .from('clients')
       .select('id,first_name,last_name,phone')
