@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canSeeAllClients } from '@/lib/client-access'
 import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
 
 export const runtime = 'nodejs'
@@ -32,7 +33,7 @@ export async function GET() {
   }
 
   const admin = createAdminClient()
-  const canSeeAgency = profile.role === 'admin' || profile.role === 'manager'
+  const canSeeAgency = canSeeAllClients(profile.role)
   let text = 0
 
   if (canSeeAgency) {
