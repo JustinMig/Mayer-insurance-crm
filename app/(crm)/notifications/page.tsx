@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getCrmSession } from '@/lib/crm-session'
 import { interestList, isJustinWebsiteLeadUser, type WebsiteLead } from '@/lib/website-leads'
-import { CRM_GMAIL_LABEL, gmailConfigured, syncCrmMail } from '@/lib/gmail-mail'
+import { CRM_GMAIL_LABEL, gmailConfigured } from '@/lib/gmail-mail'
 import MailCenterRefresh from '../mail-center/MailCenterRefresh'
 import MessagesCenter from '../messages/MessagesCenter'
 
@@ -27,34 +27,12 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   let unreadMailCount = 0
   let connected = false
   let configured = false
-  let labelMissing = false
   let gmailEmail = ''
   let forms: WebsiteLead[] = []
   let unreadFormsCount = 0
 
   if (canUseMailAndForms) {
-    configured = gmailConfigured()
-    const { data: connection } = await supabase.from('gmail_connections').select('gmail_email').eq('user_id', userId).maybeSingle()
-    connected = Boolean(connection)
-    gmailEmail = connection?.gmail_email || ''
-
-    if (connected && configured) {
-      try {
-        const sync = await syncCrmMail(supabase, userId)
-        labelMissing = sync.labelMissing
-      } catch {
-        // Keep Notifications usable if Google is temporarily unavailable.
-      }
-    }
-
-    const [mailResult, mailUnreadResult, formsResult, formsUnreadResult] = await Promise.all([
-      supabase.from('crm_mail')
-        .select('id,sender_name,sender_email,subject,snippet,received_at,read_at')
-        .eq('user_id', userId)
-        .is('removed_at', null)
-        .is('archived_at', null)
-        .order('received_at', { ascending: false })
-        .limit(100),
+    const [mailUnreadResult, formsUnreadResult] = await Promise.all([
       supabase.from('crm_mail')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
@@ -62,22 +40,38 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         .is('removed_at', null)
         .is('archived_at', null),
       supabase.from('website_leads')
-        .select('id,first_name,last_name,phone,email,interests,comments,status,source,read_at,created_at,updated_at,sms_consent')
-        .eq('assigned_agent_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(100),
-      supabase.from('website_leads')
         .select('id', { count: 'exact', head: true })
         .eq('assigned_agent_id', userId)
         .is('read_at', null)
     ])
-
-    if (mailResult.error) throw new Error(mailResult.error.message)
-    if (formsResult.error) throw new Error(formsResult.error.message)
-    mail = mailResult.data || []
     unreadMailCount = mailUnreadResult.count || 0
-    forms = (formsResult.data || []) as WebsiteLead[]
     unreadFormsCount = formsUnreadResult.count || 0
+
+    if (activeTab === 'mail') {
+      configured = gmailConfigured()
+      const [connectionResult, mailResult] = await Promise.all([
+        supabase.from('gmail_connections').select('gmail_email').eq('user_id', userId).maybeSingle(),
+        supabase.from('crm_mail')
+          .select('id,sender_name,sender_email,subject,snippet,received_at,read_at')
+          .eq('user_id', userId)
+          .is('removed_at', null)
+          .is('archived_at', null)
+          .order('received_at', { ascending: false })
+          .limit(100)
+      ])
+      if (mailResult.error) throw new Error(mailResult.error.message)
+      connected = Boolean(connectionResult.data)
+      gmailEmail = connectionResult.data?.gmail_email || ''
+      mail = mailResult.data || []
+    } else if (activeTab === 'forms') {
+      const formsResult = await supabase.from('website_leads')
+        .select('id,first_name,last_name,phone,email,interests,comments,status,source,read_at,created_at,updated_at,sms_consent')
+        .eq('assigned_agent_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (formsResult.error) throw new Error(formsResult.error.message)
+      forms = (formsResult.data || []) as WebsiteLead[]
+    }
   }
 
   return (
@@ -119,7 +113,6 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           {!configured && <div className="notice" style={{ marginTop: 16 }}>Gmail needs its Google OAuth environment values before the mailbox can connect.</div>}
           {params.connected === '1' && <div className="notice" style={{ marginTop: 16 }}>Gmail connected successfully.</div>}
           {params.gmail_error && <div className="notice" style={{ marginTop: 16 }}>Gmail connection did not complete. Try connecting again.</div>}
-          {labelMissing && <div className="notice" style={{ marginTop: 16 }}>Create a Gmail label named <strong>{CRM_GMAIL_LABEL}</strong> and apply it to messages you want in the CRM.</div>}
 
           <section className="card" style={{ marginTop: 16 }}>
             {mail.length ? (
