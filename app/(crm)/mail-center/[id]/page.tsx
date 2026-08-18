@@ -2,12 +2,10 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import { isJustinWebsiteLeadUser } from '@/lib/website-leads'
-import { archiveMail, moveMail, removeMail } from '../actions'
+import { removeMail } from '../actions'
 import EmailBodyFrame from './EmailBodyFrame'
 
 export const dynamic = 'force-dynamic'
-
-const folders = ['Inbox', 'Medicare', 'Life', 'Commissions', 'Underwriting', 'Carrier Notices', 'Client Documents']
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -39,11 +37,8 @@ export default async function MailMessagePage({ params }: { params: Promise<{ id
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Link prefetch={false} href="/mail-center" className="btn btn-secondary">Back to Mail</Link>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <form action={archiveMail}><input type="hidden" name="id" value={id} /><button className="btn btn-secondary" type="submit">Archive</button></form>
-          <form action={removeMail}><input type="hidden" name="id" value={id} /><button className="btn btn-secondary" type="submit">Remove from CRM</button></form>
-        </div>
+        <Link prefetch={false} href="/notifications?tab=mail" className="btn btn-secondary">Back to Notifications</Link>
+        <form action={removeMail}><input type="hidden" name="id" value={id} /><button className="btn btn-secondary" type="submit">Remove from CRM</button></form>
       </div>
 
       <section className="card" style={{ marginTop: 16, overflow: 'hidden' }}>
@@ -58,14 +53,6 @@ export default async function MailMessagePage({ params }: { params: Promise<{ id
             <div><strong>Date:</strong> {message.message_date || formatDate(message.received_at)}</div>
             <div className="subtle"><strong>CRM received:</strong> {formatDate(message.received_at)}</div>
           </div>
-        </div>
-
-        <div style={{ padding: '14px 22px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-          <form action={moveMail} style={{ display: 'flex', gap: 8, alignItems: 'end', flexWrap: 'wrap' }}>
-            <input type="hidden" name="id" value={id} />
-            <label style={{ display: 'grid', gap: 5 }}><span className="subtle">Folder</span><select name="folder" defaultValue={message.folder}>{folders.map(folder => <option key={folder}>{folder}</option>)}</select></label>
-            <button className="btn btn-secondary" type="submit">Move</button>
-          </form>
         </div>
 
         <div style={{ background: '#fff' }}>
