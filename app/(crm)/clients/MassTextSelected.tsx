@@ -23,7 +23,6 @@ export default function MassTextSelected({
   const [open, setOpen] = useState(false)
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
-  const [processed, setProcessed] = useState(0)
   const [result, setResult] = useState('')
 
   const selectedClients = useMemo(() => {
@@ -33,7 +32,6 @@ export default function MassTextSelected({
 
   function openComposer() {
     if (!selectedClients.length) return
-    setProcessed(0)
     setResult('')
     setOpen(true)
   }
@@ -48,52 +46,32 @@ export default function MassTextSelected({
     if (!message || !selectedClients.length || sending) return
 
     setSending(true)
-    setProcessed(0)
     setResult('')
-
-    let sentCount = 0
-    const failures: string[] = []
-    const batchSize = 5
-
     try {
-      for (let index = 0; index < selectedClients.length; index += batchSize) {
-        const batch = selectedClients.slice(index, index + batchSize)
+      const response = await fetch('/api/sms/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_ids: selectedClients.map((client) => client.id),
+          body: message
+        })
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error || `Send failed with HTTP ${response.status}.`)
 
-        const batchResults = await Promise.all(batch.map(async (client) => {
-          try {
-            const response = await fetch(`/api/clients/${client.id}/sms`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ body: message })
-            })
-            const payload = await response.json().catch(() => ({}))
-            if (!response.ok) {
-              return { ok: false, label: `${clientName(client)}: ${payload?.error || `HTTP ${response.status}`}` }
-            }
-            return { ok: true, label: clientName(client) }
-          } catch (error) {
-            return {
-              ok: false,
-              label: `${clientName(client)}: ${error instanceof Error ? error.message : 'Unable to send'}`
-            }
-          }
-        }))
+      const sentCount = Number(payload.sent_count || 0)
+      const failedCount = Number(payload.failed_count || 0)
+      const failures = Array.isArray(payload.failures) ? payload.failures as string[] : []
 
-        for (const item of batchResults) {
-          if (item.ok) sentCount += 1
-          else failures.push(item.label)
-        }
-
-        setProcessed(Math.min(index + batch.length, selectedClients.length))
-      }
-
-      if (!failures.length) {
+      if (!failedCount) {
         setResult(`Sent successfully to all ${sentCount} selected client${sentCount === 1 ? '' : 's'}. Replies will return to each client’s text thread and appear as unread Notifications.`)
       } else {
         const preview = failures.slice(0, 4).join(' • ')
         const extra = failures.length > 4 ? ` • +${failures.length - 4} more` : ''
-        setResult(`Sent to ${sentCount} of ${selectedClients.length}. ${failures.length} failed: ${preview}${extra}`)
+        setResult(`Sent to ${sentCount} of ${selectedClients.length}. ${failedCount} failed${preview ? `: ${preview}${extra}` : '.'}`)
       }
+    } catch (error) {
+      setResult(error instanceof Error ? error.message : 'Unable to send mass text.')
     } finally {
       setSending(false)
     }
@@ -172,7 +150,7 @@ export default function MassTextSelected({
 
             {sending ? (
               <div className="notice" style={{ marginTop: 16 }}>
-                Sending… {processed} of {selectedClients.length} processed.
+                Sending {selectedClients.length} individual text{selectedClients.length === 1 ? '' : 's'}… You can leave this window open while the server processes them.
               </div>
             ) : null}
 
@@ -186,7 +164,7 @@ export default function MassTextSelected({
                 onClick={sendMassText}
                 disabled={sending || !body.trim() || selectedClients.length === 0}
               >
-                {sending ? `Sending ${processed}/${selectedClients.length}…` : `Send to ${selectedClients.length} Client${selectedClients.length === 1 ? '' : 's'}`}
+                {sending ? 'Sending…' : `Send to ${selectedClients.length} Client${selectedClients.length === 1 ? '' : 's'}`}
               </button>
             </div>
           </section>
