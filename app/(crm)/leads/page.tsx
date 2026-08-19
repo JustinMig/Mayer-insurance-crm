@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [{ url: '/mayer-leads-icon-v4.png', sizes: '512x512', type: 'image/png' }],
-    apple: [{ url: '/mayer-leads-icon-v4.png', sizes: '512x512', type: 'image/png' }],
+    apple: [{ url: '/mayer-leads-ios-v5.png', sizes: '180x180', type: 'image/png' }],
     shortcut: [{ url: '/mayer-leads-icon-v4.png', sizes: '512x512', type: 'image/png' }]
   }
 }
