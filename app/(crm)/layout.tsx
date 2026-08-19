@@ -7,6 +7,7 @@ import AddressAutoFill from './components/AddressAutoFill'
 import ClientTextingDock from './components/ClientTextingDock'
 import SoaTextBridge from './components/SoaTextBridge'
 import NotificationsNavLink from './components/NotificationsNavLink'
+import ManualWorkspaceDates from './components/ManualWorkspaceDates'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -45,6 +46,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <style>{`a[href="/clients/document-import"]{display:none!important}.dashboard-form-alert{display:none!important}${canAssignClientRecords ? '' : '.intake-group-agent{display:none!important}'}`}</style>
       <ClientDraftGuard />
       <AddressAutoFill />
+      <ManualWorkspaceDates />
       <ClientTextingDock />
       <SoaTextBridge />
       <aside className="sidebar">
