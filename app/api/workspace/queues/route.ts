@@ -13,9 +13,28 @@ function validDate(value: string) {
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
 }
 
+function isLeadsBackgroundRequest(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return false
+  try {
+    return new URL(referer).pathname === '/leads'
+  } catch {
+    return false
+  }
+}
+
 const FIELDS = 'id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at'
 
 export async function GET(request: NextRequest) {
+  // Today/reschedule queues are hidden on /leads. Do not spend a session lookup
+  // and two calendar queries on data that the page never displays.
+  if (isLeadsBackgroundRequest(request)) {
+    return NextResponse.json(
+      { today: [], rescheduled: [] },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    )
+  }
+
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
