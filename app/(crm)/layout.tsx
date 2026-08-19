@@ -4,6 +4,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import ClientDraftGuard from './components/ClientDraftGuard'
 import AddressAutoFill from './components/AddressAutoFill'
+import ClientPhoneAutoFormat from './components/ClientPhoneAutoFormat'
 import ClientTextingDock from './components/ClientTextingDock'
 import SoaTextBridge from './components/SoaTextBridge'
 import NotificationsNavLink from './components/NotificationsNavLink'
@@ -88,6 +89,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       `}</style>
       <ClientDraftGuard />
       <AddressAutoFill />
+      <ClientPhoneAutoFormat />
       <ManualWorkspaceDates />
       <ClientTextingDock />
       <SoaTextBridge />
