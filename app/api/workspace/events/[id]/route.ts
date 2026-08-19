@@ -13,6 +13,10 @@ function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max)
 }
 
+function normalizedName(value: unknown) {
+  return String(value || '').trim().toLowerCase()
+}
+
 function validDate(value: string) {
   if (!DATE_PATTERN.test(value)) return false
   const [y, m, d] = value.split('-').map(Number)
@@ -30,8 +34,9 @@ async function resolveOwner(
   userId: string,
   requestedOwner: string
 ) {
-  if (profile.role !== 'manager') return userId
-  if (!requestedOwner) throw new Error('Choose Justin or Isaiah for this calendar item.')
+  const viewer = normalizedName(profile.full_name)
+  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
+  if (!requestedOwner) throw new Error('Choose Isaiah for this calendar item.')
 
   const { data: target } = await supabase
     .from('profiles')
@@ -42,8 +47,9 @@ async function resolveOwner(
     .in('role', ['admin', 'agent'])
     .maybeSingle()
 
-  const allowed = target && ['justin mayer', 'isaiah hernandez'].includes(String(target.full_name || '').trim().toLowerCase())
-  if (!allowed) throw new Error('Choose Justin or Isaiah for this calendar item.')
+  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') {
+    throw new Error('Calendar access denied.')
+  }
   return target.id
 }
 
@@ -78,6 +84,27 @@ async function loadExisting(id: string) {
     .maybeSingle()
 
   if (!existing) return { error: NextResponse.json({ error: 'Calendar item not found or access denied.' }, { status: 404 }) }
+
+  const viewer = normalizedName(profile.full_name)
+  if (existing.assigned_agent_id !== userId) {
+    if (profile.role !== 'manager' || viewer === 'justin mayer' || viewer === 'isaiah hernandez') {
+      return { error: NextResponse.json({ error: 'Calendar item not found or access denied.' }, { status: 404 }) }
+    }
+
+    const { data: owner } = await supabase
+      .from('profiles')
+      .select('id,full_name')
+      .eq('id', existing.assigned_agent_id)
+      .eq('agency_id', agencyId)
+      .maybeSingle()
+
+    // Manager/coordinator accounts may work Isaiah's calendar only. Justin's
+    // calendar remains private even when an event ID is known directly.
+    if (!owner || normalizedName(owner.full_name) !== 'isaiah hernandez') {
+      return { error: NextResponse.json({ error: 'Calendar item not found or access denied.' }, { status: 404 }) }
+    }
+  }
+
   return { supabase, userId, profile, agencyId, existing }
 }
 
