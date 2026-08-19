@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
+import DashboardCalendar from './DashboardCalendar'
 import { COMPANY_CONTACTS } from '@/lib/company-contacts'
 
 export const dynamic = 'force-dynamic'
@@ -172,13 +172,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
-        <div className="clients-page-heading">
-          <h1>Dashboard</h1>
-          <p className="subtle">Your client database at a glance.</p>
-        </div>
-        <Link prefetch={false} href="/workspace" className="btn btn-primary">WORKSPACE</Link>
+      <div className="clients-page-heading">
+        <h1>Dashboard</h1>
+        <p className="subtle">Your client database at a glance.</p>
       </div>
+
+      <DashboardCalendar agents={targetAgents} viewerName={currentProfile.full_name || ''} />
 
       {isManager ? (
         <section className="dashboard-agent-split" style={{ marginTop: 22 }}>
