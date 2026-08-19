@@ -43,7 +43,49 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="crm-shell">
-      <style>{`a[href="/clients/document-import"]{display:none!important}.dashboard-form-alert{display:none!important}${canAssignClientRecords ? '' : '.intake-group-agent{display:none!important}'}`}</style>
+      <style>{`
+        a[href="/clients/document-import"]{display:none!important}
+        .dashboard-form-alert{display:none!important}
+        ${canAssignClientRecords ? '' : '.intake-group-agent{display:none!important}'}
+
+        .add-client-form>.add-client-save-row,
+        .client-profile-form>.sticky-save-bar{
+          order:-1000;
+          position:sticky!important;
+          top:10px!important;
+          bottom:auto!important;
+          z-index:45;
+          margin:0 0 10px!important;
+          padding:10px 12px!important;
+          min-height:54px;
+          display:flex!important;
+          align-items:center!important;
+          justify-content:flex-end!important;
+          gap:12px!important;
+          background:rgba(255,255,255,.96)!important;
+          border:1px solid #dbe3ec!important;
+          border-radius:12px!important;
+          box-shadow:0 6px 18px rgba(15,23,42,.12)!important;
+          backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px);
+        }
+        .add-client-form>.add-client-save-row .btn,
+        .client-profile-form>.sticky-save-bar .btn{
+          min-width:150px;
+          font-weight:800;
+        }
+        @media(max-width:720px){
+          .add-client-form>.add-client-save-row,
+          .client-profile-form>.sticky-save-bar{
+            top:8px!important;
+            padding:8px!important;
+            min-height:50px;
+          }
+          .client-profile-form>.sticky-save-bar .subtle{display:none!important}
+          .add-client-form>.add-client-save-row .btn,
+          .client-profile-form>.sticky-save-bar .btn{width:100%;min-width:0}
+        }
+      `}</style>
       <ClientDraftGuard />
       <AddressAutoFill />
       <ManualWorkspaceDates />
