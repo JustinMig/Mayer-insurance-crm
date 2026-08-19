@@ -77,7 +77,7 @@ async function resolveReadableOwner(
   return target.id
 }
 
-const FIELDS = 'id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at'
+const FIELDS = 'id,assigned_agent_id,client_id,lead_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at'
 
 export async function GET(request: NextRequest) {
   if (isLeadsBackgroundRequest(request)) {
