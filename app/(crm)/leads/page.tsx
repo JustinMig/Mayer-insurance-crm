@@ -56,6 +56,7 @@ export default async function LeadsPage() {
 
   return (
     <>
+      <style>{`.workspace-heading,.workspace-tabs{display:none!important}.workspace-owner-bar{margin-top:0!important}`}</style>
       <LeadsAutoOpen />
       <WorkspaceLeadCollapseController />
       <WorkspaceClient
