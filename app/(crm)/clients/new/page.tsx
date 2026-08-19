@@ -3,6 +3,9 @@ import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NewClientForm from './NewClientForm'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 type AgentOption = { id: string; full_name: string; role: string }
 
 export default async function NewClientPage() {
@@ -27,6 +30,7 @@ export default async function NewClientPage() {
 
   return (
     <NewClientForm
+      key={`${userId}:${Date.now()}`}
       currentUserId={userId}
       currentUserName={profile.full_name || String(claims.email || 'Agent')}
       currentUserEmail={String(claims.email || '')}
