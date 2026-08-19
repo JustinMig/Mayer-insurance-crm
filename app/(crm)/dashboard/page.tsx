@@ -250,7 +250,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
           <div className="card card-pad stat"><span>Total Clients</span><strong>{dashboardStats[0]?.totalClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Medicare Clients</span><strong>{dashboardStats[0]?.medicareClients || 0}</strong></div>
           <div className="card card-pad stat"><span>Life Clients</span><strong>{dashboardStats[0]?.lifeClients || 0}</strong></div>
-          <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0)}</strong></div>
+          <div className="card card-pad stat"><span>Turning 65 in {currentYear}</span><strong>{dashboardStats[0]?.turning65 || 0}</strong></div>
           <div className="card card-pad stat dashboard-monthly-premium-stat dashboard-premium-combined">
             <div><span>Monthly Premium · {monthNames[currentMonth]} {currentYear}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
             <div className="dashboard-premium-divider"><span>Yearly Total · {currentYear}</span><strong>{money(dashboardStats[0]?.currentYearPremium || 0)}</strong></div>
