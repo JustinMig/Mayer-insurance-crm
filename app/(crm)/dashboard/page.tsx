@@ -57,13 +57,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const isManager = currentProfile.role === 'manager'
-  const isIsaiahPortal = currentProfile.full_name?.trim().toLowerCase() === 'isaiah hernandez'
+  const viewerName = currentProfile.full_name?.trim().toLowerCase() || ''
+  const isIsaiahPortal = viewerName === 'isaiah hernandez'
+  const isCalendarCoordinator = isManager && !['justin mayer', 'isaiah hernandez'].includes(viewerName)
   const params = searchParams ? await searchParams : {}
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth()
   const requestedYear = Number(Array.isArray(params.premium_year) ? params.premium_year[0] : params.premium_year)
   const requestedMonth = Number(Array.isArray(params.premium_month) ? params.premium_month[0] : params.premium_month)
+  const requestedCalendarAgent = String(Array.isArray(params.calendar_agent) ? params.calendar_agent[0] : params.calendar_agent || '')
   const selectedPremiumYear = isIsaiahPortal && Number.isInteger(requestedYear) && requestedYear >= 2020 && requestedYear <= currentYear + 1 ? requestedYear : currentYear
   const selectedPremiumMonth = isIsaiahPortal && Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12 ? requestedMonth - 1 : currentMonth
   const turn65Year = currentYear - 65
@@ -90,6 +93,19 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       full_name: currentProfile.full_name || 'Agent',
       role: currentProfile.role
     }]
+  }
+
+  let calendarAgents = targetAgents
+  let activeCalendarAgentId = ''
+
+  if (isCalendarCoordinator && targetAgents.length) {
+    const selectedAgent = targetAgents.find((agent) => agent.id === requestedCalendarAgent) || targetAgents[0]
+    activeCalendarAgentId = selectedAgent.id
+    calendarAgents = [selectedAgent]
+
+    if (requestedCalendarAgent !== selectedAgent.id) {
+      redirect(`/dashboard?calendar_agent=${encodeURIComponent(selectedAgent.id)}`)
+    }
   }
 
   const targetAgentIds = targetAgents.map((agent) => agent.id)
@@ -177,7 +193,28 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <p className="subtle">Your client database at a glance.</p>
       </div>
 
-      <DashboardCalendar agents={targetAgents} viewerName={currentProfile.full_name || ''} />
+      {isCalendarCoordinator && targetAgents.length > 1 ? (
+        <div className="dashboard-calendar-agent-switcher" aria-label="Choose agent calendar">
+          {targetAgents.map((agent) => {
+            const active = agent.id === activeCalendarAgentId
+            const firstName = agent.full_name.split(' ')[0]
+            return (
+              <a
+                key={agent.id}
+                href={`/dashboard?calendar_agent=${encodeURIComponent(agent.id)}`}
+                className={`dashboard-calendar-agent-button ${active ? 'active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                {firstName}
+              </a>
+            )
+          })}
+        </div>
+      ) : null}
+
+      <div className={isCalendarCoordinator ? 'dashboard-calendar-coordinator-view' : undefined}>
+        <DashboardCalendar agents={calendarAgents} viewerName={currentProfile.full_name || ''} />
+      </div>
 
       {isManager ? (
         <section className="dashboard-agent-split" style={{ marginTop: 22 }}>
@@ -251,6 +288,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         .dashboard-premium-combined>div{display:grid;gap:4px}
         .dashboard-premium-divider{border-top:1px solid rgba(255,255,255,.28);padding-top:12px}
         .dashboard-premium-combined strong{font-size:1.3rem}
+        .dashboard-calendar-agent-switcher{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:430px;margin:18px 0 -8px;position:relative;z-index:2}
+        .dashboard-calendar-agent-button{display:flex;align-items:center;justify-content:center;min-height:42px;border:1px solid #cbd5e1;border-radius:11px;background:#f8fafc;color:#334155;font-weight:900;text-decoration:none;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+        .dashboard-calendar-agent-button.active{background:#18324a;border-color:#18324a;color:#fff;box-shadow:0 4px 12px rgba(24,50,74,.2)}
+        .dashboard-calendar-agent-button:active{transform:translateY(1px)}
+        .dashboard-calendar-coordinator-view .dashboard-calendar-legend{display:none!important}
+        @media(max-width:720px){.dashboard-calendar-agent-switcher{max-width:none;margin-top:14px}.dashboard-calendar-agent-button{min-height:44px}}
       `}</style>
     </>
   )
