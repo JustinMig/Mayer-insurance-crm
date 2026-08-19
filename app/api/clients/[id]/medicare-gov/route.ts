@@ -33,17 +33,18 @@ function clean(value: unknown, max = 500) {
 
 async function assertClientAccess(clientId: string) {
   const session = await getCrmSession()
-  if (!session.profile?.agency_id) throw new Error('Not authorized.')
+  const agencyId = session.profile?.agency_id
+  if (!agencyId) throw new Error('Not authorized.')
 
   const { data: client, error } = await session.supabase
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('agency_id', session.profile.agency_id)
+    .eq('agency_id', agencyId)
     .maybeSingle()
 
   if (error || !client) throw new Error('Client not found or access denied.')
-  return session
+  return { ...session, agencyId }
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Params }) {
@@ -75,7 +76,7 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
 export async function POST(request: NextRequest, { params }: { params: Params }) {
   try {
     const { id: clientId } = await params
-    const { supabase, userId, profile } = await assertClientAccess(clientId)
+    const { supabase, userId, agencyId } = await assertClientAccess(clientId)
     const body = await request.json().catch(() => ({})) as Record<string, unknown>
     const action = clean(body.action, 20).toLowerCase()
 
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
 
       const value = decryptValue(ciphertext)
       await supabase.from('audit_log').insert({
-        agency_id: profile.agency_id,
+        agency_id: agencyId,
         actor_id: userId,
         client_id: clientId,
         action: 'sensitive.revealed',
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       if (error) return noStoreJson({ error: 'Unable to save Medicare.gov information.' }, 400)
     } else if (Object.values(next).some(Boolean)) {
       const { error } = await supabase.from('medicare_info').insert({
-        agency_id: profile.agency_id,
+        agency_id: agencyId,
         client_id: clientId,
         ...next
       })
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
 
     if (changedFields.length) {
       await supabase.from('audit_log').insert({
-        agency_id: profile.agency_id,
+        agency_id: agencyId,
         actor_id: userId,
         client_id: clientId,
         action: 'medicare_gov.credentials_updated',
