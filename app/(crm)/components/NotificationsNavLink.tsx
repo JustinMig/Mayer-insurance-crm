@@ -47,7 +47,10 @@ function startSharedPolling() {
   if (typeof window === 'undefined') return
   if (!pollTimer) {
     void refreshUnread()
-    pollTimer = window.setInterval(() => void refreshUnread(), 15_000)
+    // A one-minute background cadence keeps the badge current without making
+    // four unnecessary server/database checks every minute. Focus/visibility
+    // events still refresh immediately when the user returns to the CRM.
+    pollTimer = window.setInterval(() => void refreshUnread(), 60_000)
   }
   if (!eventsAttached) {
     document.addEventListener('visibilitychange', onVisibleOrFocus)
