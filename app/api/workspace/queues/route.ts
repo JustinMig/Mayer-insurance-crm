@@ -23,11 +23,19 @@ function isLeadsBackgroundRequest(request: NextRequest) {
   }
 }
 
+function calendarAgentFromReferer(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return ''
+  try {
+    return String(new URL(referer).searchParams.get('calendar_agent') || '').trim().slice(0, 100)
+  } catch {
+    return ''
+  }
+}
+
 const FIELDS = 'id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at'
 
 export async function GET(request: NextRequest) {
-  // Today/reschedule queues are hidden on /leads. Do not spend a session lookup
-  // and two calendar queries on data that the page never displays.
   if (isLeadsBackgroundRequest(request)) {
     return NextResponse.json(
       { today: [], rescheduled: [] },
@@ -41,22 +49,33 @@ export async function GET(request: NextRequest) {
   const date = String(request.nextUrl.searchParams.get('date') || '').trim()
   if (!validDate(date)) return NextResponse.json({ error: 'Invalid date.' }, { status: 400 })
 
+  const selectedCalendarAgent = profile.role === 'manager' ? calendarAgentFromReferer(request) : ''
+
+  let todayQuery = supabase
+    .from('workspace_calendar_events')
+    .select(FIELDS)
+    .eq('agency_id', profile.agency_id)
+    .eq('event_type', 'appointment')
+    .eq('event_date', date)
+    .eq('status', 'scheduled')
+
+  let rescheduledQuery = supabase
+    .from('workspace_calendar_events')
+    .select(FIELDS)
+    .eq('agency_id', profile.agency_id)
+    .eq('event_type', 'appointment')
+    .eq('status', 'needs_reschedule')
+
+  if (selectedCalendarAgent) {
+    todayQuery = todayQuery.eq('assigned_agent_id', selectedCalendarAgent)
+    rescheduledQuery = rescheduledQuery.eq('assigned_agent_id', selectedCalendarAgent)
+  }
+
   const [todayResult, rescheduledResult] = await Promise.all([
-    supabase
-      .from('workspace_calendar_events')
-      .select(FIELDS)
-      .eq('agency_id', profile.agency_id)
-      .eq('event_type', 'appointment')
-      .eq('event_date', date)
-      .eq('status', 'scheduled')
+    todayQuery
       .order('start_time', { ascending: true, nullsFirst: true })
       .limit(300),
-    supabase
-      .from('workspace_calendar_events')
-      .select(FIELDS)
-      .eq('agency_id', profile.agency_id)
-      .eq('event_type', 'appointment')
-      .eq('status', 'needs_reschedule')
+    rescheduledQuery
       .order('reschedule_requested_at', { ascending: false, nullsFirst: false })
       .limit(300)
   ])
