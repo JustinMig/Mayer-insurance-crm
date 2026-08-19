@@ -13,8 +13,8 @@ export async function GET() {
       theme_color: '#2556a8',
       icons: [
         {
-          src: '/mayer-leads-icon-v4.png',
-          sizes: '512x512',
+          src: '/mayer-leads-brand-v6-192.png',
+          sizes: '192x192',
           type: 'image/png',
           purpose: 'any'
         }
