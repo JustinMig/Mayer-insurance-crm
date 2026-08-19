@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 const TYPES = new Set(['appointment', 'activity'])
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+const EVENT_FIELDS = 'id,assigned_agent_id,client_id,lead_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at'
 
 function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max)
@@ -133,6 +134,24 @@ async function resolveClient(
   return client.id
 }
 
+async function resolveLead(
+  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
+  agencyId: string,
+  ownerId: string,
+  requestedLead: string
+) {
+  if (!requestedLead) return null
+  const { data: lead } = await supabase
+    .from('workspace_leads')
+    .select('id,status')
+    .eq('id', requestedLead)
+    .eq('agency_id', agencyId)
+    .eq('assigned_agent_id', ownerId)
+    .maybeSingle()
+  if (!lead || lead.status !== 'lead') throw new Error('That lead is not an active lead for the selected agent.')
+  return lead.id
+}
+
 export async function GET(request: NextRequest) {
   if (isLeadsBackgroundRequest(request)) {
     return NextResponse.json({ events: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -158,7 +177,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('workspace_calendar_events')
-    .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
+    .select(EVENT_FIELDS)
     .eq('agency_id', profile.agency_id)
     .eq('assigned_agent_id', readableOwnerId)
     .gte('event_date', from)
@@ -183,15 +202,19 @@ export async function POST(request: NextRequest) {
     const startTime = cleanText(body.start_time, 5)
     const endTime = cleanText(body.end_time, 5)
     const notes = cleanText(body.notes, 5000)
+    const requestedClient = cleanText(body.client_id, 100)
+    const requestedLead = cleanText(body.lead_id, 100)
 
     if (!title) return NextResponse.json({ error: 'Enter a title.' }, { status: 400 })
     if (!TYPES.has(eventType)) return NextResponse.json({ error: 'Choose Appointment or Activity.' }, { status: 400 })
     if (!validDate(eventDate)) return NextResponse.json({ error: 'Choose a valid date.' }, { status: 400 })
     if (!validTime(startTime) || !validTime(endTime)) return NextResponse.json({ error: 'Enter a valid time.' }, { status: 400 })
     if (startTime && endTime && endTime < startTime) return NextResponse.json({ error: 'End time cannot be before start time.' }, { status: 400 })
+    if (requestedClient && requestedLead) return NextResponse.json({ error: 'Tag either a client or a lead, not both.' }, { status: 400 })
 
     const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
-    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, cleanText(body.client_id, 100))
+    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, requestedClient)
+    const leadId = await resolveLead(supabase, profile.agency_id, ownerId, requestedLead)
     const { data, error } = await supabase
       .from('workspace_calendar_events')
       .insert({
@@ -199,6 +222,7 @@ export async function POST(request: NextRequest) {
         assigned_agent_id: ownerId,
         created_by: userId,
         client_id: clientId,
+        lead_id: leadId,
         title,
         event_type: eventType,
         event_date: eventDate,
@@ -207,7 +231,7 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         status: 'scheduled'
       })
-      .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
+      .select(EVENT_FIELDS)
       .single()
 
     if (error || !data) return NextResponse.json({ error: error?.message || 'Unable to save calendar item.' }, { status: 400 })
@@ -217,7 +241,7 @@ export async function POST(request: NextRequest) {
       actor_id: userId,
       client_id: clientId,
       action: 'workspace.calendar_created',
-      details: { event_id: data.id, assigned_agent_id: ownerId, event_type: eventType, event_date: eventDate }
+      details: { event_id: data.id, assigned_agent_id: ownerId, event_type: eventType, event_date: eventDate, lead_id: leadId }
     })
 
     return NextResponse.json({ event: data })
