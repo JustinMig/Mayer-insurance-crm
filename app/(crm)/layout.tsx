@@ -51,6 +51,29 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .dashboard-form-alert{display:none!important}
         ${canAssignClientRecords ? '' : '.intake-group-agent{display:none!important}'}
 
+        .nav>a[href="/dashboard"]{background:#1d4ed8!important;color:#fff!important;box-shadow:inset 4px 0 0 #93c5fd}
+        .nav>a[href="/leads"]{background:#15803d!important;color:#fff!important;box-shadow:inset 4px 0 0 #86efac}
+        .nav>a[href="/fex-quotes"]{background:#7e22ce!important;color:#fff!important;box-shadow:inset 4px 0 0 #d8b4fe}
+        .nav>a[href="/clients/new"]{background:#ea580c!important;color:#fff!important;box-shadow:inset 4px 0 0 #fdba74}
+        .nav>a[href="/clients"]{background:#0f766e!important;color:#fff!important;box-shadow:inset 4px 0 0 #99f6e4}
+        .nav>a[href="/notifications"]{background:#ca8a04!important;color:#fff!important;box-shadow:inset 4px 0 0 #fde68a}
+        .nav .nav-signout{background:#b91c1c!important;color:#fff!important;box-shadow:inset 4px 0 0 #fca5a5}
+        .nav>a[href="/dashboard"]:hover{background:#1e40af!important;color:#fff!important}
+        .nav>a[href="/leads"]:hover{background:#166534!important;color:#fff!important}
+        .nav>a[href="/fex-quotes"]:hover{background:#6b21a8!important;color:#fff!important}
+        .nav>a[href="/clients/new"]:hover{background:#c2410c!important;color:#fff!important}
+        .nav>a[href="/clients"]:hover{background:#115e59!important;color:#fff!important}
+        .nav>a[href="/notifications"]:hover{background:#a16207!important;color:#fff!important}
+        .nav .nav-signout:hover{background:#991b1b!important;color:#fff!important}
+
+        .mobile-nav>a[href="/dashboard"]{background:#dbeafe!important;color:#1e3a8a!important;border-top:4px solid #2563eb}
+        .mobile-nav>a[href="/leads"]{background:#dcfce7!important;color:#14532d!important;border-top:4px solid #16a34a}
+        .mobile-nav>a[href="/fex-quotes"]{background:#f3e8ff!important;color:#581c87!important;border-top:4px solid #9333ea}
+        .mobile-nav>a[href="/clients/new"]{background:#ffedd5!important;color:#7c2d12!important;border-top:4px solid #ea580c}
+        .mobile-nav>a[href="/clients"]{background:#ccfbf1!important;color:#134e4a!important;border-top:4px solid #0f766e}
+        .mobile-nav>a[href="/notifications"]{background:#fef3c7!important;color:#78350f!important;border-top:4px solid #d97706}
+        .mobile-nav .mobile-signout{background:#fee2e2!important;color:#7f1d1d!important;border-top:4px solid #dc2626}
+
         .add-client-form>.add-client-save-row,
         .client-profile-form>.sticky-save-bar{
           order:-1000;
