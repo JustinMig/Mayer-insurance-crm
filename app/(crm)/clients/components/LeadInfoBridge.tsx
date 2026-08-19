@@ -125,22 +125,26 @@ export default function LeadInfoBridge() {
   useEffect(() => {
     if (!pathname.startsWith('/leads') && !pathname.startsWith('/workspace')) return
 
+    const helpText = 'Take a picture, choose an image, or upload a PDF. JPG, PNG, HEIC, HEIF, or PDF up to 10 MB.'
+    const accepted = 'image/*,.jpg,.jpeg,.png,.heic,.heif,.pdf,application/pdf'
+
     const adaptLeadFileUi = () => {
       document.querySelectorAll<HTMLElement>('.workspace-photo-box').forEach(box => {
         const heading = box.querySelector('strong')
         const help = box.querySelector('p.subtle')
         const input = box.querySelector<HTMLInputElement>('input[type="file"]')
         const uploadLabel = box.querySelector<HTMLLabelElement>('label[for="workspace-lead-photo-input"]')
-        if (heading) heading.textContent = 'Lead file'
-        if (help) help.textContent = 'Take a picture, choose an image, or upload a PDF. JPG, PNG, HEIC, HEIF, or PDF up to 10 MB.'
+        if (heading && heading.textContent !== 'Lead file') heading.textContent = 'Lead file'
+        if (help && help.textContent !== helpText) help.textContent = helpText
         if (input) {
-          input.accept = 'image/*,.jpg,.jpeg,.png,.heic,.heif,.pdf,application/pdf'
-          input.removeAttribute('capture')
+          if (input.accept !== accepted) input.accept = accepted
+          if (input.hasAttribute('capture')) input.removeAttribute('capture')
         }
-        if (uploadLabel) uploadLabel.textContent = '📎 TAKE PHOTO / UPLOAD FILE'
+        if (uploadLabel && uploadLabel.textContent !== '📎 TAKE PHOTO / UPLOAD FILE') uploadLabel.textContent = '📎 TAKE PHOTO / UPLOAD FILE'
         box.querySelectorAll<HTMLElement>('a,button').forEach(item => {
-          if ((item.textContent || '').includes('VIEW CURRENT PHOTO')) item.textContent = 'VIEW CURRENT FILE'
-          if ((item.textContent || '').includes('REMOVE PHOTO')) item.textContent = 'REMOVE FILE'
+          const text = item.textContent || ''
+          if (text.includes('VIEW CURRENT PHOTO')) item.textContent = 'VIEW CURRENT FILE'
+          if (text.includes('REMOVE PHOTO')) item.textContent = 'REMOVE FILE'
         })
       })
 
