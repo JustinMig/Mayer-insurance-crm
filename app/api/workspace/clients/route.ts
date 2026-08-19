@@ -1,10 +1,27 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+function isLeadsBackgroundRequest(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return false
+  try {
+    return new URL(referer).pathname === '/leads'
+  } catch {
+    return false
+  }
+}
+
+export async function GET(request: NextRequest) {
+  // The dedicated Leads page reuses the legacy Workspace client component but
+  // hides all calendar/client-picker UI. Return immediately so that hidden UI
+  // does not trigger a database/session lookup every time Leads opens.
+  if (isLeadsBackgroundRequest(request)) {
+    return NextResponse.json({ clients: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+  }
+
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
