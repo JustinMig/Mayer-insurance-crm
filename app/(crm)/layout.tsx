@@ -9,6 +9,7 @@ import ClientTextingDock from './components/ClientTextingDock'
 import SoaTextBridge from './components/SoaTextBridge'
 import NotificationsNavLink from './components/NotificationsNavLink'
 import ManualWorkspaceDates from './components/ManualWorkspaceDates'
+import LeadInfoBridge from './clients/components/LeadInfoBridge'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -91,6 +92,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <AddressAutoFill />
       <ClientPhoneAutoFormat />
       <ManualWorkspaceDates />
+      <LeadInfoBridge />
       <ClientTextingDock />
       <SoaTextBridge />
       <aside className="sidebar">
