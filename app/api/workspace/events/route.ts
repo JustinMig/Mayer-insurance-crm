@@ -33,6 +33,16 @@ function isLeadsBackgroundRequest(request: NextRequest) {
   }
 }
 
+function calendarAgentFromReferer(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return ''
+  try {
+    return cleanText(new URL(referer).searchParams.get('calendar_agent'), 100)
+  } catch {
+    return ''
+  }
+}
+
 async function resolveOwner(
   supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
   profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
@@ -75,8 +85,6 @@ async function resolveClient(
 }
 
 export async function GET(request: NextRequest) {
-  // Calendar data is hidden on the dedicated Leads page. Avoid the session and
-  // database work while preserving the shared Workspace component unchanged.
   if (isLeadsBackgroundRequest(request)) {
     return NextResponse.json({ events: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
@@ -92,12 +100,18 @@ export async function GET(request: NextRequest) {
   const toDate = new Date(`${to}T00:00:00Z`)
   if ((toDate.getTime() - fromDate.getTime()) / 86400000 > 370) return NextResponse.json({ error: 'Calendar range is too large.' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const selectedCalendarAgent = profile.role === 'manager' ? calendarAgentFromReferer(request) : ''
+
+  let query = supabase
     .from('workspace_calendar_events')
     .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
     .eq('agency_id', profile.agency_id)
     .gte('event_date', from)
     .lte('event_date', to)
+
+  if (selectedCalendarAgent) query = query.eq('assigned_agent_id', selectedCalendarAgent)
+
+  const { data, error } = await query
     .order('event_date', { ascending: true })
     .order('start_time', { ascending: true, nullsFirst: true })
     .limit(1000)
