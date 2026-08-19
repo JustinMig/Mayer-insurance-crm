@@ -6,15 +6,15 @@ export async function GET() {
       name: 'Mayer Leads',
       short_name: 'Leads',
       description: 'Quick lead entry for Mayer CRM',
-      start_url: '/leads',
+      start_url: '/leads?new=1',
       scope: '/',
       display: 'standalone',
-      background_color: '#f7f3ea',
-      theme_color: '#0b1f3a',
+      background_color: '#ffffff',
+      theme_color: '#2556a8',
       icons: [
         {
-          src: '/mayer-leads-icon-v3.png',
-          sizes: '180x180',
+          src: '/mayer-leads-icon-v4.png',
+          sizes: '512x512',
           type: 'image/png',
           purpose: 'any'
         }
