@@ -58,6 +58,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
 
   const isManager = currentProfile.role === 'manager'
   const viewerName = currentProfile.full_name?.trim().toLowerCase() || ''
+  const isJustinPortal = viewerName === 'justin mayer'
   const isIsaiahPortal = viewerName === 'isaiah hernandez'
   const isCalendarCoordinator = isManager && !['justin mayer', 'isaiah hernandez'].includes(viewerName)
   const params = searchParams ? await searchParams : {}
@@ -95,11 +96,18 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     }]
   }
 
-  let calendarAgents = targetAgents
-  let activeCalendarAgentId = ''
+  // Justin's calendar is private. Only Justin can receive Justin as a calendar
+  // choice. Managers/coordinators such as Shenna can work Isaiah's calendar,
+  // but Justin never appears in their calendar selector or calendar data.
+  const calendarAvailableAgents = isJustinPortal
+    ? targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() === 'justin mayer')
+    : targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() !== 'justin mayer')
 
-  if (isCalendarCoordinator && targetAgents.length) {
-    const selectedAgent = targetAgents.find((agent) => agent.id === requestedCalendarAgent) || targetAgents[0]
+  let calendarAgents = calendarAvailableAgents
+  let activeCalendarAgentId = calendarAvailableAgents[0]?.id || ''
+
+  if (isCalendarCoordinator && calendarAvailableAgents.length) {
+    const selectedAgent = calendarAvailableAgents.find((agent) => agent.id === requestedCalendarAgent) || calendarAvailableAgents[0]
     activeCalendarAgentId = selectedAgent.id
     calendarAgents = [selectedAgent]
 
@@ -193,9 +201,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <p className="subtle">Your client database at a glance.</p>
       </div>
 
-      {isCalendarCoordinator && targetAgents.length > 1 ? (
+      {isCalendarCoordinator && calendarAvailableAgents.length > 1 ? (
         <div className="dashboard-calendar-agent-switcher" aria-label="Choose agent calendar">
-          {targetAgents.map((agent) => {
+          {calendarAvailableAgents.map((agent) => {
             const active = agent.id === activeCalendarAgentId
             const firstName = agent.full_name.split(' ')[0]
             return (
