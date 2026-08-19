@@ -9,6 +9,7 @@ import ClientTextingDock from './components/ClientTextingDock'
 import SoaTextBridge from './components/SoaTextBridge'
 import NotificationsNavLink from './components/NotificationsNavLink'
 import ManualWorkspaceDates from './components/ManualWorkspaceDates'
+import AppointmentFormStyler from './components/AppointmentFormStyler'
 import LeadInfoBridge from './clients/components/LeadInfoBridge'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -92,6 +93,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <AddressAutoFill />
       <ClientPhoneAutoFormat />
       <ManualWorkspaceDates />
+      <AppointmentFormStyler />
       <LeadInfoBridge />
       <ClientTextingDock />
       <SoaTextBridge />
