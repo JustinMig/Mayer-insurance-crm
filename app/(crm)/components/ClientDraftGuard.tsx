@@ -17,7 +17,7 @@ type ClientDraft = {
   dirty: boolean
 }
 
-const ACTIVE_CLIENT_KEY = 'crm-active-client-id'
+const NEW_CLIENT_RESET_KEY = 'crm-reset-new-client-form'
 const SENSITIVE_FIELD_PATTERN = /(ssn|drivers_license|medicare_number|medicaid_number|member_id|routing_number|account_number|debit_card|bank_)/i
 
 function isPersistableControl(element: Element): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
@@ -98,28 +98,23 @@ export default function ClientDraftGuard() {
   const draftKeyRef = useRef('')
   const afterSaveKeyRef = useRef('')
 
-  // Make CLIENT RECORDS behave like returning to an open workspace. If a client
-  // is still active, tapping Records from Dashboard/FEX brings that client back.
   useEffect(() => {
-    const onRecordsClick = (event: MouseEvent) => {
-      if (pathname.match(/^\/clients\/[^/]+$/)) return
-      const target = event.target as Element | null
-      const link = target?.closest<HTMLAnchorElement>('a[href="/clients"]')
-      if (!link) return
+    // After a new client is successfully created, force the next New Client
+    // screen to start from a completely fresh browser/React state. This avoids
+    // Safari/iOS back-forward cache or route restoration carrying any prior
+    // client's fields or staged file state into the next client.
+    if (pathname === '/clients/new') {
+      setShowPrompt(false)
+      formRef.current = null
+      dirtyRef.current = false
 
-      const activeClientId = sessionStorage.getItem(ACTIVE_CLIENT_KEY)
-      if (!activeClientId) return
-
-      event.preventDefault()
-      event.stopPropagation()
-      router.push(`/clients/${activeClientId}`)
+      if (sessionStorage.getItem(NEW_CLIENT_RESET_KEY) === '1') {
+        sessionStorage.removeItem(NEW_CLIENT_RESET_KEY)
+        window.location.reload()
+      }
+      return
     }
 
-    document.addEventListener('click', onRecordsClick, true)
-    return () => document.removeEventListener('click', onRecordsClick, true)
-  }, [pathname, router])
-
-  useEffect(() => {
     const match = pathname.match(/^\/clients\/([^/]+)$/)
     if (!match) {
       setShowPrompt(false)
@@ -129,7 +124,9 @@ export default function ClientDraftGuard() {
     }
 
     const clientId = match[1]
-    sessionStorage.setItem(ACTIVE_CLIENT_KEY, clientId)
+    if (searchParams.get('created') === '1') {
+      sessionStorage.setItem(NEW_CLIENT_RESET_KEY, '1')
+    }
 
     const draftKey = `crm-client-draft:${clientId}`
     const afterSaveKey = `crm-client-save-to-search:${clientId}`
@@ -140,7 +137,6 @@ export default function ClientDraftGuard() {
     if (searchParams.get('updated') === '1' && savedToSearch) {
       sessionStorage.removeItem(afterSaveKey)
       sessionStorage.removeItem(draftKey)
-      sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
       router.replace('/clients')
       return
     }
@@ -178,13 +174,11 @@ export default function ClientDraftGuard() {
     const onSubmit = () => {
       if (timer) clearTimeout(timer)
       sessionStorage.removeItem(draftKey)
-      sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
       dirtyRef.current = false
     }
     const onBackToSearch = (event: MouseEvent) => {
       if (!dirtyRef.current) {
         sessionStorage.removeItem(draftKey)
-        sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
         return
       }
       event.preventDefault()
@@ -195,6 +189,17 @@ export default function ClientDraftGuard() {
 
     const attach = (form: HTMLFormElement) => {
       if (disposed || attachedForm === form) return
+
+      // Defense against dynamic-route/browser-cache reuse. Never allow a form
+      // rendered for one client ID to stay attached while the URL points at a
+      // different client. Reloading remounts every uncontrolled field cleanly.
+      const formClientId = (form.elements.namedItem('client_id') as HTMLInputElement | null)?.value || ''
+      if (formClientId && formClientId !== clientId) {
+        sessionStorage.removeItem(draftKey)
+        window.location.reload()
+        return
+      }
+
       attachedForm = form
       formRef.current = form
 
@@ -274,7 +279,6 @@ export default function ClientDraftGuard() {
   function discardAndSearch() {
     if (draftKeyRef.current) sessionStorage.removeItem(draftKeyRef.current)
     if (afterSaveKeyRef.current) sessionStorage.removeItem(afterSaveKeyRef.current)
-    sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
     dirtyRef.current = false
     setShowPrompt(false)
     router.push('/clients')
@@ -284,7 +288,6 @@ export default function ClientDraftGuard() {
     const form = formRef.current
     if (!form) return
     if (afterSaveKeyRef.current) sessionStorage.setItem(afterSaveKeyRef.current, '1')
-    sessionStorage.removeItem(ACTIVE_CLIENT_KEY)
     setShowPrompt(false)
     form.requestSubmit()
   }
