@@ -23,6 +23,10 @@ function validTime(value: string) {
   return !value || TIME_PATTERN.test(value)
 }
 
+function normalizedName(value: unknown) {
+  return String(value || '').trim().toLowerCase()
+}
+
 function isLeadsBackgroundRequest(request: NextRequest) {
   const referer = request.headers.get('referer')
   if (!referer) return false
@@ -43,14 +47,58 @@ function calendarAgentFromReferer(request: NextRequest) {
   }
 }
 
+async function resolveReadableOwner(
+  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
+  profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
+  userId: string,
+  requestedOwner: string
+) {
+  const viewer = normalizedName(profile.full_name)
+
+  // Justin and Isaiah only read their own calendars. All other non-managers also
+  // remain limited to their own assigned calendar.
+  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
+
+  let target = null as { id: string; full_name: string | null } | null
+
+  if (requestedOwner) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id,full_name')
+      .eq('id', requestedOwner)
+      .eq('agency_id', profile.agency_id)
+      .eq('active', true)
+      .in('role', ['admin', 'agent'])
+      .maybeSingle()
+    target = data as { id: string; full_name: string | null } | null
+  } else {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id,full_name')
+      .eq('agency_id', profile.agency_id)
+      .eq('active', true)
+      .in('role', ['admin', 'agent'])
+      .ilike('full_name', 'Isaiah Hernandez')
+      .maybeSingle()
+    target = data as { id: string; full_name: string | null } | null
+  }
+
+  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') {
+    throw new Error('Calendar access denied.')
+  }
+
+  return target.id
+}
+
 async function resolveOwner(
   supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
   profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
   userId: string,
   requestedOwner: string
 ) {
-  if (profile.role !== 'manager') return userId
-  if (!requestedOwner) throw new Error('Choose Justin or Isaiah for this calendar item.')
+  const viewer = normalizedName(profile.full_name)
+  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
+  if (!requestedOwner) throw new Error('Choose Isaiah for this calendar item.')
 
   const { data: target } = await supabase
     .from('profiles')
@@ -61,8 +109,9 @@ async function resolveOwner(
     .in('role', ['admin', 'agent'])
     .maybeSingle()
 
-  const allowed = target && ['justin mayer', 'isaiah hernandez'].includes(String(target.full_name || '').trim().toLowerCase())
-  if (!allowed) throw new Error('Choose Justin or Isaiah for this calendar item.')
+  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') {
+    throw new Error('Calendar access denied.')
+  }
   return target.id
 }
 
@@ -89,7 +138,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ events: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
-  const { supabase, profile } = await getCrmSession()
+  const { supabase, userId, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const from = cleanText(request.nextUrl.searchParams.get('from'), 10)
@@ -100,18 +149,20 @@ export async function GET(request: NextRequest) {
   const toDate = new Date(`${to}T00:00:00Z`)
   if ((toDate.getTime() - fromDate.getTime()) / 86400000 > 370) return NextResponse.json({ error: 'Calendar range is too large.' }, { status: 400 })
 
-  const selectedCalendarAgent = profile.role === 'manager' ? calendarAgentFromReferer(request) : ''
+  let readableOwnerId = ''
+  try {
+    readableOwnerId = await resolveReadableOwner(supabase, profile, userId, calendarAgentFromReferer(request))
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Calendar access denied.' }, { status: 403 })
+  }
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('workspace_calendar_events')
     .select('id,assigned_agent_id,client_id,title,event_type,event_date,start_time,end_time,notes,status,completed_at,reschedule_note,reschedule_requested_at,created_at,updated_at')
     .eq('agency_id', profile.agency_id)
+    .eq('assigned_agent_id', readableOwnerId)
     .gte('event_date', from)
     .lte('event_date', to)
-
-  if (selectedCalendarAgent) query = query.eq('assigned_agent_id', selectedCalendarAgent)
-
-  const { data, error } = await query
     .order('event_date', { ascending: true })
     .order('start_time', { ascending: true, nullsFirst: true })
     .limit(1000)
