@@ -6,15 +6,15 @@ export const dynamic = 'force-dynamic'
 
 const BUCKET = 'client-documents'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/heif'])
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'application/pdf'])
 type Params = Promise<{ id: string }>
 
 function safeFileName(name: string) {
-  const cleaned = String(name || 'lead-photo')
+  const cleaned = String(name || 'lead-file')
     .normalize('NFKD')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/^_+|_+$/g, '')
-  return cleaned.slice(0, 120) || 'lead-photo'
+  return cleaned.slice(0, 120) || 'lead-file'
 }
 
 function mimeFromName(name: string) {
@@ -23,6 +23,7 @@ function mimeFromName(name: string) {
   if (lower.endsWith('.png')) return 'image/png'
   if (lower.endsWith('.heic')) return 'image/heic'
   if (lower.endsWith('.heif')) return 'image/heif'
+  if (lower.endsWith('.pdf')) return 'application/pdf'
   return ''
 }
 
@@ -47,10 +48,10 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
   const context = await loadLead(id)
   if ('error' in context) return context.error
   const { supabase, lead } = context
-  if (!lead.photo_storage_path) return NextResponse.json({ error: 'No photo is attached to this lead.' }, { status: 404 })
+  if (!lead.photo_storage_path) return NextResponse.json({ error: 'No file is attached to this lead.' }, { status: 404 })
 
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(lead.photo_storage_path, 120)
-  if (error || !data?.signedUrl) return NextResponse.json({ error: error?.message || 'Unable to open lead photo.' }, { status: 400 })
+  if (error || !data?.signedUrl) return NextResponse.json({ error: error?.message || 'Unable to open lead file.' }, { status: 400 })
   return NextResponse.redirect(data.signedUrl)
 }
 
@@ -63,14 +64,14 @@ export async function POST(request: NextRequest, { params }: { params: Params })
     if (lead.status !== 'lead') return NextResponse.json({ error: 'This lead is already a client record.' }, { status: 400 })
 
     const bytes = new Uint8Array(await request.arrayBuffer())
-    if (!bytes.byteLength) return NextResponse.json({ error: 'The selected image is empty.' }, { status: 400 })
-    if (bytes.byteLength > MAX_FILE_SIZE) return NextResponse.json({ error: 'Maximum image size is 10 MB.' }, { status: 413 })
+    if (!bytes.byteLength) return NextResponse.json({ error: 'The selected file is empty.' }, { status: 400 })
+    if (bytes.byteLength > MAX_FILE_SIZE) return NextResponse.json({ error: 'Maximum file size is 10 MB.' }, { status: 413 })
 
-    const originalName = safeFileName(request.nextUrl.searchParams.get('file_name') || 'lead-photo.jpg')
+    const originalName = safeFileName(request.nextUrl.searchParams.get('file_name') || 'lead-file')
     const headerType = String(request.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
     const contentType = headerType === 'application/octet-stream' ? mimeFromName(originalName) : headerType || mimeFromName(originalName)
     if (!ALLOWED_TYPES.has(contentType)) {
-      return NextResponse.json({ error: 'Use a JPG, PNG, HEIC, or HEIF image.' }, { status: 415 })
+      return NextResponse.json({ error: 'Use a JPG, PNG, HEIC, HEIF, or PDF file.' }, { status: 415 })
     }
 
     const storagePath = `${profile.agency_id}/${lead.id}/${crypto.randomUUID()}-${originalName}`
@@ -104,13 +105,13 @@ export async function POST(request: NextRequest, { params }: { params: Params })
       agency_id: profile.agency_id,
       actor_id: userId,
       client_id: null,
-      action: 'workspace.lead_photo_uploaded',
-      details: { lead_id: lead.id, file_name: originalName }
+      action: 'workspace.lead_file_uploaded',
+      details: { lead_id: lead.id, file_name: originalName, mime_type: contentType }
     })
 
-    return NextResponse.json({ uploaded: true, file_name: originalName, uploaded_at: now })
+    return NextResponse.json({ uploaded: true, file_name: originalName, uploaded_at: now, mime_type: contentType })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to upload lead photo.' }, { status: 400 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to upload lead file.' }, { status: 400 })
   }
 }
 
@@ -134,7 +135,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
     agency_id: profile.agency_id,
     actor_id: userId,
     client_id: null,
-    action: 'workspace.lead_photo_deleted',
+    action: 'workspace.lead_file_deleted',
     details: { lead_id: lead.id }
   })
 
