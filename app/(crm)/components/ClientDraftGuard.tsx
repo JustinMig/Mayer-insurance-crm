@@ -97,6 +97,7 @@ export default function ClientDraftGuard() {
   const dirtyRef = useRef(false)
   const draftKeyRef = useRef('')
   const afterSaveKeyRef = useRef('')
+  const lastClientIdRef = useRef('')
 
   useEffect(() => {
     // After a new client is successfully created, force the next New Client
@@ -124,6 +125,19 @@ export default function ClientDraftGuard() {
     }
 
     const clientId = match[1]
+
+    // Client profile fields are intentionally mostly uncontrolled for speed.
+    // React/browser route reuse can preserve an old input's live value even
+    // after the dynamic /clients/[id] URL changes. A full remount when moving
+    // between two different client records guarantees record A's values can
+    // never be displayed or submitted on record B.
+    if (lastClientIdRef.current && lastClientIdRef.current !== clientId) {
+      lastClientIdRef.current = clientId
+      window.location.reload()
+      return
+    }
+    lastClientIdRef.current = clientId
+
     if (searchParams.get('created') === '1') {
       sessionStorage.setItem(NEW_CLIENT_RESET_KEY, '1')
     }
