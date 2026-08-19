@@ -23,6 +23,16 @@ function validTime(value: string) {
   return !value || TIME_PATTERN.test(value)
 }
 
+function isLeadsBackgroundRequest(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return false
+  try {
+    return new URL(referer).pathname === '/leads'
+  } catch {
+    return false
+  }
+}
+
 async function resolveOwner(
   supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
   profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
@@ -65,6 +75,12 @@ async function resolveClient(
 }
 
 export async function GET(request: NextRequest) {
+  // Calendar data is hidden on the dedicated Leads page. Avoid the session and
+  // database work while preserving the shared Workspace component unchanged.
+  if (isLeadsBackgroundRequest(request)) {
+    return NextResponse.json({ events: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+  }
+
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
