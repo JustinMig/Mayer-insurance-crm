@@ -27,16 +27,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json() as {
-      documentsFolderId?: string
+      archiveFolderId?: string
       storagePath?: string
       driveName?: string
+      versionKey?: string
+      size?: number
+      mimeType?: string
+      updatedAt?: string
     }
 
-    const documentsFolderId = String(body.documentsFolderId || '')
+    const archiveFolderId = String(body.archiveFolderId || '')
     const storagePath = String(body.storagePath || '')
     const driveName = safeName(body.driveName)
+    const versionKey = String(body.versionKey || '')
 
-    if (!documentsFolderId || !storagePath || !driveName) {
+    if (!archiveFolderId || !storagePath || !driveName || !versionKey) {
       return NextResponse.json({ error: 'Missing backup file information' }, { status: 400 })
     }
 
@@ -59,10 +64,10 @@ export async function POST(request: NextRequest) {
     }
 
     const bytes = Buffer.from(await fileBlob.arrayBuffer())
-    const mimeType = fileBlob.type || 'application/octet-stream'
+    const mimeType = fileBlob.type || String(body.mimeType || 'application/octet-stream')
     const driveFile = await uploadDriveFile(
       accessToken,
-      documentsFolderId,
+      archiveFolderId,
       driveName,
       mimeType,
       bytes,
@@ -71,7 +76,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       bytes: bytes.byteLength,
-      driveFileId: driveFile.id,
+      archivedFile: {
+        storagePath,
+        versionKey,
+        size: bytes.byteLength,
+        mimeType,
+        updatedAt: String(body.updatedAt || ''),
+        driveFileId: driveFile.id,
+        driveName,
+        archivedAt: new Date().toISOString(),
+      },
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('CRM Google Drive file backup failed', error)
