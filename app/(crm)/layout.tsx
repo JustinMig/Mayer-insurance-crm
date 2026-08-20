@@ -12,6 +12,7 @@ import ManualWorkspaceDates from './components/ManualWorkspaceDates'
 import AppointmentFormStyler from './components/AppointmentFormStyler'
 import LeadInfoBridge from './clients/components/LeadInfoBridge'
 import MedicareGovCredentialsBridge from './clients/components/MedicareGovCredentialsBridge'
+import DeceasedStatusBridge from './clients/components/DeceasedStatusBridge'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -120,6 +121,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <AppointmentFormStyler />
       <LeadInfoBridge />
       <MedicareGovCredentialsBridge />
+      <DeceasedStatusBridge />
       <ClientTextingDock />
       <SoaTextBridge />
       <aside className="sidebar">
