@@ -57,6 +57,16 @@ function checked(form: FormData, key: string) {
   return form.get(key) === 'on'
 }
 
+function productFlags(form: FormData) {
+  const isDeceased = checked(form, 'is_deceased')
+  return {
+    isDeceased,
+    isMedicare: isDeceased ? false : checked(form, 'is_medicare'),
+    isLife: isDeceased ? false : checked(form, 'is_life'),
+    isRetirement: isDeceased ? false : checked(form, 'is_retirement')
+  }
+}
+
 function optionalYesNo(form: FormData, key: string) {
   const raw = value(form, key).toLowerCase()
   if (raw === 'yes') return true
@@ -352,6 +362,7 @@ async function createClientRecord(form: FormData) {
   const firstName = value(form, 'first_name')
   const lastName = value(form, 'last_name')
   if (!firstName || !lastName) throw new Error('First and last name are required.')
+  const products = productFlags(form)
 
   let assignedAgentId = userId
   if (profile.role === 'admin' || profile.role === 'manager') {
@@ -397,9 +408,10 @@ async function createClientRecord(form: FormData) {
       drivers_license_expiration: normalizedDate(form, 'drivers_license_expiration', "driver's license expiration date"),
       is_veteran: optionalYesNo(form, 'is_veteran'),
       is_smoker: optionalYesNo(form, 'is_smoker'),
-      is_medicare: checked(form, 'is_medicare'),
-      is_life: checked(form, 'is_life'),
-      is_retirement: checked(form, 'is_retirement'),
+      is_medicare: products.isMedicare,
+      is_life: products.isLife,
+      is_retirement: products.isRetirement,
+      is_deceased: products.isDeceased,
       notes: nullable(form, 'notes')
     })
     .select('id')
@@ -407,7 +419,7 @@ async function createClientRecord(form: FormData) {
 
   if (clientError || !client) throw new Error(clientError?.message || 'Unable to save client.')
 
-  const hasMedicareData = checked(form, 'is_medicare') || value(form, 'medicare_number') || value(form, 'part_a_date') || value(form, 'part_b_date') || value(form, 'medicaid_number') || value(form, 'medicaid_level')
+  const hasMedicareData = products.isMedicare || value(form, 'medicare_number') || value(form, 'part_a_date') || value(form, 'part_b_date') || value(form, 'medicaid_number') || value(form, 'medicaid_level')
   const saveMedicare = async () => {
     if (!hasMedicareData) return
     const { error: medicareError } = await supabase.from('medicare_info').insert({
@@ -512,7 +524,7 @@ export async function saveImportedLifeInsurance(
     if (error) throw new Error(error.message)
 
     // Keep the client's Life flag in sync with the explicitly imported policy record.
-    await supabase.from('clients').update({ is_life: true }).eq('id', clientId).eq('agency_id', profile.agency_id)
+    await supabase.from('clients').update({ is_life: true, is_deceased: false }).eq('id', clientId).eq('agency_id', profile.agency_id)
 
     return { error: null }
   } catch (error) {
@@ -528,6 +540,7 @@ export async function updateClient(form: FormData) {
   const firstName = value(form, 'first_name')
   const lastName = value(form, 'last_name')
   if (!firstName || !lastName) throw new Error('First and last name are required.')
+  const products = productFlags(form)
 
   const { data: currentClient, error: currentError } = await supabase
     .from('clients')
@@ -565,9 +578,10 @@ export async function updateClient(form: FormData) {
     drivers_license_expiration: normalizedDate(form, 'drivers_license_expiration', "driver's license expiration date"),
     is_veteran: optionalYesNo(form, 'is_veteran'),
     is_smoker: optionalYesNo(form, 'is_smoker'),
-    is_medicare: checked(form, 'is_medicare'),
-    is_life: checked(form, 'is_life'),
-    is_retirement: checked(form, 'is_retirement'),
+    is_medicare: products.isMedicare,
+    is_life: products.isLife,
+    is_retirement: products.isRetirement,
+    is_deceased: products.isDeceased,
     notes: nullable(form, 'notes')
   }
 
@@ -589,7 +603,7 @@ export async function updateClient(form: FormData) {
   ] = await Promise.all([
     supabase
       .from('medicare_info')
-      .select('id, medicare_number_ciphertext, medicaid_number_ciphertext')
+      .select('id, medicare_number_ciphertext, medicaid_number_ciphertext, medicare_gov_username_ciphertext, medicare_gov_password_ciphertext, medicare_gov_secret_answer_ciphertext, medicare_gov_security_code_destination_ciphertext')
       .eq('client_id', clientId)
       .maybeSingle(),
     supabase
@@ -612,19 +626,52 @@ export async function updateClient(form: FormData) {
   if (checked(form, 'clear_medicaid_number')) medicaidCiphertext = null
   else if (value(form, 'medicaid_number')) medicaidCiphertext = encryptValue(nullable(form, 'medicaid_number'))
 
-  const hasMedicareData = checked(form, 'is_medicare') || medicareCiphertext || medicaidCiphertext || value(form, 'part_a_date') || value(form, 'part_b_date') || value(form, 'medicaid_level')
+  let medicareGovUsernameCiphertext = currentMedicare?.medicare_gov_username_ciphertext || null
+  if (checked(form, 'clear_medicare_gov_username')) medicareGovUsernameCiphertext = null
+  else if (value(form, 'medicare_gov_username')) medicareGovUsernameCiphertext = encryptValue(nullable(form, 'medicare_gov_username'))
+
+  let medicareGovPasswordCiphertext = currentMedicare?.medicare_gov_password_ciphertext || null
+  if (checked(form, 'clear_medicare_gov_password')) medicareGovPasswordCiphertext = null
+  else if (value(form, 'medicare_gov_password')) medicareGovPasswordCiphertext = encryptValue(nullable(form, 'medicare_gov_password'))
+
+  let medicareGovSecretAnswerCiphertext = currentMedicare?.medicare_gov_secret_answer_ciphertext || null
+  if (checked(form, 'clear_medicare_gov_secret_answer')) medicareGovSecretAnswerCiphertext = null
+  else if (value(form, 'medicare_gov_secret_answer')) medicareGovSecretAnswerCiphertext = encryptValue(nullable(form, 'medicare_gov_secret_answer'))
+
+  let medicareGovSecurityCodeDestinationCiphertext = currentMedicare?.medicare_gov_security_code_destination_ciphertext || null
+  if (checked(form, 'clear_medicare_gov_security_code_destination_name')) medicareGovSecurityCodeDestinationCiphertext = null
+  else if (value(form, 'medicare_gov_security_code_destination_name')) medicareGovSecurityCodeDestinationCiphertext = encryptValue(nullable(form, 'medicare_gov_security_code_destination_name'))
+
+  const hasMedicareData = Boolean(
+    products.isMedicare ||
+    medicareCiphertext ||
+    medicaidCiphertext ||
+    value(form, 'part_a_date') ||
+    value(form, 'part_b_date') ||
+    value(form, 'medicaid_level') ||
+    medicareGovUsernameCiphertext ||
+    medicareGovPasswordCiphertext ||
+    medicareGovSecretAnswerCiphertext ||
+    medicareGovSecurityCodeDestinationCiphertext
+  )
 
   const saveMedicare = async () => {
+    const medicareValues = {
+      medicare_number_ciphertext: medicareCiphertext,
+      part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
+      part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
+      medicaid_number_ciphertext: medicaidCiphertext,
+      medicaid_level: nullable(form, 'medicaid_level'),
+      medicare_gov_username_ciphertext: medicareGovUsernameCiphertext,
+      medicare_gov_password_ciphertext: medicareGovPasswordCiphertext,
+      medicare_gov_secret_answer_ciphertext: medicareGovSecretAnswerCiphertext,
+      medicare_gov_security_code_destination_ciphertext: medicareGovSecurityCodeDestinationCiphertext
+    }
+
     if (currentMedicare) {
       const { error: medicareError } = await supabase
         .from('medicare_info')
-        .update({
-          medicare_number_ciphertext: medicareCiphertext,
-          part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
-          part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
-          medicaid_number_ciphertext: medicaidCiphertext,
-          medicaid_level: nullable(form, 'medicaid_level')
-        })
+        .update(medicareValues)
         .eq('client_id', clientId)
       if (medicareError) throw new Error(medicareError.message)
       return
@@ -634,11 +681,7 @@ export async function updateClient(form: FormData) {
       const { error: medicareError } = await supabase.from('medicare_info').insert({
         agency_id: profile.agency_id,
         client_id: clientId,
-        medicare_number_ciphertext: medicareCiphertext,
-        part_a_date: normalizedDate(form, 'part_a_date', 'Medicare Part A date'),
-        part_b_date: normalizedDate(form, 'part_b_date', 'Medicare Part B date'),
-        medicaid_number_ciphertext: medicaidCiphertext,
-        medicaid_level: nullable(form, 'medicaid_level')
+        ...medicareValues
       })
       if (medicareError) throw new Error(medicareError.message)
     }
