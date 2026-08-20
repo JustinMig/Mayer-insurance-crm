@@ -19,14 +19,21 @@ export default function SoaTextBridge() {
       return
     }
 
+    const root = document.querySelector<HTMLElement>('.content')
+    if (!root) return
+
     const findTarget = () => {
-      const footer = document.querySelector<HTMLElement>('.soa-modal .soa-footer') || null
+      const footer = root.querySelector<HTMLElement>('.soa-modal .soa-footer') || null
       setTarget((current) => current === footer ? current : footer)
     }
 
     findTarget()
-    const timer = window.setInterval(findTarget, 500)
-    return () => window.clearInterval(timer)
+    const observer = new MutationObserver(findTarget)
+    observer.observe(root, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+      setTarget(null)
+    }
   }, [clientId])
 
   async function send() {
