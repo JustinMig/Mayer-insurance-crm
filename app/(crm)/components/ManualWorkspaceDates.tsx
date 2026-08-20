@@ -98,11 +98,11 @@ export default function ManualWorkspaceDates() {
       proxy.addEventListener('focus', () => proxy.setCustomValidity(''))
     }
 
-    function scan(scanRoot: ParentNode = root) {
+    function scan(scanRoot: ParentNode) {
       scanRoot.querySelectorAll<HTMLInputElement>(DATE_SELECTOR).forEach(enhance)
     }
 
-    scan()
+    scan(root)
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of Array.from(mutation.addedNodes)) {
