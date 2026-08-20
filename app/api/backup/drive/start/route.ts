@@ -13,6 +13,7 @@ import {
   assertGoogleDriveAccess,
   createBackupFolderSet,
   GoogleDriveError,
+  loadArchiveIndex,
   uploadDriveFile,
 } from '@/lib/google-drive'
 
@@ -35,15 +36,17 @@ export async function POST() {
 
     await assertGoogleDriveAccess(accessToken)
 
-    // The caller must first pass the normal CRM admin session check above. The
-    // server-only client is then used strictly for read-only backup work so RLS
-    // policies do not cause a partial export of agency-owned records.
     const adminSupabase = createAdminClient()
     const database = await buildAgencyDatabaseBackup(adminSupabase, profile.agency_id)
     const clients = database.tables.clients || []
-    const files = await listAgencyBackupFiles(adminSupabase, profile.agency_id, clients)
-    const storageSummary = summarizeStorageFiles(files)
+    const allFiles = await listAgencyBackupFiles(adminSupabase, profile.agency_id, clients)
+    const storageSummary = summarizeStorageFiles(allFiles)
     const folders = await createBackupFolderSet(accessToken)
+    const archiveIndex = await loadArchiveIndex(accessToken, folders.root.id)
+
+    const files = allFiles.filter(file => archiveIndex.files[file.storagePath]?.versionKey !== file.versionKey)
+    const pendingSummary = summarizeStorageFiles(files)
+    const unchangedCount = allFiles.length - files.length
 
     const databaseJson = JSON.stringify(database)
     const compressedDatabase = gzipSync(Buffer.from(databaseJson, 'utf8'), { level: 9 })
@@ -66,16 +69,22 @@ export async function POST() {
 
     const startedAt = new Date().toISOString()
     const initialManifest = {
-      version: 1,
+      version: 2,
       status: 'in_progress',
+      backup_mode: 'incremental-files-full-database',
       started_at: startedAt,
       agency_id: profile.agency_id,
       table_counts: database.table_counts,
-      client_document_count: storageSummary.file_count,
-      client_document_bytes: storageSummary.total_bytes,
+      client_documents: {
+        current_file_count: storageSummary.file_count,
+        current_file_bytes: storageSummary.total_bytes,
+        unchanged_files: unchangedCount,
+        new_or_changed_files: pendingSummary.file_count,
+        new_or_changed_bytes: pendingSummary.total_bytes,
+      },
       database_uncompressed_bytes: Buffer.byteLength(databaseJson, 'utf8'),
       database_compressed_bytes: compressedDatabase.byteLength,
-      notes: 'Client files are copied individually after this manifest is created.',
+      notes: 'The database is a fresh full snapshot. Only new or changed client files are copied to the permanent Client File Archive.',
     }
 
     await uploadDriveFile(
@@ -90,11 +99,17 @@ export async function POST() {
       startedAt,
       folderId: folders.backup.id,
       folderUrl: folders.folderUrl,
-      documentsFolderId: folders.documents.id,
+      backupRootId: folders.root.id,
+      archiveFolderId: folders.archive.id,
       files,
+      allFiles,
       tableCounts: database.table_counts,
       databaseCompressedBytes: compressedDatabase.byteLength,
-      ...storageSummary,
+      unchangedCount,
+      pendingFileCount: pendingSummary.file_count,
+      pendingBytes: pendingSummary.total_bytes,
+      file_count: storageSummary.file_count,
+      total_bytes: storageSummary.total_bytes,
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('CRM Google Drive backup start failed', error)
