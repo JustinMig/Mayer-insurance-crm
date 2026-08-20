@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { getGoogleAccessToken } from '@/lib/gmail-mail'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { GoogleDriveError, uploadDriveFile } from '@/lib/google-drive'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid storage path' }, { status: 403 })
     }
 
-    const { data: fileBlob, error: downloadError } = await supabase.storage
+    const adminSupabase = createAdminClient()
+    const { data: fileBlob, error: downloadError } = await adminSupabase.storage
       .from(BUCKET)
       .download(storagePath, {}, { cache: 'no-store' })
 
