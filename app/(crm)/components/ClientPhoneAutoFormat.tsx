@@ -24,18 +24,11 @@ export default function ClientPhoneAutoFormat() {
       formatInput(input)
     }
 
-    const formatVisibleInputs = () => {
-      document.querySelectorAll<HTMLInputElement>(selector).forEach(formatInput)
-    }
-
-    formatVisibleInputs()
+    document.querySelectorAll<HTMLInputElement>(selector).forEach(formatInput)
     document.addEventListener('input', onInput, true)
-    const observer = new MutationObserver(formatVisibleInputs)
-    observer.observe(document.body, { childList: true, subtree: true })
 
     return () => {
       document.removeEventListener('input', onInput, true)
-      observer.disconnect()
     }
   }, [])
 
