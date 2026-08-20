@@ -3,7 +3,10 @@ import { decryptValue, encryptValue } from '@/lib/crypto'
 type SupabaseLike = any
 
 export const CRM_GMAIL_LABEL = 'Send to CRM'
-const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/drive.file',
+].join(' ')
 const GMAIL_DETAIL_CONCURRENCY = 8
 
 function clientId() { return process.env.GOOGLE_GMAIL_CLIENT_ID || '' }
@@ -19,7 +22,7 @@ export function gmailAuthUrl(origin: string, state: string) {
     client_id: clientId(),
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: GMAIL_SCOPE,
+    scope: GOOGLE_SCOPES,
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -66,7 +69,7 @@ export async function saveGmailConnection(supabase: SupabaseLike, userId: string
   if (error) throw new Error(error.message)
 }
 
-async function getAccessToken(supabase: SupabaseLike, userId: string) {
+export async function getGoogleAccessToken(supabase: SupabaseLike, userId: string) {
   const { data, error } = await supabase.from('gmail_connections')
     .select('refresh_token_encrypted,access_token_encrypted,access_token_expires_at')
     .eq('user_id', userId).maybeSingle()
@@ -165,7 +168,7 @@ async function fetchFullMessage(item: { id: string; threadId: string }, headers:
 
 export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
   if (!gmailConfigured()) return { connected: false, configured: false, labelMissing: false, imported: 0, updated: 0 }
-  const accessToken = await getAccessToken(supabase, userId)
+  const accessToken = await getGoogleAccessToken(supabase, userId)
   if (!accessToken) return { connected: false, configured: true, labelMissing: false, imported: 0, updated: 0 }
   const headers = { Authorization: `Bearer ${accessToken}` }
 
@@ -214,7 +217,7 @@ export async function syncCrmMail(supabase: SupabaseLike, userId: string) {
 }
 
 export async function gmailAttachment(supabase: SupabaseLike, userId: string, messageId: string, attachmentId: string) {
-  const accessToken = await getAccessToken(supabase, userId)
+  const accessToken = await getGoogleAccessToken(supabase, userId)
   if (!accessToken) return null
   const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store'
