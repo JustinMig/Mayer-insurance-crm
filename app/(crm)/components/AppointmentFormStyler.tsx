@@ -18,8 +18,11 @@ const CLASS_BY_LABEL: Record<string, string> = {
 
 export default function AppointmentFormStyler() {
   useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.content')
+    if (!root) return
+
     const apply = () => {
-      document.querySelectorAll<HTMLLabelElement>('.dash-cal-editor .dash-cal-form-grid label').forEach((label) => {
+      root.querySelectorAll<HTMLLabelElement>('.dash-cal-editor .dash-cal-form-grid label').forEach((label) => {
         const name = label.querySelector(':scope > span')?.textContent?.trim() || ''
         Object.values(CLASS_BY_LABEL).forEach((className) => label.classList.remove(className))
         const className = CLASS_BY_LABEL[name]
@@ -29,7 +32,7 @@ export default function AppointmentFormStyler() {
 
     apply()
     const observer = new MutationObserver(apply)
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(root, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [])
 
