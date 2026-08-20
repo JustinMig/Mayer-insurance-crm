@@ -1,10 +1,12 @@
 type SupabaseLike = any
 
-type BackupStorageFile = {
+export type BackupStorageFile = {
   storagePath: string
   size: number
   mimeType: string
   driveName: string
+  updatedAt: string
+  versionKey: string
 }
 
 const PAGE_SIZE = 1000
@@ -108,7 +110,7 @@ export async function buildAgencyDatabaseBackup(
   )
 
   return {
-    version: 1,
+    version: 2,
     format: 'mayer-crm-agency-backup',
     generated_at: new Date().toISOString(),
     agency_id: agencyId,
@@ -133,7 +135,7 @@ export async function buildAgencyDatabaseBackup(
 async function listStorageDirectory(
   supabase: SupabaseLike,
   prefix: string,
-  files: Array<Omit<BackupStorageFile, 'driveName'>>,
+  files: Array<Omit<BackupStorageFile, 'driveName' | 'versionKey'>>,
 ) {
   let offset = 0
 
@@ -156,6 +158,7 @@ async function listStorageDirectory(
           storagePath: path,
           size: Number(item.metadata?.size || 0),
           mimeType: String(item.metadata?.mimetype || item.metadata?.contentType || 'application/octet-stream'),
+          updatedAt: String(item.updated_at || item.created_at || ''),
         })
       } else {
         await listStorageDirectory(supabase, path, files)
@@ -184,12 +187,16 @@ function buildClientNameMap(clients: any[]) {
   )
 }
 
+function fileVersionKey(file: Pick<BackupStorageFile, 'storagePath' | 'size' | 'mimeType' | 'updatedAt'>) {
+  return [file.storagePath, file.size, file.mimeType, file.updatedAt].join('|')
+}
+
 export async function listAgencyBackupFiles(
   supabase: SupabaseLike,
   agencyId: string,
   clients: any[],
 ): Promise<BackupStorageFile[]> {
-  const rawFiles: Array<Omit<BackupStorageFile, 'driveName'>> = []
+  const rawFiles: Array<Omit<BackupStorageFile, 'driveName' | 'versionKey'>> = []
   await listStorageDirectory(supabase, agencyId, rawFiles)
 
   const clientNames = buildClientNameMap(clients)
@@ -203,6 +210,7 @@ export async function listAgencyBackupFiles(
     return {
       ...file,
       driveName,
+      versionKey: fileVersionKey(file),
     }
   })
 }
@@ -211,17 +219,20 @@ export function backupReadmeText() {
   return [
     'Mayer Insurance Group CRM Backup',
     '',
-    'This folder contains a manual point-in-time copy of the CRM database and private client documents.',
+    'This folder contains a manual point-in-time database snapshot plus a map to the client-file archive.',
     '',
     'DATABASE:',
-    '- database.json.gz contains raw database rows used by the CRM.',
+    '- database.json.gz is freshly generated on every backup run and contains the current CRM database rows.',
+    '- This means new and changed client information is captured every time the backup completes.',
     '- Sensitive identifiers remain encrypted exactly as they are stored in the live CRM.',
     '- Restoring encrypted values requires the matching DATA_ENCRYPTION_KEY_BASE64 configured in the CRM hosting environment.',
     '- That encryption key is intentionally NOT stored in this Google Drive backup.',
     '',
-    'DOCUMENTS:',
-    '- Client Documents contains copies of the private files stored in Supabase Storage.',
-    '- The database backup preserves each original Supabase storage path for restoration.',
+    'CLIENT FILES:',
+    '- Client files are stored once in the permanent Client File Archive under the main backup folder.',
+    '- A file is copied again only when its Supabase storage version changes.',
+    '- client-file-map.json records the exact archived Drive file used by this backup snapshot.',
+    '- Older archived file versions are kept so older snapshots remain restorable.',
     '',
     'SECURITY EXCLUSIONS:',
     '- Google OAuth tokens are not included.',
