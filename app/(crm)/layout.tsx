@@ -2,17 +2,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
-import ClientDraftGuard from './components/ClientDraftGuard'
-import AddressAutoFill from './components/AddressAutoFill'
-import ClientPhoneAutoFormat from './components/ClientPhoneAutoFormat'
-import ClientTextingDock from './components/ClientTextingDock'
-import SoaTextBridge from './components/SoaTextBridge'
 import NotificationsNavLink from './components/NotificationsNavLink'
-import ManualWorkspaceDates from './components/ManualWorkspaceDates'
-import AppointmentFormStyler from './components/AppointmentFormStyler'
-import LeadInfoBridge from './clients/components/LeadInfoBridge'
-import MedicareGovCredentialsBridge from './clients/components/MedicareGovCredentialsBridge'
-import DeceasedStatusBridge from './clients/components/DeceasedStatusBridge'
+import RouteScopedEnhancers from './components/RouteScopedEnhancers'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -111,16 +102,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           .client-profile-form>.sticky-save-bar .btn{width:100%;min-width:0}
         }
       `}</style>
-      <ClientDraftGuard />
-      <AddressAutoFill />
-      <ClientPhoneAutoFormat />
-      <ManualWorkspaceDates />
-      <AppointmentFormStyler />
-      <LeadInfoBridge />
-      <MedicareGovCredentialsBridge />
-      <DeceasedStatusBridge />
-      <ClientTextingDock />
-      <SoaTextBridge />
+      <RouteScopedEnhancers />
       <aside className="sidebar">
         <div className="brand">
           <Link prefetch={false} className="brand-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`brand-bear${isIsaiahPortal ? ' brand-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
