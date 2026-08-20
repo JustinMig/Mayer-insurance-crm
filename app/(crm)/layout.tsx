@@ -45,6 +45,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
   const brandLogoAlt = isIsaiahPortal ? 'PLATINUM - Financial Group - PF logo' : 'Mayer Insurance Group bear'
   const canAssignClientRecords = canAssignClients(profile?.role)
+  const canBackupCrm = profile?.role === 'admin'
 
   return (
     <div className="crm-shell">
@@ -59,6 +60,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .nav>a[href="/clients/new"]{background:#eee6da!important;color:#675542!important;box-shadow:inset 4px 0 0 #aa9277}
         .nav>a[href="/clients"]{background:#dfe9e7!important;color:#3f5b57!important;box-shadow:inset 4px 0 0 #7f9c96}
         .nav>a[href="/notifications"]{background:#eee9d8!important;color:#665f42!important;box-shadow:inset 4px 0 0 #aaa078}
+        .nav>a[href="/backup"]{background:#e2e8ef!important;color:#34495d!important;box-shadow:inset 4px 0 0 #71879b}
         .nav .nav-signout{background:#eee1e1!important;color:#6a4949!important;box-shadow:inset 4px 0 0 #a68181}
         .nav>a[href="/dashboard"]:hover{background:#d2dee7!important;color:#263c4e!important}
         .nav>a[href="/leads"]:hover{background:#d5e1d2!important;color:#344b37!important}
@@ -66,6 +68,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .nav>a[href="/clients/new"]:hover{background:#e3d8c9!important;color:#594837!important}
         .nav>a[href="/clients"]:hover{background:#d2e0dd!important;color:#344d49!important}
         .nav>a[href="/notifications"]:hover{background:#e2dcc7!important;color:#585238!important}
+        .nav>a[href="/backup"]:hover{background:#d5dee7!important;color:#293e52!important}
         .nav .nav-signout:hover{background:#e2d3d3!important;color:#5c3d3d!important}
 
         .mobile-nav>a[href="/dashboard"]{background:#edf2f5!important;color:#31485b!important;border-top:3px solid #7890a3}
@@ -74,6 +77,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .mobile-nav>a[href="/clients/new"]{background:#f5f0e8!important;color:#675542!important;border-top:3px solid #aa9277}
         .mobile-nav>a[href="/clients"]{background:#edf3f2!important;color:#3f5b57!important;border-top:3px solid #7f9c96}
         .mobile-nav>a[href="/notifications"]{background:#f5f2e8!important;color:#665f42!important;border-top:3px solid #aaa078}
+        .mobile-nav>a[href="/backup"]{background:#eef2f6!important;color:#34495d!important;border-top:3px solid #71879b}
         .mobile-nav .mobile-signout{background:#f5eded!important;color:#6a4949!important;border-top:3px solid #a68181}
 
         .add-client-form>.add-client-save-row,
@@ -136,6 +140,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
           <NotificationsNavLink />
+          {canBackupCrm ? <Link prefetch={false} className="nav-link" href="/backup">CRM BACKUP</Link> : null}
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
         </nav>
       </aside>
@@ -158,6 +163,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         <NotificationsNavLink mobile />
+        {canBackupCrm ? <Link prefetch={false} href="/backup"><b>⇩</b><span>BACKUP</span></Link> : null}
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
       </nav>
     </div>
