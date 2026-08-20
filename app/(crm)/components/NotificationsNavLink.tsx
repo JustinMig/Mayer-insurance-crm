@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 type Props = {
   mobile?: boolean
+  dashboard?: boolean
 }
 
 type Listener = (total: number) => void
@@ -47,9 +48,6 @@ function startSharedPolling() {
   if (typeof window === 'undefined') return
   if (!pollTimer) {
     void refreshUnread()
-    // A one-minute background cadence keeps the badge current without making
-    // four unnecessary server/database checks every minute. Focus/visibility
-    // events still refresh immediately when the user returns to the CRM.
     pollTimer = window.setInterval(() => void refreshUnread(), 60_000)
   }
   if (!eventsAttached) {
@@ -80,10 +78,22 @@ function subscribe(listener: Listener) {
   }
 }
 
-export default function NotificationsNavLink({ mobile = false }: Props) {
+export default function NotificationsNavLink({ mobile = false, dashboard = false }: Props) {
   const [total, setTotal] = useState(sharedTotal)
 
   useEffect(() => subscribe(setTotal), [])
+
+  if (dashboard) {
+    return (
+      <Link prefetch={false} className="dashboard-home-nav-tab dashboard-notifications-home-tab" href="/notifications">
+        <span>NOTIFICATIONS</span>
+        <span className="dashboard-home-nav-meta">
+          {total > 0 ? `${total} unread` : 'View notifications'}
+          <b>{total > 0 ? total : '→'}</b>
+        </span>
+      </Link>
+    )
+  }
 
   if (mobile) {
     return (
