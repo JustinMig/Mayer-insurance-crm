@@ -41,10 +41,12 @@ export default function MedicareGovCredentialsBridge() {
     }
 
     let disposed = false
+    let observer: MutationObserver | null = null
+
     const attach = () => {
-      if (disposed) return
+      if (disposed) return false
       const body = document.querySelector('.client-profile-form .section-medicare .section-body') as HTMLElement | null
-      if (!body) return
+      if (!body) return false
 
       let host = body.querySelector('#medicare-gov-credentials-mount') as HTMLElement | null
       if (!host) {
@@ -59,14 +61,25 @@ export default function MedicareGovCredentialsBridge() {
         else body.appendChild(host)
       }
       setMountNode(host)
+      return true
     }
 
-    attach()
-    const observer = new MutationObserver(attach)
-    observer.observe(document.body, { childList: true, subtree: true })
+    if (!attach()) {
+      const root = document.querySelector<HTMLElement>('.content')
+      if (root) {
+        observer = new MutationObserver(() => {
+          if (attach()) {
+            observer?.disconnect()
+            observer = null
+          }
+        })
+        observer.observe(root, { childList: true, subtree: true })
+      }
+    }
+
     return () => {
       disposed = true
-      observer.disconnect()
+      observer?.disconnect()
       document.getElementById('medicare-gov-credentials-mount')?.remove()
       setMountNode(null)
     }
