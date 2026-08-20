@@ -50,6 +50,9 @@ function setNativeValue(input: HTMLInputElement, value: string) {
 
 export default function ManualWorkspaceDates() {
   useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.content')
+    if (!root) return
+
     const enhanced = new WeakSet<HTMLInputElement>()
 
     function enhance(source: HTMLInputElement) {
@@ -95,8 +98,8 @@ export default function ManualWorkspaceDates() {
       proxy.addEventListener('focus', () => proxy.setCustomValidity(''))
     }
 
-    function scan(root: ParentNode = document) {
-      root.querySelectorAll<HTMLInputElement>(DATE_SELECTOR).forEach(enhance)
+    function scan(scanRoot: ParentNode = root) {
+      scanRoot.querySelectorAll<HTMLInputElement>(DATE_SELECTOR).forEach(enhance)
     }
 
     scan()
@@ -109,7 +112,7 @@ export default function ManualWorkspaceDates() {
         }
       }
     })
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(root, { childList: true, subtree: true })
 
     return () => observer.disconnect()
   }, [])
