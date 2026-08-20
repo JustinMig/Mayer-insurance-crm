@@ -55,14 +55,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
         .nav>a[href="/dashboard"]{background:#dfe8ef!important;color:#31485b!important;box-shadow:inset 4px 0 0 #7890a3}
         .nav>a[href="/leads"]{background:#e1e9df!important;color:#3f5842!important;box-shadow:inset 4px 0 0 #849b81}
-        .nav>a[href="/fex-quotes"]{background:#e8e2ea!important;color:#58485d!important;box-shadow:inset 4px 0 0 #9a879f}
         .nav>a[href="/clients/new"]{background:#eee6da!important;color:#675542!important;box-shadow:inset 4px 0 0 #aa9277}
         .nav>a[href="/clients"]{background:#dfe9e7!important;color:#3f5b57!important;box-shadow:inset 4px 0 0 #7f9c96}
         .nav>a[href="/notifications"]{background:#eee9d8!important;color:#665f42!important;box-shadow:inset 4px 0 0 #aaa078}
         .nav .nav-signout{background:#eee1e1!important;color:#6a4949!important;box-shadow:inset 4px 0 0 #a68181}
         .nav>a[href="/dashboard"]:hover{background:#d2dee7!important;color:#263c4e!important}
         .nav>a[href="/leads"]:hover{background:#d5e1d2!important;color:#344b37!important}
-        .nav>a[href="/fex-quotes"]:hover{background:#ddd5e0!important;color:#4c3d51!important}
         .nav>a[href="/clients/new"]:hover{background:#e3d8c9!important;color:#594837!important}
         .nav>a[href="/clients"]:hover{background:#d2e0dd!important;color:#344d49!important}
         .nav>a[href="/notifications"]:hover{background:#e2dcc7!important;color:#585238!important}
@@ -70,7 +68,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
         .mobile-nav>a[href="/dashboard"]{background:#edf2f5!important;color:#31485b!important;border-top:3px solid #7890a3}
         .mobile-nav>a[href="/leads"]{background:#eef3ec!important;color:#3f5842!important;border-top:3px solid #849b81}
-        .mobile-nav>a[href="/fex-quotes"]{background:#f2eef3!important;color:#58485d!important;border-top:3px solid #9a879f}
         .mobile-nav>a[href="/clients/new"]{background:#f5f0e8!important;color:#675542!important;border-top:3px solid #aa9277}
         .mobile-nav>a[href="/clients"]{background:#edf3f2!important;color:#3f5b57!important;border-top:3px solid #7f9c96}
         .mobile-nav>a[href="/notifications"]{background:#f5f2e8!important;color:#665f42!important;border-top:3px solid #aaa078}
@@ -132,7 +129,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <nav className="nav">
           <Link prefetch={false} className="nav-link nav-dashboard" href="/dashboard">Dashboard</Link>
           <Link prefetch={false} className="nav-link nav-leads" href="/leads">LEADS</Link>
-          <Link prefetch={false} className="nav-link" href="/fex-quotes">FEX QUOTES</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
           <NotificationsNavLink />
@@ -154,7 +150,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <nav className="mobile-nav">
         <Link prefetch={false} href="/dashboard"><b>⌂</b><span>Home</span></Link>
         <Link prefetch={false} href="/leads"><b>●</b><span>LEADS</span></Link>
-        <Link prefetch={false} href="/fex-quotes"><b>$</b><span>FEX</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
         <NotificationsNavLink mobile />
