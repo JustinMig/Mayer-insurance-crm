@@ -2,6 +2,7 @@ import { gzipSync } from 'node:zlib'
 import { NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { getGoogleAccessToken } from '@/lib/gmail-mail'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   backupReadmeText,
   buildAgencyDatabaseBackup,
@@ -34,9 +35,13 @@ export async function POST() {
 
     await assertGoogleDriveAccess(accessToken)
 
-    const database = await buildAgencyDatabaseBackup(supabase, profile.agency_id)
+    // The caller must first pass the normal CRM admin session check above. The
+    // server-only client is then used strictly for read-only backup work so RLS
+    // policies do not cause a partial export of agency-owned records.
+    const adminSupabase = createAdminClient()
+    const database = await buildAgencyDatabaseBackup(adminSupabase, profile.agency_id)
     const clients = database.tables.clients || []
-    const files = await listAgencyBackupFiles(supabase, profile.agency_id, clients)
+    const files = await listAgencyBackupFiles(adminSupabase, profile.agency_id, clients)
     const storageSummary = summarizeStorageFiles(files)
     const folders = await createBackupFolderSet(accessToken)
 
