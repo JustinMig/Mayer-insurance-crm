@@ -18,12 +18,13 @@ export default function DeceasedStatusBridge() {
 
   useEffect(() => {
     let disposed = false
+    let observer: MutationObserver | null = null
 
     const attach = () => {
-      if (disposed) return
+      if (disposed) return false
       const form = document.querySelector('.add-client-form, .client-profile-form') as HTMLFormElement | null
       const row = form?.querySelector('.product-choice-row') as HTMLElement | null
-      if (!form || !row) return
+      if (!form || !row) return false
 
       let host = row.querySelector('#deceased-status-mount') as HTMLElement | null
       if (!host) {
@@ -33,15 +34,25 @@ export default function DeceasedStatusBridge() {
         row.appendChild(host)
       }
       setMountNode(host)
+      return true
     }
 
-    attach()
-    const observer = new MutationObserver(attach)
-    observer.observe(document.body, { childList: true, subtree: true })
+    if (!attach()) {
+      const root = document.querySelector<HTMLElement>('.content')
+      if (root) {
+        observer = new MutationObserver(() => {
+          if (attach()) {
+            observer?.disconnect()
+            observer = null
+          }
+        })
+        observer.observe(root, { childList: true, subtree: true })
+      }
+    }
 
     return () => {
       disposed = true
-      observer.disconnect()
+      observer?.disconnect()
       document.getElementById('deceased-status-mount')?.remove()
       setMountNode(null)
     }
