@@ -18,11 +18,20 @@ async function selectAll(
   table: string,
   applyFilter?: (query: any) => any,
 ) {
+  return selectAllOrdered(supabase, table, 'id', applyFilter)
+}
+
+async function selectAllOrdered(
+  supabase: SupabaseLike,
+  table: string,
+  orderColumn: string,
+  applyFilter?: (query: any) => any,
+) {
   const rows: any[] = []
   let from = 0
 
   while (true) {
-    let query = supabase.from(table).select('*').order('id', { ascending: true })
+    let query = supabase.from(table).select('*').order(orderColumn, { ascending: true })
     if (applyFilter) query = applyFilter(query)
     query = query.range(from, from + PAGE_SIZE - 1)
 
@@ -44,13 +53,23 @@ async function selectAllInChunks(
   column: string,
   values: string[],
 ) {
+  return selectAllInChunksOrdered(supabase, table, column, values, 'id')
+}
+
+async function selectAllInChunksOrdered(
+  supabase: SupabaseLike,
+  table: string,
+  column: string,
+  values: string[],
+  orderColumn: string,
+) {
   if (!values.length) return []
   const rows: any[] = []
   const chunkSize = 100
 
   for (let index = 0; index < values.length; index += chunkSize) {
     const chunk = values.slice(index, index + chunkSize)
-    rows.push(...await selectAll(supabase, table, query => query.in(column, chunk)))
+    rows.push(...await selectAllOrdered(supabase, table, orderColumn, query => query.in(column, chunk)))
   }
 
   return rows
@@ -127,6 +146,105 @@ export async function buildAgencyDatabaseBackup(
       'medicare_provider_plan_networks',
       'medicare_data_refresh_state',
       'zip_coordinates',
+    ],
+    tables,
+  }
+}
+
+async function listAgencyAuthUsers(supabase: SupabaseLike, profileIds: string[]) {
+  const wanted = new Set(profileIds)
+  const users: Array<Record<string, unknown>> = []
+  let warning = ''
+
+  try {
+    for (let page = 1; page <= 20; page += 1) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 })
+      if (error) throw error
+      const pageUsers = data?.users || []
+      for (const user of pageUsers) {
+        if (!wanted.has(String(user.id))) continue
+        users.push({
+          id: user.id,
+          email: user.email || null,
+          phone: user.phone || null,
+          created_at: user.created_at || null,
+          updated_at: user.updated_at || null,
+          email_confirmed_at: user.email_confirmed_at || null,
+          phone_confirmed_at: user.phone_confirmed_at || null,
+          last_sign_in_at: user.last_sign_in_at || null,
+          banned_until: user.banned_until || null,
+          app_metadata: user.app_metadata || {},
+          user_metadata: user.user_metadata || {},
+        })
+      }
+      if (pageUsers.length < 1000) break
+    }
+  } catch (error) {
+    warning = error instanceof Error ? error.message : 'Unable to export Supabase Auth user references.'
+  }
+
+  return { users, warning }
+}
+
+export async function buildAgencyDisasterRecoveryBackup(
+  supabase: SupabaseLike,
+  agencyId: string,
+) {
+  const base = await buildAgencyDatabaseBackup(supabase, agencyId)
+  const tables: Record<string, any[]> = { ...base.tables }
+  const profileIds = tables.profiles.map(row => String(row.id))
+
+  tables.gmail_connections = await selectAllInChunksOrdered(
+    supabase,
+    'gmail_connections',
+    'user_id',
+    profileIds,
+    'user_id',
+  )
+
+  const systemTables: Array<[string, string]> = [
+    ['medicare_plans', 'id'],
+    ['medicare_plan_counties', 'id'],
+    ['medicare_network_providers', 'id'],
+    ['medicare_provider_plan_networks', 'id'],
+    ['medicare_data_refresh_state', 'dataset_key'],
+    ['zip_coordinates', 'zip_code'],
+  ]
+
+  for (const [table, orderColumn] of systemTables) {
+    tables[table] = await selectAllOrdered(supabase, table, orderColumn)
+  }
+
+  const authUsers = await listAgencyAuthUsers(supabase, profileIds)
+  const tableCounts = Object.fromEntries(
+    Object.entries(tables).map(([table, rows]) => [table, rows.length]),
+  )
+  const schemaReference = Object.fromEntries(
+    Object.entries(tables).map(([table, rows]) => [table, {
+      row_count: rows.length,
+      columns_observed: rows.length ? Object.keys(rows[0]) : [],
+    }]),
+  )
+
+  return {
+    version: 3,
+    format: 'mayer-crm-disaster-recovery-backup',
+    generated_at: new Date().toISOString(),
+    agency_id: agencyId,
+    table_counts: tableCounts,
+    auth_users_reference: authUsers.users,
+    auth_users_warning: authUsers.warning || null,
+    schema_reference: schemaReference,
+    included_for_disaster_recovery: [
+      'Agency CRM operational tables',
+      'Gmail connection rows as application-encrypted ciphertext',
+      'Medicare plan/provider reference datasets',
+      'Supabase Auth account identifiers and contact references (never passwords)',
+    ],
+    excluded_or_separate_for_security: [
+      'Supabase Auth passwords and active sessions are not exportable',
+      'Application environment secrets are stored separately in the encrypted recovery vault',
+      'The recovery passphrase is never stored in the backup',
     ],
     tables,
   }
