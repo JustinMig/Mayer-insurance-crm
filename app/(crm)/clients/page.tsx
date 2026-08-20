@@ -8,6 +8,7 @@ type SearchParams = Promise<{
   q?: string
   product?: string
   turn65?: string
+  age65plus?: string
   agent?: string
   health_company?: string
   sort?: string
@@ -25,11 +26,36 @@ type AgentProfile = {
 
 const SORT_OPTIONS = new Set(['first_name', 'last_name', 'county'])
 
+function getCentralTodayParts() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date())
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day)
+  }
+}
+
+function getAgeCutoffDate(age: number) {
+  const { year, month, day } = getCentralTodayParts()
+  const cutoffYear = year - age
+  const maxDay = new Date(Date.UTC(cutoffYear, month, 0)).getUTCDate()
+  const cutoffDay = Math.min(day, maxDay)
+  return `${cutoffYear}-${String(month).padStart(2, '0')}-${String(cutoffDay).padStart(2, '0')}`
+}
+
 export default async function ClientsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const q = (params.q || '').trim()
   const product = params.product || ''
   const turn65 = params.turn65 === '1'
+  const age65plus = params.age65plus === '1'
   const requestedAgent = (params.agent || '').trim()
   const requestedHealthCompany = (params.health_company || '').trim()
   const sort = SORT_OPTIONS.has(params.sort || '') ? String(params.sort) : 'last_name'
@@ -78,7 +104,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     ? requestedHealthCompany
     : ''
 
-  const shouldSearch = Boolean(showAll || q || product || turn65 || selectedAgent || selectedHealthCompany || params.sort)
+  const shouldSearch = Boolean(showAll || q || product || turn65 || age65plus || selectedAgent || selectedHealthCompany || params.sort)
   const agentNames: Record<string, string> = Object.fromEntries(agents.map((agent) => [agent.id, agent.full_name]))
   if (userId && currentProfile.full_name) agentNames[userId] = currentProfile.full_name
 
@@ -173,8 +199,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
       if (!showAll && product === 'non_life_non_medicare') query = query.eq('is_life', false).eq('is_medicare', false)
       if (!showAll && healthClientIds) query = query.in('id', healthClientIds)
       if (!showAll && turn65) {
-        const birthYear = new Date().getFullYear() - 65
+        const birthYear = getCentralTodayParts().year - 65
         query = query.gte('date_of_birth', `${birthYear}-01-01`).lte('date_of_birth', `${birthYear}-12-31`)
+      }
+      if (!showAll && age65plus) {
+        query = query.lte('date_of_birth', getAgeCutoffDate(65))
       }
 
       if (showAll) {
@@ -195,6 +224,12 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
   if (selectedHealthCompany) turn65Params.set('health_company', selectedHealthCompany)
   if (sort !== 'last_name') turn65Params.set('sort', sort)
   const turn65Href = `/clients?${turn65Params.toString()}`
+
+  const age65PlusParams = new URLSearchParams({ age65plus: '1' })
+  if (selectedAgent) age65PlusParams.set('agent', selectedAgent)
+  if (selectedHealthCompany) age65PlusParams.set('health_company', selectedHealthCompany)
+  if (sort !== 'last_name') age65PlusParams.set('sort', sort)
+  const age65PlusHref = `/clients?${age65PlusParams.toString()}`
 
   return (
     <>
@@ -243,7 +278,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         </select>
 
         <button className="btn btn-primary" type="submit">Search</button>
-        <Link prefetch={false} className="btn btn-secondary" href={turn65Href}>Turn 65</Link>
+        <Link prefetch={false} className="btn btn-secondary" href={turn65Href}>T-65</Link>
+        <Link prefetch={false} className="btn btn-secondary" href={age65PlusHref}>65+</Link>
         <Link prefetch={false} className="btn btn-secondary" href="/clients">Clear</Link>
       </form>
 
@@ -299,11 +335,11 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
 
       {!shouldSearch ? (
         <section className="card">
-          <div className="empty"><strong>No clients are loaded by default.</strong><br />Search above, choose a filter, choose a sort order and press Search, or use the Turn 65 button.</div>
+          <div className="empty"><strong>No clients are loaded by default.</strong><br />Search above, choose a filter, choose a sort order and press Search, or use the T-65 or 65+ button.</div>
         </section>
       ) : (
         <ClientsResults
-          key={`${q}|${product}|${turn65 ? '1' : '0'}|${selectedAgent}|${selectedHealthCompany}|${sort}|${showAll ? 'all' : 'filtered'}|${page}`}
+          key={`${q}|${product}|${turn65 ? '1' : '0'}|${age65plus ? '1' : '0'}|${selectedAgent}|${selectedHealthCompany}|${sort}|${showAll ? 'all' : 'filtered'}|${page}`}
           clients={clients}
           agentNames={agentNames}
           filters={{ q, product, turn65, agent: selectedAgent }}
