@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
+import NotificationsNavLink from '../components/NotificationsNavLink'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
 import DashboardCalendar from './DashboardCalendar'
@@ -97,9 +99,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     }]
   }
 
-  // Justin's calendar is private. Only Justin can receive Justin as a calendar
-  // choice. Managers/coordinators such as Shenna can work Isaiah's calendar,
-  // but Justin never appears in their calendar selector or calendar data.
   const calendarAvailableAgents = isJustinPortal
     ? targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() === 'justin mayer')
     : targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() !== 'justin mayer')
@@ -225,7 +224,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <DashboardCalendar agents={calendarAgents} viewerName={currentProfile.full_name || ''} />
       </div>
 
-      {isJustinPortal ? <DashboardNotes /> : null}
+      {isJustinPortal ? (
+        <>
+          <DashboardNotes />
+          <NotificationsNavLink dashboard />
+        </>
+      ) : null}
 
       {isManager ? (
         <section className="dashboard-agent-split" style={{ marginTop: 22 }}>
@@ -293,6 +297,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
       <BuildChartLookup />
 
+      <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
+        <span>FEX QUOTES</span>
+        <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
+      </Link>
+
       <style>{`
         .dashboard-premium-combined{background:#18324a!important;border-color:#18324a!important;color:#fff!important;display:grid!important;gap:12px!important}
         .dashboard-premium-combined span,.dashboard-premium-combined strong{color:#fff!important}
@@ -304,7 +313,17 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         .dashboard-calendar-agent-button.active{background:#18324a;border-color:#18324a;color:#fff;box-shadow:0 4px 12px rgba(24,50,74,.2)}
         .dashboard-calendar-agent-button:active{transform:translateY(1px)}
         .dashboard-calendar-coordinator-view .dashboard-calendar-legend{display:none!important}
-        @media(max-width:720px){.dashboard-calendar-agent-switcher{max-width:none;margin-top:14px}.dashboard-calendar-agent-button{min-height:44px}}
+        .dashboard-home-nav-tab{width:100%;min-height:50px;margin-top:10px;border:1px solid #cbd5e1;border-radius:13px;background:#18324a;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:900;letter-spacing:.025em;text-align:left;text-decoration:none;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+        .dashboard-home-nav-tab:hover{filter:brightness(.97);color:#fff}
+        .dashboard-home-nav-meta{display:flex;align-items:center;gap:10px;font-size:.76rem;letter-spacing:0;color:#dbe7f1;font-weight:800}
+        .dashboard-home-nav-meta b{display:grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:rgba(255,255,255,.16);font-size:.9rem;color:#fff}
+        .dashboard-notifications-home-tab{background:#18324a;border-color:#18324a}
+        .dashboard-fex-home-tab{margin-top:12px;background:#b4232f;border-color:#991f28;box-shadow:0 3px 10px rgba(180,35,47,.18)}
+        .dashboard-fex-home-tab .dashboard-home-nav-meta{color:#ffe4e6}
+        @media(max-width:720px){
+          .dashboard-calendar-agent-switcher{max-width:none;margin-top:14px}.dashboard-calendar-agent-button{min-height:44px}
+          .dashboard-home-nav-tab{padding:11px 12px}.dashboard-home-nav-meta{font-size:.72rem}
+        }
       `}</style>
     </>
   )
