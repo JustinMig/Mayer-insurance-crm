@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
-import NotificationsNavLink from '../components/NotificationsNavLink'
 import CompanyDirectory from './CompanyDirectory'
 import BuildChartLookup from './BuildChartLookup'
 import DashboardCalendar from './DashboardCalendar'
@@ -60,6 +59,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   if (!currentProfile?.agency_id) redirect('/account-setup')
 
   const isManager = currentProfile.role === 'manager'
+  const canBackupCrm = currentProfile.role === 'admin'
   const viewerName = currentProfile.full_name?.trim().toLowerCase() || ''
   const isJustinPortal = viewerName === 'justin mayer'
   const isIsaiahPortal = viewerName === 'isaiah hernandez'
@@ -227,7 +227,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       {isJustinPortal ? (
         <>
           <DashboardNotes />
-          <NotificationsNavLink dashboard />
+          <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
+            <span>FEX QUOTES</span>
+            <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
+          </Link>
         </>
       ) : null}
 
@@ -297,10 +300,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       <CompanyDirectory contacts={COMPANY_CONTACTS} />
       <BuildChartLookup />
 
-      <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
-        <span>FEX QUOTES</span>
-        <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
-      </Link>
+      {canBackupCrm ? (
+        <Link prefetch={false} href="/backup" className="dashboard-home-nav-tab dashboard-backup-home-tab">
+          <span>CRM BACKUP</span>
+          <span className="dashboard-home-nav-meta">Open Google Drive backup screen <b>→</b></span>
+        </Link>
+      ) : null}
 
       <style>{`
         .dashboard-premium-combined{background:#18324a!important;border-color:#18324a!important;color:#fff!important;display:grid!important;gap:12px!important}
@@ -317,9 +322,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         .dashboard-home-nav-tab:hover{filter:brightness(.97);color:#fff}
         .dashboard-home-nav-meta{display:flex;align-items:center;gap:10px;font-size:.76rem;letter-spacing:0;color:#dbe7f1;font-weight:800}
         .dashboard-home-nav-meta b{display:grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:rgba(255,255,255,.16);font-size:.9rem;color:#fff}
-        .dashboard-notifications-home-tab{background:#18324a;border-color:#18324a}
-        .dashboard-fex-home-tab{margin-top:12px;background:#b4232f;border-color:#991f28;box-shadow:0 3px 10px rgba(180,35,47,.18)}
+        .dashboard-fex-home-tab{margin-top:10px;background:#b4232f;border-color:#991f28;box-shadow:0 3px 10px rgba(180,35,47,.18)}
         .dashboard-fex-home-tab .dashboard-home-nav-meta{color:#ffe4e6}
+        .dashboard-backup-home-tab{margin-top:22px;background:#05070a;border-color:#101827;color:#5aa9ff;box-shadow:0 3px 12px rgba(2,6,23,.22)}
+        .dashboard-backup-home-tab:hover{background:#000;color:#76b9ff}
+        .dashboard-backup-home-tab .dashboard-home-nav-meta{color:#5aa9ff}
+        .dashboard-backup-home-tab .dashboard-home-nav-meta b{background:rgba(59,130,246,.18);color:#5aa9ff}
         @media(max-width:720px){
           .dashboard-calendar-agent-switcher{max-width:none;margin-top:14px}.dashboard-calendar-agent-button{min-height:44px}
           .dashboard-home-nav-tab{padding:11px 12px}.dashboard-home-nav-meta{font-size:.72rem}
