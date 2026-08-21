@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type CareInfo = {
   primary_doctor_name?: string | null
@@ -36,6 +36,8 @@ type Props = {
 
 type MedicationRow = Medication & { rowKey: string }
 
+const medicationSuggestionCache = new Map<string, string[]>()
+
 function blankMedication(index: number): MedicationRow {
   return {
     rowKey: `new-${Date.now()}-${index}`,
@@ -45,6 +47,114 @@ function blankMedication(index: number): MedicationRow {
     quantity_filled: '',
     refill_count: ''
   }
+}
+
+function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: string }) {
+  const [value, setValue] = useState(defaultValue)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const requestId = useRef(0)
+
+  useEffect(() => {
+    const query = value.trim()
+    if (query.length < 2) {
+      setSuggestions([])
+      setOpen(false)
+      setLoading(false)
+      return
+    }
+
+    const cacheKey = query.toLocaleLowerCase('en-US')
+    const cached = medicationSuggestionCache.get(cacheKey)
+    if (cached) {
+      setSuggestions(cached)
+      setOpen(cached.length > 0)
+      setLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const currentRequest = ++requestId.current
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/medications/search?q=${encodeURIComponent(query)}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || currentRequest !== requestId.current) return
+        const next = Array.isArray(result?.suggestions)
+          ? result.suggestions.filter((item: unknown): item is string => typeof item === 'string')
+          : []
+        medicationSuggestionCache.set(cacheKey, next)
+        setSuggestions(next)
+        setOpen(next.length > 0)
+      } catch (error) {
+        if ((error as Error)?.name !== 'AbortError' && currentRequest === requestId.current) {
+          setSuggestions([])
+          setOpen(false)
+        }
+      } finally {
+        if (currentRequest === requestId.current) setLoading(false)
+      }
+    }, 160)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [value])
+
+  function chooseMedication(name: string) {
+    requestId.current += 1
+    setValue(name)
+    setSuggestions([])
+    setOpen(false)
+  }
+
+  return (
+    <div className="medication-autocomplete">
+      <input
+        className="input"
+        name="medication_name"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        placeholder="Start typing a medication name"
+        autoComplete="off"
+        spellCheck={false}
+        aria-autocomplete="list"
+        aria-expanded={open}
+      />
+      {loading ? <span className="medication-autocomplete-status">Searching…</span> : null}
+      {open ? (
+        <div className="medication-autocomplete-menu" role="listbox" aria-label="Medication suggestions">
+          {suggestions.map((name) => (
+            <button
+              key={name.toLocaleLowerCase('en-US')}
+              type="button"
+              role="option"
+              className="medication-autocomplete-option"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => chooseMedication(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <style jsx>{`
+        .medication-autocomplete{position:relative}
+        .medication-autocomplete-status{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.72rem;color:#718096;pointer-events:none}
+        .medication-autocomplete-menu{position:absolute;z-index:80;left:0;right:0;top:calc(100% + 4px);max-height:245px;overflow:auto;background:#fff;border:1px solid #cfd9e2;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:4px}
+        .medication-autocomplete-option{display:block;width:100%;border:0;background:#fff;color:#263746;text-align:left;padding:9px 10px;border-radius:7px;font:inherit;font-size:.88rem;cursor:pointer}
+        .medication-autocomplete-option:hover,.medication-autocomplete-option:focus{background:#edf4f8;outline:none}
+      `}</style>
+    </div>
+  )
 }
 
 export default function DoctorsMedicationsFields({ careInfo = null, specialists = [], medications = [] }: Props) {
@@ -142,7 +252,7 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
         <div className="medication-heading">
           <div>
             <strong>Medication List</strong>
-            <div className="field-help">Add as many medications as needed.</div>
+            <div className="field-help">Start typing a medication name to choose from medications already stored in the CRM, or enter a new one.</div>
           </div>
         </div>
 
@@ -155,7 +265,7 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
               </div>
               <div className="form-grid" style={{ marginTop: 12 }}>
                 <label className="label span-2">Medication name
-                  <input className="input" name="medication_name" defaultValue={medication.medication_name || ''} placeholder="Medication name" />
+                  <MedicationNameAutocomplete defaultValue={medication.medication_name || ''} />
                 </label>
                 <label className="label">Dosage
                   <input className="input" name="medication_dosage" defaultValue={medication.dosage || ''} placeholder="Example: 10 mg" />
