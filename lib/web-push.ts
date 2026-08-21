@@ -20,6 +20,7 @@ type RecipientProfile = {
 const P256_ORDER = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551')
 const VAPID_SUBJECT = 'https://crm.mayerig.com'
 const PUSH_TIMEOUT_MS = 5000
+const BIGINT_ONE = BigInt(1)
 
 function base64UrlEncode(value: Buffer | Uint8Array | string) {
   const buffer = typeof value === 'string' ? Buffer.from(value, 'utf8') : Buffer.from(value)
@@ -48,7 +49,7 @@ function derivedVapidPrivateKey() {
     .createHmac('sha256', masterKey)
     .update('mayer-crm-web-push-vapid-v1', 'utf8')
     .digest()
-  const scalar = (bufferToBigInt(seed) % (P256_ORDER - 1n)) + 1n
+  const scalar = (bufferToBigInt(seed) % (P256_ORDER - BIGINT_ONE)) + BIGINT_ONE
   return bigIntTo32Bytes(scalar)
 }
 
@@ -71,13 +72,13 @@ function createVapidJwt(endpoint: string) {
   const { privateKey, publicKey } = vapidKeyPair()
   const x = publicKey.subarray(1, 33)
   const y = publicKey.subarray(33, 65)
-  const privateJwk = {
+  const privateJwk: crypto.JsonWebKey = {
     kty: 'EC',
     crv: 'P-256',
     x: base64UrlEncode(x),
     y: base64UrlEncode(y),
     d: base64UrlEncode(privateKey),
-  } as JsonWebKey
+  }
   const signingKey = crypto.createPrivateKey({ key: privateJwk, format: 'jwk' })
 
   const header = base64UrlEncode(JSON.stringify({ typ: 'JWT', alg: 'ES256' }))
