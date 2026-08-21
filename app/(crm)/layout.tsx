@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NotificationsNavLink from './components/NotificationsNavLink'
+import PushNotificationManager from './components/PushNotificationManager'
 import RouteScopedEnhancers from './components/RouteScopedEnhancers'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -124,7 +125,10 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
             <strong>{portalBrand}</strong>
           </div>
-          <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
+            <PushNotificationManager />
+            <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
+          </div>
         </header>
         <main className="content">{children}</main>
       </div>

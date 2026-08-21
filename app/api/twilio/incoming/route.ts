@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeUsPhone, validateTwilioRequest } from '@/lib/twilio'
+import { sendCrmMessagePush } from '@/lib/web-push'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!from || !sid) return new NextResponse('<Response></Response>', { status: 200, headers: { 'Content-Type': 'text/xml' } })
 
   const admin = createAdminClient()
-  let client: { id: string; assigned_agent_id: string | null; phone: string | null } | null = null
+  let client: { id: string; agency_id: string; assigned_agent_id: string | null; phone: string | null } | null = null
 
   // Prefer the client thread that most recently sent a message to this exact number.
   // This makes replies to individual and mass texts return to the same CRM conversation.
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   if (recentOutbound?.client_id) {
     const { data: recentClient } = await admin
       .from('clients')
-      .select('id, assigned_agent_id, phone')
+      .select('id, agency_id, assigned_agent_id, phone')
       .eq('id', recentOutbound.client_id)
       .maybeSingle()
     client = recentClient || null
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const { data: candidates } = await admin
       .from('clients')
-      .select('id, assigned_agent_id, phone')
+      .select('id, agency_id, assigned_agent_id, phone')
       .not('phone', 'is', null)
       .ilike('phone', `%${last7}%`)
       .limit(25)
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (client?.assigned_agent_id) {
-    await admin.from('client_sms_messages').upsert({
+    const { data: storedMessage, error: messageError } = await admin.from('client_sms_messages').upsert({
       client_id: client.id,
       user_id: client.assigned_agent_id,
       direction: 'inbound',
@@ -70,7 +71,31 @@ export async function POST(request: NextRequest) {
       twilio_message_sid: sid,
       status: String(params.get('SmsStatus') || 'received'),
       updated_at: new Date().toISOString()
-    }, { onConflict: 'twilio_message_sid', ignoreDuplicates: true })
+    }, { onConflict: 'twilio_message_sid', ignoreDuplicates: true }).select('id').maybeSingle()
+
+    if (messageError) {
+      console.error('Inbound Twilio SMS could not be stored', { sid, error: messageError.message })
+    } else if (storedMessage?.id) {
+      // The assigned agent receives the alert. Managers also receive alerts because their CRM role
+      // can see all agency message conversations. Duplicate Twilio webhooks do not create duplicate pushes.
+      const recipients = new Set<string>([client.assigned_agent_id])
+      const { data: managers } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('agency_id', client.agency_id)
+        .eq('role', 'manager')
+        .eq('active', true)
+      for (const manager of managers || []) recipients.add(manager.id)
+
+      try {
+        await sendCrmMessagePush(admin, Array.from(recipients), storedMessage.id)
+      } catch (pushError) {
+        console.warn('Inbound SMS was saved but phone push alert could not be sent', {
+          messageId: storedMessage.id,
+          error: pushError instanceof Error ? pushError.message : 'Unknown push error',
+        })
+      }
+    }
   } else {
     console.warn('Inbound Twilio SMS could not be matched to a CRM client', { from })
   }

@@ -9,6 +9,10 @@ type Props = {
 }
 
 type Listener = (total: number) => void
+type BadgeNavigator = Navigator & {
+  setAppBadge?: (contents?: number) => Promise<void>
+  clearAppBadge?: () => Promise<void>
+}
 
 let sharedTotal = 0
 let pollTimer: number | null = null
@@ -16,8 +20,20 @@ let inFlight: Promise<void> | null = null
 let eventsAttached = false
 const listeners = new Set<Listener>()
 
+function syncAppBadge(total: number) {
+  if (typeof navigator === 'undefined') return
+  const badgeNavigator = navigator as BadgeNavigator
+  try {
+    if (total > 0) void badgeNavigator.setAppBadge?.(total).catch(() => undefined)
+    else void badgeNavigator.clearAppBadge?.().catch(() => undefined)
+  } catch {
+    // Badge support is optional; never interfere with CRM navigation.
+  }
+}
+
 function publish(total: number) {
   sharedTotal = total
+  syncAppBadge(total)
   listeners.forEach((listener) => listener(total))
 }
 
