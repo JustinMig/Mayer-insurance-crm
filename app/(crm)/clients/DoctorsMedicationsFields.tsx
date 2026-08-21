@@ -36,7 +36,14 @@ type Props = {
 
 type MedicationRow = Medication & { rowKey: string }
 
-const medicationSuggestionCache = new Map<string, string[]>()
+type MedicationSuggestion = {
+  name: string
+  strengths: string[]
+  rxcuis?: string[]
+  source?: 'rxterms' | 'crm'
+}
+
+const medicationSuggestionCache = new Map<string, MedicationSuggestion[]>()
 
 function blankMedication(index: number): MedicationRow {
   return {
@@ -49,11 +56,26 @@ function blankMedication(index: number): MedicationRow {
   }
 }
 
-function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: string }) {
+function isMedicationSuggestion(value: unknown): value is MedicationSuggestion {
+  if (!value || typeof value !== 'object') return false
+  const suggestion = value as Record<string, unknown>
+  return typeof suggestion.name === 'string' && Array.isArray(suggestion.strengths)
+}
+
+function MedicationNameAutocomplete({
+  defaultValue = '',
+  onSelect,
+  onTyping,
+}: {
+  defaultValue?: string
+  onSelect: (suggestion: MedicationSuggestion) => void
+  onTyping: () => void
+}) {
   const [value, setValue] = useState(defaultValue)
-  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<MedicationSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [noResults, setNoResults] = useState(false)
   const requestId = useRef(0)
 
   useEffect(() => {
@@ -62,6 +84,7 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
       setSuggestions([])
       setOpen(false)
       setLoading(false)
+      setNoResults(false)
       return
     }
 
@@ -71,6 +94,7 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
       setSuggestions(cached)
       setOpen(cached.length > 0)
       setLoading(false)
+      setNoResults(cached.length === 0)
       return
     }
 
@@ -78,6 +102,7 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
     const currentRequest = ++requestId.current
     const timer = window.setTimeout(async () => {
       setLoading(true)
+      setNoResults(false)
       try {
         const response = await fetch(`/api/medications/search?q=${encodeURIComponent(query)}`, {
           cache: 'no-store',
@@ -86,15 +111,23 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
         const result = await response.json().catch(() => ({}))
         if (!response.ok || currentRequest !== requestId.current) return
         const next = Array.isArray(result?.suggestions)
-          ? result.suggestions.filter((item: unknown): item is string => typeof item === 'string')
+          ? result.suggestions.filter(isMedicationSuggestion).map((item: MedicationSuggestion) => ({
+              ...item,
+              strengths: item.strengths
+                .filter((strength): strength is string => typeof strength === 'string')
+                .map(strength => strength.trim())
+                .filter(Boolean),
+            }))
           : []
         medicationSuggestionCache.set(cacheKey, next)
         setSuggestions(next)
         setOpen(next.length > 0)
+        setNoResults(next.length === 0)
       } catch (error) {
         if ((error as Error)?.name !== 'AbortError' && currentRequest === requestId.current) {
           setSuggestions([])
           setOpen(false)
+          setNoResults(true)
         }
       } finally {
         if (currentRequest === requestId.current) setLoading(false)
@@ -107,11 +140,13 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
     }
   }, [value])
 
-  function chooseMedication(name: string) {
+  function chooseMedication(suggestion: MedicationSuggestion) {
     requestId.current += 1
-    setValue(name)
+    setValue(suggestion.name)
     setSuggestions([])
     setOpen(false)
+    setNoResults(false)
+    onSelect(suggestion)
   }
 
   return (
@@ -120,9 +155,13 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
         className="input"
         name="medication_name"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          setValue(event.target.value)
+          setNoResults(false)
+          onTyping()
+        }}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
         placeholder="Start typing a medication name"
         autoComplete="off"
         spellCheck={false}
@@ -132,28 +171,122 @@ function MedicationNameAutocomplete({ defaultValue = '' }: { defaultValue?: stri
       {loading ? <span className="medication-autocomplete-status">Searching…</span> : null}
       {open ? (
         <div className="medication-autocomplete-menu" role="listbox" aria-label="Medication suggestions">
-          {suggestions.map((name) => (
+          {suggestions.map((suggestion) => (
             <button
-              key={name.toLocaleLowerCase('en-US')}
+              key={`${suggestion.name.toLocaleLowerCase('en-US')}-${suggestion.strengths.join('|')}`}
               type="button"
               role="option"
               className="medication-autocomplete-option"
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => chooseMedication(name)}
+              onClick={() => chooseMedication(suggestion)}
             >
-              {name}
+              <span>{suggestion.name}</span>
+              {suggestion.strengths.length ? (
+                <small>{suggestion.strengths.length} strength{suggestion.strengths.length === 1 ? '' : 's'}</small>
+              ) : null}
             </button>
           ))}
         </div>
       ) : null}
+      {noResults && !loading && value.trim().length >= 2 ? (
+        <span className="medication-no-results">No catalog match. You can still enter it manually.</span>
+      ) : null}
       <style jsx>{`
         .medication-autocomplete{position:relative}
-        .medication-autocomplete-status{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.72rem;color:#718096;pointer-events:none}
-        .medication-autocomplete-menu{position:absolute;z-index:80;left:0;right:0;top:calc(100% + 4px);max-height:245px;overflow:auto;background:#fff;border:1px solid #cfd9e2;border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:4px}
-        .medication-autocomplete-option{display:block;width:100%;border:0;background:#fff;color:#263746;text-align:left;padding:9px 10px;border-radius:7px;font:inherit;font-size:.88rem;cursor:pointer}
+        .medication-autocomplete-status{position:absolute;right:10px;top:21px;transform:translateY(-50%);font-size:.72rem;color:#718096;pointer-events:none}
+        .medication-no-results{display:block;margin-top:5px;font-size:.72rem;font-weight:500;color:#718096}
+        .medication-autocomplete-menu{position:absolute;z-index:120;left:0;right:0;top:calc(100% + 4px);max-height:300px;overflow:auto;background:#fff;border:1px solid #cfd9e2;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:4px}
+        .medication-autocomplete-option{display:flex;width:100%;border:0;background:#fff;color:#263746;text-align:left;padding:9px 10px;border-radius:7px;font:inherit;font-size:.88rem;cursor:pointer;align-items:center;justify-content:space-between;gap:12px}
+        .medication-autocomplete-option small{flex:0 0 auto;color:#718096;font-size:.72rem;font-weight:700}
         .medication-autocomplete-option:hover,.medication-autocomplete-option:focus{background:#edf4f8;outline:none}
       `}</style>
     </div>
+  )
+}
+
+function MedicationLookupFields({ medication }: { medication: MedicationRow }) {
+  const [strengths, setStrengths] = useState<string[]>([])
+  const [dosage, setDosage] = useState(medication.dosage || '')
+  const [manualDosage, setManualDosage] = useState(true)
+
+  function selectMedication(suggestion: MedicationSuggestion) {
+    const uniqueStrengths = Array.from(new Set(suggestion.strengths.map(value => value.trim()).filter(Boolean)))
+    setStrengths(uniqueStrengths)
+
+    if (!uniqueStrengths.length) {
+      setManualDosage(true)
+      return
+    }
+
+    const existingDosage = dosage.trim()
+    const matchingExisting = uniqueStrengths.find(
+      strength => strength.toLocaleLowerCase('en-US') === existingDosage.toLocaleLowerCase('en-US')
+    )
+    setDosage(matchingExisting || '')
+    setManualDosage(false)
+  }
+
+  function medicationChanged() {
+    setStrengths([])
+    setManualDosage(true)
+  }
+
+  return (
+    <>
+      <label className="label span-2">Medication name
+        <MedicationNameAutocomplete
+          defaultValue={medication.medication_name || ''}
+          onSelect={selectMedication}
+          onTyping={medicationChanged}
+        />
+      </label>
+      <label className="label">Dosage / strength
+        <input type="hidden" name="medication_dosage" value={dosage} />
+        {strengths.length > 0 && !manualDosage ? (
+          <select
+            className="select"
+            value={dosage}
+            onChange={(event) => {
+              if (event.target.value === '__manual__') {
+                setDosage('')
+                setManualDosage(true)
+                return
+              }
+              setDosage(event.target.value)
+            }}
+          >
+            <option value="">Choose strength / form</option>
+            {strengths.map(strength => (
+              <option key={strength} value={strength}>{strength}</option>
+            ))}
+            <option value="__manual__">Other / enter manually</option>
+          </select>
+        ) : (
+          <>
+            <input
+              className="input"
+              value={dosage}
+              onChange={(event) => setDosage(event.target.value)}
+              placeholder="Example: 10 mg"
+              autoComplete="off"
+            />
+            {strengths.length > 0 ? (
+              <button
+                type="button"
+                className="strength-list-return"
+                onClick={() => setManualDosage(false)}
+              >
+                Choose from {strengths.length} listed strength{strengths.length === 1 ? '' : 's'}
+              </button>
+            ) : null}
+          </>
+        )}
+        <style jsx>{`
+          .strength-list-return{border:0;background:transparent;color:#365d83;padding:3px 0 0;text-align:left;font-size:.72rem;font-weight:700;cursor:pointer}
+          .strength-list-return:hover{text-decoration:underline}
+        `}</style>
+      </label>
+    </>
   )
 }
 
@@ -252,7 +385,8 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
         <div className="medication-heading">
           <div>
             <strong>Medication List</strong>
-            <div className="field-help">Start typing a medication name to choose from medications already stored in the CRM, or enter a new one.</div>
+            <div className="field-help">Start typing a generic or brand name, select the medication, then choose its available strength and form. Manual entry is always available.</div>
+            <div className="field-help">Drug and strength lookup uses publicly available RxTerms data from the U.S. National Library of Medicine (NLM/NIH). NLM does not endorse this CRM.</div>
           </div>
         </div>
 
@@ -264,12 +398,7 @@ export default function DoctorsMedicationsFields({ careInfo = null, specialists 
                 <button className="btn btn-secondary btn-small" type="button" onClick={() => removeMedication(medication.rowKey)}>Remove</button>
               </div>
               <div className="form-grid" style={{ marginTop: 12 }}>
-                <label className="label span-2">Medication name
-                  <MedicationNameAutocomplete defaultValue={medication.medication_name || ''} />
-                </label>
-                <label className="label">Dosage
-                  <input className="input" name="medication_dosage" defaultValue={medication.dosage || ''} placeholder="Example: 10 mg" />
-                </label>
+                <MedicationLookupFields medication={medication} />
                 <label className="label">Times per day
                   <input className="input" name="medication_times_per_day" defaultValue={medication.times_per_day || ''} placeholder="Example: 2" />
                 </label>
