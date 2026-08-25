@@ -11,6 +11,14 @@ const NASSAU_CONTACT: CompanyContact = {
   notes: []
 }
 
+const CICA_CITIZENS_LIFE_CONTACT: CompanyContact = {
+  company: 'CICA / Citizens Life',
+  phones: ['Agents: (737) 289-4670', 'Clients: (877) 282-7127'],
+  faxes: [],
+  emails: [],
+  notes: []
+}
+
 function normalized(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9@.]+/g, ' ').trim()
 }
@@ -30,8 +38,10 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
   const [selectedCompany, setSelectedCompany] = useState('')
 
   const directoryContacts = useMemo(() => {
-    const withoutDuplicate = contacts.filter((contact) => contact.company.trim().toLowerCase() !== 'nassau')
-    return [...withoutDuplicate, NASSAU_CONTACT]
+    const extras = [NASSAU_CONTACT, CICA_CITIZENS_LIFE_CONTACT]
+    const extraNames = new Set(extras.map((contact) => contact.company.trim().toLowerCase()))
+    const withoutDuplicates = contacts.filter((contact) => !extraNames.has(contact.company.trim().toLowerCase()))
+    return [...withoutDuplicates, ...extras]
   }, [contacts])
 
   const selected = useMemo(
