@@ -14,6 +14,13 @@ function prepareCard(card: HTMLElement) {
   card.setAttribute('aria-label', 'Open lead details')
 }
 
+function prepareWithin(node: Node) {
+  const element = node instanceof Element ? node : node.parentElement
+  if (!element) return
+  if (element.matches(CARD_SELECTOR)) prepareCard(element as HTMLElement)
+  element.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(prepareCard)
+}
+
 function toggleCard(card: HTMLElement) {
   const expanded = card.classList.toggle('is-expanded')
   card.setAttribute('aria-expanded', expanded ? 'true' : 'false')
@@ -22,13 +29,22 @@ function toggleCard(card: HTMLElement) {
 
 export default function WorkspaceLeadCollapseController() {
   useEffect(() => {
-    const prepareAll = () => {
-      document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(prepareCard)
+    prepareWithin(document.body)
+
+    const pending = new Set<Node>()
+    let frame = 0
+    const flush = () => {
+      frame = 0
+      for (const node of pending) prepareWithin(node)
+      pending.clear()
     }
 
-    prepareAll()
-
-    const observer = new MutationObserver(prepareAll)
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) pending.add(node)
+      }
+      if (pending.size && !frame) frame = window.requestAnimationFrame(flush)
+    })
     observer.observe(document.body, { childList: true, subtree: true })
 
     const handleClick = (event: MouseEvent) => {
@@ -52,6 +68,8 @@ export default function WorkspaceLeadCollapseController() {
 
     return () => {
       observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+      pending.clear()
       document.removeEventListener('click', handleClick)
       document.removeEventListener('keydown', handleKeyDown)
     }
