@@ -33,6 +33,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const isAgentPortal = profile?.role === 'agent'
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
+  const isJustinAdmin = profile?.role === 'admin' && profile?.full_name?.trim().toLowerCase() === 'justin mayer'
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
   const brandLogoAlt = isIsaiahPortal ? 'PLATINUM - Financial Group - PF logo' : 'Mayer Insurance Group bear'
@@ -64,6 +65,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .mobile-nav>a[href="/clients"]{background:#edf3f2!important;color:#3f5b57!important;border-top:3px solid #7f9c96}
         .mobile-nav>a[href="/notifications"]{background:#f5f2e8!important;color:#665f42!important;border-top:3px solid #aaa078}
         .mobile-nav .mobile-signout{background:#f5eded!important;color:#6a4949!important;border-top:3px solid #a68181}
+        .duplicate-compare-nav{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:6px 10px;border:1px solid #c9d5df;border-radius:999px;background:#f7fafc;color:#31485b;font-size:.72rem;font-weight:900;text-decoration:none;white-space:nowrap}
+        .duplicate-compare-nav:hover{background:#edf3f6;color:#263c4e}
 
         .add-client-form>.add-client-save-row,
         .client-profile-form>.sticky-save-bar{
@@ -101,6 +104,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           .client-profile-form>.sticky-save-bar .subtle{display:none!important}
           .add-client-form>.add-client-save-row .btn,
           .client-profile-form>.sticky-save-bar .btn{width:100%;min-width:0}
+          .duplicate-compare-nav{min-height:31px;padding:5px 8px;font-size:.68rem}
         }
       `}</style>
       <RouteScopedEnhancers />
@@ -126,6 +130,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <strong>{portalBrand}</strong>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
+            {isJustinAdmin ? <Link prefetch={false} href="/clients/duplicates" className="duplicate-compare-nav">COMPARE CLIENTS</Link> : null}
             <PushNotificationManager />
             <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
           </div>
