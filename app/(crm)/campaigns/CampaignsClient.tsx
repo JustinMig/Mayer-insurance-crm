@@ -83,6 +83,59 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
     }
   }
 
+  async function renameCampaign(id: string, currentName: string) {
+    if (busyId) return
+    const nextName = window.prompt('Rename campaign:', currentName)?.trim() || ''
+    if (!nextName || nextName === currentName) return
+    if (nextName.length < 2) return setMessage('Campaign name must be at least 2 characters.')
+
+    setBusyId(id)
+    setMessage('')
+    try {
+      const response = await fetch('/api/outreach-campaigns/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rename', campaign_id: id, name: nextName })
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Unable to rename campaign.')
+      setMessage(`Campaign renamed to “${nextName}”.`)
+      router.refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to rename campaign.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function deleteCampaign(campaign: CampaignSummary) {
+    if (busyId) return
+    const confirmed = window.confirm(
+      `Permanently delete “${campaign.name}”?\n\n` +
+      `This removes this campaign, its ${campaign.total} campaign client entr${campaign.total === 1 ? 'y' : 'ies'}, and the outreach history recorded inside this campaign.\n\n` +
+      'Client records themselves will NOT be deleted. This cannot be undone.'
+    )
+    if (!confirmed) return
+
+    setBusyId(campaign.id)
+    setMessage('')
+    try {
+      const response = await fetch('/api/outreach-campaigns/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', campaign_id: campaign.id })
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Unable to delete campaign.')
+      setMessage(`“${campaign.name}” was permanently deleted. Client records were kept.`)
+      router.refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to delete campaign.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   return (
     <>
       <div className="outreach-page-heading">
@@ -117,6 +170,7 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
             const closed = campaign.completed + campaign.not_interested + campaign.do_not_call + campaign.unreachable
             const contacted = campaign.spoke + campaign.follow_up + closed
             const progress = campaign.total ? Math.round((closed / campaign.total) * 100) : 0
+            const isBusy = busyId === campaign.id
             return (
               <section className="card outreach-campaign-card" key={campaign.id}>
                 <div className="outreach-card-head">
@@ -134,7 +188,9 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
                 </div>
                 <div className="outreach-card-actions">
                   <Link prefetch={false} className="btn btn-primary" href={`/campaigns/${campaign.id}`}>OPEN CAMPAIGN</Link>
-                  {campaign.can_archive ? <button className="btn btn-secondary" type="button" disabled={busyId === campaign.id} onClick={() => void archiveCampaign(campaign.id, campaign.name)}>{busyId === campaign.id ? 'Archiving…' : 'ARCHIVE'}</button> : null}
+                  {campaign.can_archive ? <button className="btn btn-secondary" type="button" disabled={isBusy} onClick={() => void renameCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'RENAME'}</button> : null}
+                  {campaign.can_archive ? <button className="btn btn-secondary" type="button" disabled={isBusy} onClick={() => void archiveCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'ARCHIVE'}</button> : null}
+                  {campaign.can_archive ? <button className="btn btn-danger" type="button" disabled={isBusy} onClick={() => void deleteCampaign(campaign)}>{isBusy ? 'Working…' : 'DELETE'}</button> : null}
                 </div>
               </section>
             )
@@ -147,7 +203,7 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
         .outreach-create-card{margin-bottom:16px}.outreach-create-heading strong{display:block;font-size:1.02rem}.outreach-create-heading span{display:block;color:#64748b;font-size:.82rem;margin-top:3px}.outreach-create-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr) auto;gap:10px;align-items:end;margin-top:12px}.outreach-create-grid .btn{min-height:42px}
         .outreach-campaign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.outreach-campaign-card{padding:16px;min-width:0}.outreach-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.outreach-card-head h2{font-size:1.08rem;margin:5px 0 0;color:#172033}.outreach-topic{display:inline-flex;border:1px solid #d8e1e8;border-radius:999px;padding:4px 8px;font-size:.69rem;font-weight:900;color:#526271;background:#f8fafc;text-transform:uppercase}.outreach-progress-number{font-size:1.4rem;color:#3f5b57}.outreach-progress-track{height:8px;border-radius:999px;background:#e9eef1;overflow:hidden;margin:13px 0}.outreach-progress-track span{display:block;height:100%;background:#7f9c96;border-radius:inherit}.outreach-card-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.outreach-card-summary div{border:1px solid #e1e7ec;border-radius:10px;padding:8px;background:#fbfcfd;min-width:0}.outreach-card-summary span{display:block;color:#718096;font-size:.67rem;font-weight:800;text-transform:uppercase}.outreach-card-summary strong{display:block;margin-top:2px;font-size:1.05rem;color:#253646}.outreach-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
         @media(max-width:900px){.outreach-campaign-grid{grid-template-columns:1fr}.outreach-create-grid{grid-template-columns:1fr 1fr}.outreach-create-grid .btn{grid-column:span 2}}
-        @media(max-width:640px){.outreach-create-grid{grid-template-columns:1fr}.outreach-create-grid .btn{grid-column:auto;width:100%}.outreach-card-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.outreach-card-actions .btn{flex:1;min-width:130px}.outreach-page-heading>.btn{width:100%}}
+        @media(max-width:640px){.outreach-create-grid{grid-template-columns:1fr}.outreach-create-grid .btn{grid-column:auto;width:100%}.outreach-card-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.outreach-card-actions .btn{flex:1;min-width:110px}.outreach-page-heading>.btn{width:100%}}
       `}</style>
     </>
   )
