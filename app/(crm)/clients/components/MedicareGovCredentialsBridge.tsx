@@ -21,6 +21,15 @@ function clientIdFromPath(pathname: string) {
   return decodeURIComponent(match[1])
 }
 
+function savedStateFromHost(host: HTMLElement): SavedState {
+  return {
+    username: host.dataset.usernameSaved === '1',
+    password: host.dataset.passwordSaved === '1',
+    secret_answer: host.dataset.secretAnswerSaved === '1',
+    security_code_destination_name: host.dataset.destinationSaved === '1'
+  }
+}
+
 export default function MedicareGovCredentialsBridge() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
@@ -42,6 +51,7 @@ export default function MedicareGovCredentialsBridge() {
 
     let disposed = false
     let observer: MutationObserver | null = null
+    let createdHost: HTMLElement | null = null
 
     const attach = () => {
       if (disposed) return false
@@ -52,14 +62,17 @@ export default function MedicareGovCredentialsBridge() {
       if (!host) {
         host = document.createElement('div')
         host.id = 'medicare-gov-credentials-mount'
+        createdHost = host
 
-        const effectiveDatesGroup = Array.from(body.children).find((child) =>
-          child.classList.contains('intake-group') && child.textContent?.includes('Medicare Effective Dates')
+        const effectiveDatesGroup = Array.from(body.querySelectorAll<HTMLElement>('.intake-group')).find((child) =>
+          child.textContent?.includes('Medicare Effective Dates')
         )
 
-        if (effectiveDatesGroup?.nextSibling) body.insertBefore(host, effectiveDatesGroup.nextSibling)
+        if (effectiveDatesGroup?.parentElement === body && effectiveDatesGroup.nextSibling) body.insertBefore(host, effectiveDatesGroup.nextSibling)
         else body.appendChild(host)
       }
+
+      setSaved(savedStateFromHost(host))
       setMountNode(host)
       return true
     }
@@ -80,13 +93,12 @@ export default function MedicareGovCredentialsBridge() {
     return () => {
       disposed = true
       observer?.disconnect()
-      document.getElementById('medicare-gov-credentials-mount')?.remove()
+      if (createdHost?.isConnected) createdHost.remove()
       setMountNode(null)
     }
   }, [clientId])
 
   useEffect(() => {
-    setSaved(emptySaved)
     setRevealed({})
     setUsername('')
     setPassword('')
@@ -163,7 +175,7 @@ export default function MedicareGovCredentialsBridge() {
       <span>{label}</span>
       {saved[key] ? (
         <div className="medicare-gov-saved-line">
-          <span className="medicare-gov-saved-value">{revealed[key] ?? 'Saved securely'}</span>
+          <span className="medicare-gov-saved-value">{revealed[key] ?? '✓ Saved securely'}</span>
           <button type="button" className="btn btn-secondary btn-small" onClick={() => void reveal(key)}>
             {revealed[key] !== undefined ? 'Hide' : 'Show'}
           </button>
@@ -176,7 +188,7 @@ export default function MedicareGovCredentialsBridge() {
         autoComplete="off"
         value={fieldValue}
         onChange={(event) => setter(event.target.value)}
-        placeholder={saved[key] ? `Enter a new ${label.toLowerCase()} only to replace the saved value` : placeholder}
+        placeholder={saved[key] ? `Saved — type here only to replace the ${label.toLowerCase()}` : placeholder}
       />
       {saved[key] ? (
         <label className="clear-sensitive">
@@ -197,7 +209,7 @@ export default function MedicareGovCredentialsBridge() {
       <div className="intake-group-heading">
         <div>
           <strong>Medicare.gov</strong>
-          <span>Login and verification information. Sensitive values are encrypted and hidden by default.</span>
+          <span>Login and verification information. Saved values remain encrypted and are hidden until you press Show.</span>
         </div>
       </div>
 
@@ -215,7 +227,7 @@ export default function MedicareGovCredentialsBridge() {
         .medicare-gov-grid{margin-top:10px}
         .medicare-gov-field{background:#fff;border:1px solid #dfe4dc;border-radius:11px;padding:11px}
         .medicare-gov-saved-line{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-        .medicare-gov-saved-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4b5563;font-size:.82rem;font-weight:700}
+        .medicare-gov-saved-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2f6842;font-size:.82rem;font-weight:800}
         .medicare-gov-status{margin-top:10px;color:#8a4a3b;font-size:.82rem;font-weight:700}
       `}</style>
     </div>,
