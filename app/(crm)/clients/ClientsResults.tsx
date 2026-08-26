@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ClientExportControls from './ClientExportControls'
 import MassTextSelected from './MassTextSelected'
+import AddToCallListSelected from './AddToCallListSelected'
 
 type ClientRow = {
   id: string
@@ -141,6 +142,7 @@ export default function ClientsResults({
               <span className="client-selection-count">
                 {selectedClientIds.length} of {clients.length} selected
               </span>
+              <AddToCallListSelected selectedClientIds={selectedClientIds} />
               <MassTextSelected clients={clients} selectedClientIds={selectedClientIds} />
               <ClientExportControls
                 filters={filters}
