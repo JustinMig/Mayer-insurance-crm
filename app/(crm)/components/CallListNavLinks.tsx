@@ -29,6 +29,7 @@ export default function CallListNavLinks() {
         .nav .nav-outreach{background:#e5e8ef!important;color:#48546a!important;box-shadow:inset 4px 0 0 #8894aa}
         .nav .nav-outreach:hover{background:#d9dee8!important;color:#3d485c!important}
         .mobile-nav .mobile-outreach-link{background:#f0f1f6!important;color:#48546a!important;border-top:3px solid #8894aa}
+        .call-button{display:none!important}
       `}</style>
     </>
   )
