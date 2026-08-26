@@ -201,14 +201,28 @@ export default async function ClientProfilePage({ params, searchParams }: { para
         <details className="section-details section-medicare">
           <summary><span>Medicare Information</span><small>Medicare, Medicaid, dates &amp; documents</small></summary>
           <div className="section-body intake-section-body">
-            <div className="intake-group">
-              <div className="intake-group-heading"><div><strong>Coverage Identification</strong><span>Medicare and Medicaid information.</span></div></div>
-              <div className="form-grid">
+            <div className="medicare-core-grid">
+              <div className="intake-group medicare-number-group">
+                <div className="intake-group-heading"><div><strong>Medicare Number</strong><span>Medicare beneficiary identifier.</span></div></div>
                 <div className="label">Medicare number
                   <SensitiveReveal clientId={client.id} field="medicare_number" masked={mbiMasked} />
                   <input className="input" name="medicare_number" type="text" autoComplete="off" placeholder="Enter a new Medicare number only to replace the saved value" />
                   <span className="clear-sensitive"><input type="checkbox" name="clear_medicare_number" /> Clear saved Medicare number</span>
                 </div>
+              </div>
+
+              <div className="intake-group medicare-dates-group">
+                <div className="intake-group-heading"><div><strong>Medicare Effective Dates</strong><span>Original Part A and Part B effective dates.</span></div></div>
+                <div className="form-grid">
+                  <label className="label">Part A date<ManualDateInput name="part_a_date" defaultValue={medicare?.part_a_date} /></label>
+                  <label className="label">Part B date<ManualDateInput name="part_b_date" defaultValue={medicare?.part_b_date} /></label>
+                </div>
+              </div>
+            </div>
+
+            <div className="intake-group medicaid-information-group">
+              <div className="intake-group-heading"><div><strong>Medicaid Information</strong><span>Medicaid number and current eligibility level.</span></div></div>
+              <div className="form-grid">
                 <div className="label">Medicaid number
                   <SensitiveReveal clientId={client.id} field="medicaid_number" masked={medicaidMasked} />
                   <input className="input" name="medicaid_number" type="text" autoComplete="off" placeholder="Enter a new Medicaid number only to replace the saved value" />
@@ -217,13 +231,15 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 <label className="label">Medicaid level<select className="select" name="medicaid_level" defaultValue={medicare?.medicaid_level || ''}><option value="">Select</option><option>QMB</option><option>SLMB</option><option>QI</option><option>FBDE</option><option>Other</option></select></label>
               </div>
             </div>
-            <div className="intake-group">
-              <div className="intake-group-heading"><div><strong>Medicare Effective Dates</strong><span>Original Part A and Part B effective dates.</span></div></div>
-              <div className="form-grid">
-                <label className="label">Part A date<ManualDateInput name="part_a_date" defaultValue={medicare?.part_a_date} /></label>
-                <label className="label">Part B date<ManualDateInput name="part_b_date" defaultValue={medicare?.part_b_date} /></label>
-              </div>
-            </div>
+
+            <div
+              id="medicare-gov-credentials-mount"
+              data-username-saved={medicare?.medicare_gov_username_ciphertext ? '1' : '0'}
+              data-password-saved={medicare?.medicare_gov_password_ciphertext ? '1' : '0'}
+              data-secret-answer-saved={medicare?.medicare_gov_secret_answer_ciphertext ? '1' : '0'}
+              data-destination-saved={medicare?.medicare_gov_security_code_destination_ciphertext ? '1' : '0'}
+            />
+
             <div className="intake-group intake-group-files">
               <MedicareDocuments
                 clientId={client.id}
@@ -235,6 +251,15 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 initialDocuments={(documents || []).filter(doc => ['medicare_document', 'medicare_photo', 'scope_of_appointment', 'card_information'].includes(doc.document_type || ''))}
               />
             </div>
+
+            <style>{`
+              .section-medicare .medicare-core-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+              .section-medicare .medicare-core-grid>.intake-group{margin:0}
+              .section-medicare .medicaid-information-group{margin-top:0}
+              @media(max-width:850px){
+                .section-medicare .medicare-core-grid{grid-template-columns:1fr}
+              }
+            `}</style>
           </div>
         </details>
 
