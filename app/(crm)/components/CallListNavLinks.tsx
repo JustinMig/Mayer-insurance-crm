@@ -18,17 +18,17 @@ export default function CallListNavLinks() {
   return (
     <>
       {desktopHost ? createPortal(
-        <Link prefetch={false} className="nav-link nav-call-list" href="/call-list">CALL LIST</Link>,
+        <Link prefetch={false} className="nav-link nav-outreach" href="/campaigns">OUTREACH</Link>,
         desktopHost
       ) : null}
       {mobileHost ? createPortal(
-        <Link prefetch={false} className="mobile-call-list-link" href="/call-list"><b>☎</b><span>CALLS</span></Link>,
+        <Link prefetch={false} className="mobile-outreach-link" href="/campaigns"><b>◎</b><span>OUTREACH</span></Link>,
         mobileHost
       ) : null}
       <style jsx global>{`
-        .nav .nav-call-list{background:#e5e8ef!important;color:#48546a!important;box-shadow:inset 4px 0 0 #8894aa}
-        .nav .nav-call-list:hover{background:#d9dee8!important;color:#3d485c!important}
-        .mobile-nav .mobile-call-list-link{background:#f0f1f6!important;color:#48546a!important;border-top:3px solid #8894aa}
+        .nav .nav-outreach{background:#e5e8ef!important;color:#48546a!important;box-shadow:inset 4px 0 0 #8894aa}
+        .nav .nav-outreach:hover{background:#d9dee8!important;color:#3d485c!important}
+        .mobile-nav .mobile-outreach-link{background:#f0f1f6!important;color:#48546a!important;border-top:3px solid #8894aa}
       `}</style>
     </>
   )
