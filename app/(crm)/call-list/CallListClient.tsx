@@ -183,7 +183,7 @@ export default function CallListClient({ initialRows, agents, viewerId, isManage
         callback_date: updated.callback_date ?? null,
         callback_time: updated.callback_time ?? null,
         last_outcome: updated.last_outcome || outcome,
-        last_note: updated.last_note ?? outcomeNote || null,
+        last_note: updated.last_note ?? (outcomeNote || null),
         last_called_at: updated.last_called_at || new Date().toISOString(),
         attempt_count: Number(updated.attempt_count ?? Number(item.attempt_count || 0) + 1)
       } : item))
