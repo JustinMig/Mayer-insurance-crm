@@ -15,6 +15,7 @@ const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
 const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
 const ClientCallHistoryBridge = dynamic(() => import('../clients/components/ClientCallHistoryBridge'), { ssr: false })
+const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 
 export default function RouteScopedEnhancers() {
   const pathname = usePathname()
@@ -36,6 +37,7 @@ export default function RouteScopedEnhancers() {
       {usesLeadBridge ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {isClientForm ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
       {isClientRecord ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
+      {isClientRecord ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
       {isClientRecord ? <ClientCallHistoryBridge key={`call-history-${pathname}`} /> : null}
       {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
       {isClientRecord ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
