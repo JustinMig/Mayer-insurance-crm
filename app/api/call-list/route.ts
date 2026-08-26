@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         actor_id: userId,
         action: 'call_list.clients_added',
         details: { requested: clientIds.length, added: inserts.length }
-      }).catch(() => undefined)
+      })
 
       return json({
         added_count: inserts.length,
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         client_id: item.client_id,
         action: 'call_list.removed',
         details: { call_list_item_id: item.id, owner_id: item.user_id }
-      }).catch(() => undefined)
+      })
 
       return json({ removed: true })
     }
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
       client_id: item.client_id,
       action: 'call_list.outcome_recorded',
       details: { outcome, owner_id: item.user_id, callback_date: outcome === 'callback' ? callbackDate : null }
-    }).catch(() => undefined)
+    })
 
     return json({ item: updated, calendar_event_id: calendarEventId })
   } catch (error) {
