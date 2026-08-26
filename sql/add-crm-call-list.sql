@@ -31,8 +31,11 @@ create table if not exists public.crm_call_attempts (
 
 create index if not exists crm_call_list_user_status_idx on public.crm_call_list_items (user_id, status, added_at);
 create index if not exists crm_call_list_agency_user_idx on public.crm_call_list_items (agency_id, user_id);
+create index if not exists crm_call_list_client_idx on public.crm_call_list_items (client_id);
 create index if not exists crm_call_attempts_client_called_idx on public.crm_call_attempts (client_id, called_at desc);
 create index if not exists crm_call_attempts_user_called_idx on public.crm_call_attempts (user_id, called_at desc);
+create index if not exists crm_call_attempts_agency_idx on public.crm_call_attempts (agency_id);
+create index if not exists crm_call_attempts_calendar_event_idx on public.crm_call_attempts (calendar_event_id) where calendar_event_id is not null;
 
 alter table public.crm_call_list_items enable row level security;
 alter table public.crm_call_attempts enable row level security;
