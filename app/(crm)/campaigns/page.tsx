@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import CampaignsClient from './CampaignsClient'
+import spacing from './OutreachSpacing.module.css'
 
 type Campaign = {
   id: string
@@ -61,5 +62,5 @@ export default async function CampaignsPage() {
     }
   })
 
-  return <CampaignsClient campaigns={summaries} />
+  return <div className={spacing.scope}><CampaignsClient campaigns={summaries} /></div>
 }
