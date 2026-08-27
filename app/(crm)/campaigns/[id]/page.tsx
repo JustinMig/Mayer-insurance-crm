@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import CampaignDetailClient from './CampaignDetailClient'
+import spacing from '../OutreachSpacing.module.css'
 
 type Params = Promise<{ id: string }>
 
@@ -97,12 +98,14 @@ export default async function CampaignDetailPage({ params }: { params: Params })
     .filter((row) => row.client)
 
   return (
-    <CampaignDetailClient
-      campaign={{ id: campaign.id, name: campaign.name, topic: campaign.topic, status: campaign.status }}
-      initialRows={rows}
-      agents={agents}
-      viewerId={userId}
-      canViewAll={privileged}
-    />
+    <div className={spacing.scope}>
+      <CampaignDetailClient
+        campaign={{ id: campaign.id, name: campaign.name, topic: campaign.topic, status: campaign.status }}
+        initialRows={rows}
+        agents={agents}
+        viewerId={userId}
+        canViewAll={privileged}
+      />
+    </div>
   )
 }
