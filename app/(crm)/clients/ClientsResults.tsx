@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import ClientExportControls from './ClientExportControls'
 import MassTextSelected from './MassTextSelected'
 import AddToCallListSelected from './AddToCallListSelected'
+import spacing from './ClientRecordsSpacing.module.css'
 
 type ClientRow = {
   id: string
@@ -119,7 +120,7 @@ export default function ClientsResults({
   }
 
   return (
-    <section className="card">
+    <section className={`card ${spacing.list}`}>
       {errorMessage ? <div className="notice notice-error" style={{ margin: 16 }}>{errorMessage}</div> : null}
       {deleteMessage ? <div className="notice" style={{ margin: 16 }}>{deleteMessage}</div> : null}
 
