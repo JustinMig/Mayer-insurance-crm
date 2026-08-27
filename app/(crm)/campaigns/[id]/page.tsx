@@ -45,7 +45,7 @@ export default async function CampaignDetailPage({ params }: { params: Params })
 
   const { data: campaign, error: campaignError } = await supabase
     .from('crm_outreach_campaigns')
-    .select('id,name,topic,status,created_by,created_at')
+    .select('id,name,topic,status,created_by,assigned_agent_id,created_at')
     .eq('id', id)
     .eq('agency_id', profile.agency_id)
     .maybeSingle()
@@ -53,17 +53,20 @@ export default async function CampaignDetailPage({ params }: { params: Params })
   if (campaignError) throw new Error(`Unable to load campaign: ${campaignError.message}`)
   if (!campaign) notFound()
 
+  const manager = profile.role === 'manager'
+  if (!manager && campaign.assigned_agent_id !== userId) notFound()
+
   const { data: memberData, error: memberError } = await supabase
     .from('crm_outreach_campaign_members')
     .select('id,campaign_id,client_id,assigned_agent_id,status,last_outcome,last_note,last_contacted_at,next_action,follow_up_date,follow_up_time,attempt_count,created_at')
     .eq('campaign_id', id)
     .eq('agency_id', profile.agency_id)
+    .eq('assigned_agent_id', campaign.assigned_agent_id)
     .order('created_at', { ascending: true })
 
   if (memberError) throw new Error(`Unable to load campaign clients: ${memberError.message}`)
   const members = (memberData || []) as Member[]
-  const privileged = profile.role === 'manager' || profile.role === 'admin'
-  const reader = privileged ? createAdminClient() : supabase
+  const reader = manager ? createAdminClient() : supabase
   const clientIds = Array.from(new Set(members.map((member) => member.client_id)))
 
   let clients: Client[] = []
@@ -72,21 +75,22 @@ export default async function CampaignDetailPage({ params }: { params: Params })
       .from('clients')
       .select('id,assigned_agent_id,first_name,last_name,phone,date_of_birth,county,state,is_medicare,is_life,is_retirement')
       .eq('agency_id', profile.agency_id)
+      .eq('assigned_agent_id', campaign.assigned_agent_id)
       .in('id', clientIds)
-    if (!privileged) query = query.eq('assigned_agent_id', userId)
+    if (!manager) query = query.eq('assigned_agent_id', userId)
     const { data, error } = await query
     if (error) throw new Error(`Unable to load campaign client records: ${error.message}`)
     clients = (data || []) as Client[]
   }
 
   let agents: Agent[] = [{ id: userId, full_name: profile.full_name || 'Agent' }]
-  if (privileged) {
+  if (manager) {
     const { data, error } = await reader
       .from('profiles')
       .select('id,full_name')
       .eq('agency_id', profile.agency_id)
       .eq('active', true)
-      .in('role', ['admin', 'agent', 'manager'])
+      .in('role', ['admin', 'agent'])
       .order('full_name', { ascending: true })
     if (!error && data) agents = data as Agent[]
   }
@@ -104,7 +108,7 @@ export default async function CampaignDetailPage({ params }: { params: Params })
         initialRows={rows}
         agents={agents}
         viewerId={userId}
-        canViewAll={privileged}
+        canViewAll={manager}
       />
     </div>
   )
