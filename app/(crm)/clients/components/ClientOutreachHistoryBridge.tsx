@@ -30,6 +30,21 @@ type Interaction = {
   campaign: Campaign | null
 }
 
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric'
+})
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit'
+})
+
 function clientIdFromPath(pathname: string) {
   const match = pathname.match(/^\/clients\/([^/]+)$/)
   if (!match || match[1] === 'new') return ''
@@ -54,25 +69,27 @@ function statusLabel(value: string) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—'
-  const date = new Date(value.includes('T') ? value : `${value}T12:00:00`)
+  const date = new Date(value.includes('T') ? value : `${value}T12:00:00-05:00`)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+  return DATE_FORMATTER.format(date)
 }
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)
+  return DATE_TIME_FORMATTER.format(date)
 }
 
 export default function ClientOutreachHistoryBridge() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
   const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
+  const [opened, setOpened] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [interactions, setInteractions] = useState<Interaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -117,10 +134,20 @@ export default function ClientOutreachHistoryBridge() {
   }, [clientId])
 
   useEffect(() => {
-    if (!clientId) return
+    setOpened(false)
+    setLoaded(false)
+    setMemberships([])
+    setInteractions([])
+    setLoading(false)
+    setError('')
+  }, [clientId])
+
+  useEffect(() => {
+    if (!clientId || !opened || loaded || loading) return
     let cancelled = false
     setLoading(true)
     setError('')
+
     void (async () => {
       try {
         const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/outreach-history`, { cache: 'no-store' })
@@ -129,6 +156,7 @@ export default function ClientOutreachHistoryBridge() {
         if (!cancelled) {
           setMemberships(Array.isArray(data.memberships) ? data.memberships : [])
           setInteractions(Array.isArray(data.interactions) ? data.interactions : [])
+          setLoaded(true)
         }
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'Unable to load outreach history.')
@@ -136,16 +164,22 @@ export default function ClientOutreachHistoryBridge() {
         if (!cancelled) setLoading(false)
       }
     })()
+
     return () => { cancelled = true }
-  }, [clientId])
+  }, [clientId, loaded, loading, opened])
 
   if (!clientId || !mountNode) return null
 
   return createPortal(
-    <details className="section-details section-outreach-history">
+    <details
+      className="section-details section-outreach-history"
+      onToggle={(event) => setOpened(event.currentTarget.open)}
+    >
       <summary><span>Outreach &amp; Contact History</span><small>Campaigns, conversations, attempts &amp; follow-ups</small></summary>
       <div className="section-body intake-section-body outreach-history-body">
-        {loading ? <div className="empty">Loading outreach history…</div> : error ? <div className="notice notice-error">{error}</div> : (
+        {loading ? <div className="empty">Loading outreach history…</div> : error ? <div className="notice notice-error">{error}</div> : !loaded ? (
+          <div className="outreach-history-empty">Outreach history loads when this section is opened.</div>
+        ) : (
           <>
             <div className="intake-group outreach-active-campaigns">
               <div className="intake-group-heading"><div><strong>Campaign Status</strong><span>Current outreach projects involving this client.</span></div></div>
