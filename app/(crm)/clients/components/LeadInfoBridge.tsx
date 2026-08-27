@@ -52,11 +52,12 @@ export default function LeadInfoBridge() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const isNewClient = pathname === '/clients/new'
   const clientId = useMemo(() => {
+    if (pathname === '/clients/new') return ''
     const match = pathname.match(/^\/clients\/([^/]+)$/)
     return match?.[1] || ''
   }, [pathname])
-  const isNewClient = pathname === '/clients/new'
   const shouldShow = isNewClient || Boolean(clientId)
 
   useEffect(() => {
