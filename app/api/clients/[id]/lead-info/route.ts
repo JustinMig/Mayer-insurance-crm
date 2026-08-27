@@ -4,10 +4,16 @@ import { getCrmSession } from '@/lib/crm-session'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 type Params = Promise<{ id: string }>
 
 export async function GET(_request: Request, { params }: { params: Params }) {
   const { id } = await params
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: 'Invalid client ID.' }, { status: 400 })
+  }
+
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
