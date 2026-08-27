@@ -37,6 +37,27 @@ test('client-record visual styling is static CSS, not client-side React', async 
   assert.match(css, /section-outreach-history/)
 })
 
+test('lightweight rendering layer stays enabled and styling-only observer stays removed', async () => {
+  const layout = await source('app/layout.tsx')
+  const enhancer = await source('app/(crm)/components/RouteScopedEnhancers.tsx')
+  const lite = await source('app/performance-lite.css')
+
+  assert.match(layout, /performance-lite\.css/)
+  assert.doesNotMatch(enhancer, /AppointmentFormStyler/)
+  assert.match(lite, /backdrop-filter:\s*none !important/)
+  assert.match(lite, /box-shadow:\s*none !important/)
+  assert.match(lite, /transition:\s*none !important/)
+  assert.match(lite, /animation:\s*none !important/)
+})
+
+test('push notification setup is cached within the browser session', async () => {
+  const push = await source('app/(crm)/components/PushNotificationManager.tsx')
+  assert.match(push, /CONFIG_CACHE_KEY/)
+  assert.match(push, /SYNCED_ENDPOINT_KEY/)
+  assert.match(push, /sessionStorage\.getItem/)
+  assert.match(push, /sessionStorage\.setItem/)
+})
+
 test('CRM session lookup remains request-deduplicated', async () => {
   const session = await source('lib/crm-session.ts')
   assert.match(session, /import \{ cache \} from 'react'/)
