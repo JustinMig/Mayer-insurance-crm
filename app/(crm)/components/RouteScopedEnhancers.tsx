@@ -14,6 +14,7 @@ const ManualWorkspaceDates = dynamic(() => import('./ManualWorkspaceDates'), { s
 const AppointmentFormStyler = dynamic(() => import('./AppointmentFormStyler'), { ssr: false })
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
+const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
 const ClientRecordVisualStyler = dynamic(() => import('../clients/components/ClientRecordVisualStyler'), { ssr: false })
 const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
@@ -37,6 +38,7 @@ export default function RouteScopedEnhancers() {
       <CallListNavLinks />
       {isCampaignRecord ? <OutreachCampaignToolsBridge key={`outreach-tools-${pathname}`} /> : null}
       {isClientRecord ? <ClientRecordVisualStyler key={`record-style-${pathname}`} /> : null}
+      {isClientForm ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
       {isClientForm ? <AddressAutoFill key={`address-${pathname}`} /> : null}
       {isClientForm ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
