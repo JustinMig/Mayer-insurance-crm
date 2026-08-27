@@ -37,7 +37,9 @@ async function searchRxTerms(query: string): Promise<MedicationSuggestion[]> {
   const response = await fetch(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
-    cache: 'no-store',
+    cache: 'force-cache',
+    next: { revalidate: 86400 },
+    signal: AbortSignal.timeout(4000),
   })
 
   if (!response.ok) {
