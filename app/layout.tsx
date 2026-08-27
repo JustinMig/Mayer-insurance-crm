@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './iphone-crm-fixes.css'
+import './cross-platform-optimization.css'
 import { ServiceWorkerRegister } from './service-worker-register'
 
 export const metadata: Metadata = {
