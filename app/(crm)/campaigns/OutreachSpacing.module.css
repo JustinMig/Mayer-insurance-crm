@@ -1,0 +1,92 @@
+.scope :global(.outreach-list-panel) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+.scope :global(.outreach-list-heading) {
+  margin-bottom: 8px;
+  border: 1px solid #dce3e8 !important;
+  border-radius: 9px;
+  background: #fbfcfd !important;
+}
+
+.scope :global(.outreach-campaign-list) {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.scope :global(.outreach-campaign-row) {
+  border: 1px solid #dfe5e9 !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, .94) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
+}
+
+.scope :global(.outreach-campaign-row:last-child) {
+  border: 1px solid #dfe5e9 !important;
+}
+
+.scope :global(.outreach-campaign-row:hover) {
+  border-color: #c9d4dc !important;
+  background: #fff !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .055);
+}
+
+.scope :global(.campaign-client-table) {
+  display: grid !important;
+  gap: 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+.scope :global(.campaign-table-heading) {
+  border: 1px solid #dfe5e9 !important;
+  border-radius: 8px !important;
+  background: #f8fafb !important;
+}
+
+.scope :global(.campaign-client-row) {
+  border: 1px solid #dfe5e9 !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, .96) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease !important;
+}
+
+.scope :global(.campaign-client-row:last-child) {
+  border: 1px solid #dfe5e9 !important;
+}
+
+.scope :global(.campaign-client-row:hover) {
+  border-color: #c9d4dc !important;
+  background: #fff !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .055);
+}
+
+.scope :global(.campaign-client-row-focus) {
+  border: 1px solid #9eb0bd !important;
+  border-left: 3px solid #627f92 !important;
+  background: #fbfcfd !important;
+  box-shadow: 0 6px 18px rgba(28, 48, 65, .06) !important;
+}
+
+.scope :global(.campaign-work-panel .campaign-client-row) {
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .scope :global(.outreach-campaign-list),
+  .scope :global(.campaign-client-table) {
+    gap: 7px !important;
+  }
+
+  .scope :global(.outreach-campaign-row),
+  .scope :global(.campaign-client-row) {
+    border-radius: 7px !important;
+  }
+}
