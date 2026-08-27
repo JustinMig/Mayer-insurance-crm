@@ -16,24 +16,61 @@ const CLASS_BY_LABEL: Record<string, string> = {
   Notes: 'appt-field-notes'
 }
 
+const FIELD_CLASSES = Object.values(CLASS_BY_LABEL)
+const LABEL_SELECTOR = '.dash-cal-editor .dash-cal-form-grid label'
+
+function styleLabel(label: HTMLLabelElement) {
+  const name = label.querySelector(':scope > span')?.textContent?.trim() || ''
+  const nextClass = CLASS_BY_LABEL[name] || ''
+  const currentClass = label.dataset.apptFieldClass || ''
+  if (currentClass === nextClass) return
+
+  if (currentClass) label.classList.remove(currentClass)
+  else FIELD_CLASSES.forEach((className) => label.classList.remove(className))
+
+  if (nextClass) label.classList.add(nextClass)
+  label.dataset.apptFieldClass = nextClass
+}
+
+function styleWithin(node: Node) {
+  const element = node instanceof Element ? node : node.parentElement
+  if (!element) return
+
+  const nearestLabel = element.closest<HTMLLabelElement>(LABEL_SELECTOR)
+  if (nearestLabel) styleLabel(nearestLabel)
+
+  if (element.matches(LABEL_SELECTOR)) styleLabel(element as HTMLLabelElement)
+  element.querySelectorAll<HTMLLabelElement>(LABEL_SELECTOR).forEach(styleLabel)
+}
+
 export default function AppointmentFormStyler() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('.content')
     if (!root) return
 
-    const apply = () => {
-      root.querySelectorAll<HTMLLabelElement>('.dash-cal-editor .dash-cal-form-grid label').forEach((label) => {
-        const name = label.querySelector(':scope > span')?.textContent?.trim() || ''
-        Object.values(CLASS_BY_LABEL).forEach((className) => label.classList.remove(className))
-        const className = CLASS_BY_LABEL[name]
-        if (className) label.classList.add(className)
-      })
+    styleWithin(root)
+
+    const pending = new Set<Node>()
+    let frame = 0
+    const flush = () => {
+      frame = 0
+      for (const node of pending) styleWithin(node)
+      pending.clear()
     }
 
-    apply()
-    const observer = new MutationObserver(apply)
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) pending.add(node)
+      }
+      if (pending.size && !frame) frame = window.requestAnimationFrame(flush)
+    })
+
     observer.observe(root, { childList: true, subtree: true })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+      pending.clear()
+    }
   }, [])
 
   return (
