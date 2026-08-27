@@ -3,9 +3,11 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 body {
+  min-width: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -43,6 +45,41 @@ textarea {
   textarea {
     font-size: 16px !important;
   }
+
+  /* viewport-fit=cover needs explicit safe-area room when the CRM is installed to the iPhone/iPad home screen. */
+  .topbar {
+    height: calc(66px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .content {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .mobile-nav {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Smooth horizontal data views without allowing the whole page to rubber-band sideways on touch devices. */
+.table-wrap,
+.workspace-calendar-scroll,
+.campaign-filter-tabs,
+.tabs {
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 1024px), (pointer: coarse) {
+  .table-wrap,
+  .workspace-calendar-scroll,
+  .campaign-filter-tabs,
+  .tabs {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Avoid unnecessary compositing and delayed-tap behavior on touch hardware, including iPhone/iPad and Windows touch PCs. */
@@ -57,6 +94,20 @@ textarea {
     touch-action: manipulation;
   }
 
+  button,
+  a,
+  [role='button'],
+  summary {
+    -webkit-tap-highlight-color: rgba(16, 38, 63, .08);
+  }
+
+  /* Preserve compact text-only utility actions, but make primary controls comfortably tappable. */
+  .btn,
+  .input,
+  .select {
+    min-height: 44px;
+  }
+
   .card,
   .topbar,
   .mobile-nav,
@@ -64,6 +115,17 @@ textarea {
   .add-client-save-row {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
+  }
+}
+
+/* Backdrop blur is attractive on desktop but is expensive or unsupported on older browsers. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card,
+  .topbar,
+  .mobile-nav,
+  .sticky-save-bar,
+  .add-client-save-row {
+    background-color: rgba(255, 255, 255, .97) !important;
   }
 }
 
