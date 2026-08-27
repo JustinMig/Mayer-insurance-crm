@@ -13,6 +13,7 @@ const AppointmentFormStyler = dynamic(() => import('./AppointmentFormStyler'), {
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
+const ClientRecordVisualStyler = dynamic(() => import('../clients/components/ClientRecordVisualStyler'), { ssr: false })
 const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 
@@ -28,6 +29,7 @@ export default function RouteScopedEnhancers() {
   return (
     <>
       <CallListNavLinks />
+      {isClientRecord ? <ClientRecordVisualStyler key={`record-style-${pathname}`} /> : null}
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
       {isClientForm ? <AddressAutoFill key={`address-${pathname}`} /> : null}
       {isClientForm ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
