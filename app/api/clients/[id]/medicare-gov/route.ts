@@ -61,6 +61,10 @@ export async function GET(_request: NextRequest, { params }: { params: Params })
     if (error) return noStoreJson({ error: 'Unable to load Medicare.gov information.' }, 400)
 
     return noStoreJson({
+      values: {
+        username: data?.medicare_gov_username_ciphertext ? decryptValue(data.medicare_gov_username_ciphertext) : '',
+        password: data?.medicare_gov_password_ciphertext ? decryptValue(data.medicare_gov_password_ciphertext) : ''
+      },
       saved: {
         username: Boolean(data?.medicare_gov_username_ciphertext),
         password: Boolean(data?.medicare_gov_password_ciphertext),
