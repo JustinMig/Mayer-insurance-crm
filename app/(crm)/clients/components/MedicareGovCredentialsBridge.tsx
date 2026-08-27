@@ -4,13 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
-type CredentialField = 'username' | 'password' | 'secret_answer' | 'security_code_destination_name'
+type CredentialField = 'secret_answer' | 'security_code_destination_name'
 type SavedState = Record<CredentialField, boolean>
 type RevealedState = Partial<Record<CredentialField, string>>
 
 const emptySaved: SavedState = {
-  username: false,
-  password: false,
   secret_answer: false,
   security_code_destination_name: false
 }
@@ -21,15 +19,6 @@ function clientIdFromPath(pathname: string) {
   return decodeURIComponent(match[1])
 }
 
-function savedStateFromHost(host: HTMLElement): SavedState {
-  return {
-    username: host.dataset.usernameSaved === '1',
-    password: host.dataset.passwordSaved === '1',
-    secret_answer: host.dataset.secretAnswerSaved === '1',
-    security_code_destination_name: host.dataset.destinationSaved === '1'
-  }
-}
-
 export default function MedicareGovCredentialsBridge() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
@@ -38,6 +27,7 @@ export default function MedicareGovCredentialsBridge() {
   const [revealed, setRevealed] = useState<RevealedState>({})
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [loginLoaded, setLoginLoaded] = useState(false)
   const [secretAnswer, setSecretAnswer] = useState('')
   const [destinationName, setDestinationName] = useState('')
   const [clearFields, setClearFields] = useState<Partial<Record<CredentialField, boolean>>>({})
@@ -72,7 +62,6 @@ export default function MedicareGovCredentialsBridge() {
         else body.appendChild(host)
       }
 
-      setSaved(savedStateFromHost(host))
       setMountNode(host)
       return true
     }
@@ -102,6 +91,7 @@ export default function MedicareGovCredentialsBridge() {
     setRevealed({})
     setUsername('')
     setPassword('')
+    setLoginLoaded(false)
     setSecretAnswer('')
     setDestinationName('')
     setClearFields({})
@@ -114,7 +104,15 @@ export default function MedicareGovCredentialsBridge() {
         const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/medicare-gov`, { cache: 'no-store' })
         const data = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(data.error || 'Unable to load Medicare.gov information.')
-        if (!cancelled) setSaved({ ...emptySaved, ...(data.saved || {}) })
+        if (!cancelled) {
+          setUsername(String(data.values?.username || ''))
+          setPassword(String(data.values?.password || ''))
+          setSaved({
+            secret_answer: Boolean(data.saved?.secret_answer),
+            security_code_destination_name: Boolean(data.saved?.security_code_destination_name)
+          })
+          setLoginLoaded(true)
+        }
       } catch (error) {
         if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to load Medicare.gov information.')
       }
@@ -161,7 +159,7 @@ export default function MedicareGovCredentialsBridge() {
 
   if (!clientId || !mountNode) return null
 
-  const field = (
+  const secureField = (
     key: CredentialField,
     formName: string,
     clearName: string,
@@ -209,15 +207,23 @@ export default function MedicareGovCredentialsBridge() {
       <div className="intake-group-heading">
         <div>
           <strong>Medicare.gov</strong>
-          <span>Login and verification information. Saved values remain encrypted and are hidden until you press Show.</span>
+          <span>Username and password are directly editable. Verification details remain protected.</span>
         </div>
       </div>
 
       <div className="form-grid medicare-gov-grid">
-        {field('username', 'medicare_gov_username', 'clear_medicare_gov_username', 'Username', username, setUsername, 'text', 'Medicare.gov username')}
-        {field('password', 'medicare_gov_password', 'clear_medicare_gov_password', 'Password', password, setPassword, 'password', 'Medicare.gov password')}
-        {field('secret_answer', 'medicare_gov_secret_answer', 'clear_medicare_gov_secret_answer', 'Secret Answer', secretAnswer, setSecretAnswer, 'password', 'Security question answer')}
-        {field('security_code_destination_name', 'medicare_gov_security_code_destination_name', 'clear_medicare_gov_security_code_destination_name', 'Security Code Destination Name', destinationName, setDestinationName, 'text', 'Example: Mary’s cell phone or Gmail')}
+        <label className="label medicare-gov-field">
+          <span>Username</span>
+          <input className="input" name="medicare_gov_username" type="text" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Medicare.gov username" />
+          <input type="hidden" name="clear_medicare_gov_username" value={loginLoaded && !username.trim() ? 'on' : ''} />
+        </label>
+        <label className="label medicare-gov-field">
+          <span>Password</span>
+          <input className="input" name="medicare_gov_password" type="text" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Medicare.gov password" />
+          <input type="hidden" name="clear_medicare_gov_password" value={loginLoaded && !password.trim() ? 'on' : ''} />
+        </label>
+        {secureField('secret_answer', 'medicare_gov_secret_answer', 'clear_medicare_gov_secret_answer', 'Secret Answer', secretAnswer, setSecretAnswer, 'password', 'Security question answer')}
+        {secureField('security_code_destination_name', 'medicare_gov_security_code_destination_name', 'clear_medicare_gov_security_code_destination_name', 'Security Code Destination Name', destinationName, setDestinationName, 'text', 'Example: Mary’s cell phone or Gmail')}
       </div>
 
       {status ? <div className="medicare-gov-status">{status}</div> : null}
