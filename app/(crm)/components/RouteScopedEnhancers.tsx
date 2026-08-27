@@ -3,6 +3,8 @@
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 
+const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const ClientDraftGuard = dynamic(() => import('./ClientDraftGuard'), { ssr: false })
 const AddressAutoFill = dynamic(() => import('./AddressAutoFill'), { ssr: false })
 const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), { ssr: false })
@@ -20,7 +22,8 @@ const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/
 export default function RouteScopedEnhancers() {
   const pathname = usePathname()
   const isNewClient = pathname === '/clients/new'
-  const isClientRecord = /^\/clients\/[^/]+$/.test(pathname) && !isNewClient
+  const clientRecordMatch = pathname.match(/^\/clients\/([^/]+)$/)
+  const isClientRecord = Boolean(clientRecordMatch && CLIENT_ID_PATTERN.test(clientRecordMatch[1]))
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesAppointmentStyler = pathname === '/dashboard' || pathname === '/calendar'
