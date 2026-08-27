@@ -1,0 +1,33 @@
+.mailList {
+  gap: 8px;
+  padding: 9px 10px 10px;
+}
+
+.mailRow {
+  min-height: 72px;
+  padding: 11px 12px;
+  border: 1px solid #dce4e9;
+  border-radius: 9px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
+}
+
+.mailRow:last-child {
+  border-bottom: 1px solid #dce4e9;
+}
+
+.mailRow:hover {
+  border-color: #c8d4dc;
+  box-shadow: 0 3px 9px rgba(15, 23, 42, .06);
+}
+
+@media (max-width: 640px) {
+  .mailList {
+    gap: 7px;
+    padding: 7px;
+  }
+
+  .mailRow {
+    min-height: 70px;
+    padding: 10px 9px;
+  }
+}
