@@ -116,9 +116,109 @@
 }
 .palette :global(.add-client-form .section-notes > summary::before) { background: #5e6c79 !important; }
 
-/* Keep content areas neutral so the color remains a navigation cue, not visual noise. */
+/* Give each dropdown its own defined space, matching the cleaner Mail/Outreach treatment. */
+.palette :global(.add-client-form) {
+  gap: 10px !important;
+}
+
+.palette :global(.add-client-form > .section-details) {
+  border: 1px solid #d8e0e6 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  overflow: hidden !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, .025) !important;
+  transition: border-color .15s ease, box-shadow .15s ease !important;
+}
+
+.palette :global(.add-client-form > .section-details:first-of-type) {
+  border-top: 1px solid #d8e0e6 !important;
+}
+
+.palette :global(.add-client-form > .section-details:hover) {
+  border-color: #c7d2da !important;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, .04) !important;
+}
+
+.palette :global(.add-client-form > .section-details[open]) {
+  box-shadow: 0 4px 13px rgba(15, 23, 42, .055) !important;
+}
+
+/* Expanded backgrounds: soft enough for long data entry, distinct enough for orientation. */
+.palette :global(.add-client-form .section-client > .intake-section-body) {
+  background: #f1f6fa !important;
+}
+.palette :global(.add-client-form .section-medicare > .intake-section-body) {
+  background: #eef8f4 !important;
+}
+.palette :global(.add-client-form .section-care > .intake-section-body) {
+  background: #f5f1f8 !important;
+}
+.palette :global(.add-client-form .section-life > .intake-section-body) {
+  background: #faf5ec !important;
+}
+.palette :global(.add-client-form .section-health > .intake-section-body) {
+  background: #f0f7f3 !important;
+}
+.palette :global(.add-client-form .section-hospital > .intake-section-body) {
+  background: #f8f1f3 !important;
+}
+.palette :global(.add-client-form .section-banking > .intake-section-body) {
+  background: #f1f5f8 !important;
+}
+.palette :global(.add-client-form .section-notes > .intake-section-body) {
+  background: #f4f5f6 !important;
+}
+
 .palette :global(.add-client-form .intake-section-body) {
-  background: rgba(255, 255, 255, .46) !important;
+  gap: 8px !important;
+  padding: 10px 12px 12px !important;
+  border-top: 1px solid rgba(95, 111, 124, .12) !important;
+}
+
+/* Separate the groups inside each open dropdown without making them bulky. */
+.palette :global(.add-client-form .intake-group),
+.palette :global(.add-client-form .care-subsection) {
+  margin: 0 !important;
+  padding: 13px 14px !important;
+  border: 1px solid rgba(120, 135, 147, .22) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, .82) !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, .025) !important;
+}
+
+.palette :global(.add-client-form .intake-section-body > .intake-group:last-child),
+.palette :global(.add-client-form .intake-section-body > .care-subsection:last-child) {
+  border-bottom: 1px solid rgba(120, 135, 147, .22) !important;
+}
+
+.palette :global(.add-client-form .intake-group-sensitive),
+.palette :global(.add-client-form .intake-group-files) {
+  border: 1px solid rgba(120, 135, 147, .22) !important;
+  background: rgba(255, 255, 255, .84) !important;
+}
+
+.palette :global(.add-client-form .document-row) {
+  margin-top: 6px !important;
+  padding: 8px 10px !important;
+  border: 1px solid rgba(120, 135, 147, .18) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, .72) !important;
+}
+
+@media (max-width: 760px) {
+  .palette :global(.add-client-form) {
+    gap: 8px !important;
+  }
+
+  .palette :global(.add-client-form .intake-section-body) {
+    gap: 7px !important;
+    padding: 8px 9px 10px !important;
+  }
+
+  .palette :global(.add-client-form .intake-group),
+  .palette :global(.add-client-form .care-subsection) {
+    padding: 11px 10px !important;
+  }
 }
 
 @media (prefers-contrast: more) {
@@ -129,5 +229,11 @@
   .palette :global(.add-client-form .section-details > summary small),
   .palette :global(.add-client-form .section-details > summary::after) {
     color: #263746 !important;
+  }
+
+  .palette :global(.add-client-form > .section-details),
+  .palette :global(.add-client-form .intake-group),
+  .palette :global(.add-client-form .care-subsection) {
+    border-color: #8b9aa6 !important;
   }
 }
