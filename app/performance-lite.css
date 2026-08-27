@@ -1,10 +1,9 @@
-/* Lightweight CRM rendering layer. Keep functionality; remove visual/compositing overhead. */
+/* Functional-first lightweight rendering layer.
+   Only remove expensive visual/compositing effects. Never override component
+   colors, visibility, sizing, or layout semantics. */
 
 html,
-body,
-.login-shell {
-  background: #f4f5f5 !important;
-  background-image: none !important;
+body {
   background-attachment: scroll !important;
 }
 
@@ -24,6 +23,7 @@ body,
   filter: none !important;
 }
 
+/* Remove expensive compositing only. Preserve each component's own background. */
 .crm-shell .sidebar,
 .crm-shell .topbar,
 .crm-shell .mobile-nav,
@@ -38,57 +38,19 @@ body,
 .crm-shell .dashboard-calendar-block,
 .crm-shell .dash-cal-editor,
 .crm-shell .outreach-campaign-row,
-.crm-shell .campaign-client-row {
-  background-image: none !important;
+.crm-shell .campaign-client-row,
+.crm-shell .dashboard-home-nav-tab,
+.crm-shell .dashboard-agent-panel,
+.crm-shell .dashboard-agent-stat {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   box-shadow: none !important;
-  filter: none !important;
 }
 
-.crm-shell .sidebar {
-  background: #f2f4f5 !important;
-}
-
-.crm-shell .topbar,
-.crm-shell .mobile-nav,
-.crm-shell .card,
-.login-shell .login-card,
-.crm-shell .section-details,
-.crm-shell .intake-group,
-.crm-shell .care-subsection,
-.crm-shell .sticky-save-bar,
-.crm-shell .add-client-save-row {
-  background: #ffffff !important;
-}
-
-.crm-shell .nav > a,
-.crm-shell .nav > button,
-.crm-shell .nav form > button {
-  background: #ffffff !important;
-  color: #10263f !important;
-  box-shadow: none !important;
-}
-
-.crm-shell .nav > a[href],
-.crm-shell .nav .nav-signout,
-.crm-shell .mobile-nav > a[href],
-.crm-shell .mobile-nav .mobile-signout {
-  background: #ffffff !important;
-  color: #10263f !important;
-  box-shadow: none !important;
-  border-color: #d9dee3 !important;
-}
-
-.crm-shell .nav > a:hover,
-.crm-shell .nav button:hover,
-.crm-shell .mobile-nav > a:hover,
-.crm-shell .mobile-signout:hover,
-.crm-shell tbody tr:hover,
+/* Avoid CSS filters that create extra paint/compositing work. */
 .crm-shell .section-details > summary:hover,
-.crm-shell .client-profile-form .section-details > summary:hover {
-  background: inherit !important;
-  color: inherit !important;
+.crm-shell .client-profile-form .section-details > summary:hover,
+.crm-shell .dashboard-home-nav-tab:hover {
   filter: none !important;
 }
 
@@ -106,22 +68,13 @@ body,
   box-shadow: none !important;
 }
 
-.crm-shell .input:focus,
-.crm-shell .select:focus,
-.crm-shell .textarea:focus,
-.crm-shell input:focus,
-.crm-shell select:focus,
-.crm-shell textarea:focus,
-.login-shell input:focus {
-  box-shadow: none !important;
-}
-
 .crm-shell :focus-visible,
 .login-shell :focus-visible {
   outline: 2px solid #5c7da2 !important;
   outline-offset: 2px !important;
 }
 
+/* Client-record surfaces keep their semantic colors; only effects are removed. */
 .crm-shell .client-profile-form .section-details,
 .crm-shell .client-profile-form .intake-group,
 .crm-shell .client-profile-form .care-subsection,
@@ -135,15 +88,7 @@ body,
   filter: none !important;
 }
 
-.crm-shell .add-client-form > .add-client-save-row,
-.crm-shell .client-profile-form > .sticky-save-bar {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
-  background: #ffffff !important;
-}
-
-/* Avoid touch/GPU overscroll effects unless a horizontal data view truly needs them. */
+/* Avoid touch/GPU momentum layers where normal scrolling is enough. */
 .crm-shell .workspace-calendar-scroll {
   -webkit-overflow-scrolling: auto !important;
 }
