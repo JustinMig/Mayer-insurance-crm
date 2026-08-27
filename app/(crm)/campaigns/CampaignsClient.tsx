@@ -27,7 +27,13 @@ function topicLabel(topic: string) {
   if (topic === 'health') return 'Health'
   if (topic === 'retirement') return 'Retirement'
   if (topic === 'other') return 'Other'
-  return 'General Client Review'
+  return 'General Review'
+}
+
+function shortDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
 }
 
 export default function CampaignsClient({ campaigns }: { campaigns: CampaignSummary[] }) {
@@ -37,6 +43,13 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
   const [creating, setCreating] = useState(false)
   const [busyId, setBusyId] = useState('')
   const [message, setMessage] = useState('')
+
+  const totals = campaigns.reduce((summary, campaign) => {
+    summary.notContacted += campaign.not_contacted
+    summary.followUp += campaign.follow_up
+    summary.resolved += campaign.completed + campaign.not_interested + campaign.do_not_call + campaign.unreachable
+    return summary
+  }, { notContacted: 0, followUp: 0, resolved: 0 })
 
   async function createCampaign() {
     if (creating) return
@@ -137,74 +150,126 @@ export default function CampaignsClient({ campaigns }: { campaigns: CampaignSumm
   }
 
   return (
-    <>
-      <div className="outreach-page-heading">
-        <div><h1>OUTREACH CAMPAIGNS</h1><p className="subtle">Know who still needs contact, who you reached, and what needs follow-up.</p></div>
-        <Link prefetch={false} className="btn btn-secondary" href="/clients">ADD CLIENTS FROM RECORDS</Link>
-      </div>
-
-      <section className="card card-pad outreach-create-card">
-        <div className="outreach-create-heading"><strong>Start a Campaign</strong><span>Create the purpose first, then add clients from Client Records.</span></div>
-        <div className="outreach-create-grid">
-          <label className="label">Campaign name<input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Example: 2026 Medicare Client Review" /></label>
-          <label className="label">Topic
-            <select className="select" value={topic} onChange={(event) => setTopic(event.target.value)}>
-              <option value="medicare">Medicare</option>
-              <option value="life">Life</option>
-              <option value="health">Health</option>
-              <option value="retirement">Retirement</option>
-              <option value="general">General client review</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-          <button className="btn btn-primary" type="button" disabled={creating} onClick={() => void createCampaign()}>{creating ? 'Creating…' : 'CREATE CAMPAIGN'}</button>
+    <div className="outreach-shell">
+      <header className="outreach-header">
+        <div className="outreach-heading-row">
+          <div>
+            <span className="outreach-eyebrow">CLIENT ENGAGEMENT</span>
+            <h1>Outreach</h1>
+            <p>Track active client contact, follow-ups, and completed outreach in one place.</p>
+          </div>
+          <Link prefetch={false} className="btn btn-secondary outreach-add-clients" href="/clients">ADD CLIENTS</Link>
         </div>
-        {message ? <div className="notice" style={{ marginTop: 12 }}>{message}</div> : null}
+
+        <div className="outreach-kpi-strip" aria-label="Outreach summary">
+          <div><span>Active campaigns</span><strong>{campaigns.length}</strong></div>
+          <div><span>Need contact</span><strong>{totals.notContacted}</strong></div>
+          <div><span>Follow-ups</span><strong>{totals.followUp}</strong></div>
+          <div><span>Resolved</span><strong>{totals.resolved}</strong></div>
+        </div>
+      </header>
+
+      <section className="outreach-create-bar" aria-label="Create outreach campaign">
+        <div className="outreach-create-label">
+          <strong>New campaign</strong>
+          <span>Set the purpose, then add clients.</span>
+        </div>
+        <label className="outreach-compact-field">
+          <span>Campaign name</span>
+          <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="2026 Medicare Client Review" />
+        </label>
+        <label className="outreach-compact-field outreach-topic-field">
+          <span>Topic</span>
+          <select className="select" value={topic} onChange={(event) => setTopic(event.target.value)}>
+            <option value="medicare">Medicare</option>
+            <option value="life">Life</option>
+            <option value="health">Health</option>
+            <option value="retirement">Retirement</option>
+            <option value="general">General client review</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <button className="btn btn-primary outreach-create-button" type="button" disabled={creating} onClick={() => void createCampaign()}>{creating ? 'Creating…' : 'CREATE'}</button>
       </section>
 
-      {!campaigns.length ? (
-        <section className="card"><div className="empty"><strong>No active outreach campaigns yet.</strong><br />Create one above, then select clients in Client Records and choose ADD TO CAMPAIGN.</div></section>
-      ) : (
-        <div className="outreach-campaign-grid">
-          {campaigns.map((campaign) => {
-            const closed = campaign.completed + campaign.not_interested + campaign.do_not_call + campaign.unreachable
-            const contacted = campaign.spoke + campaign.follow_up + closed
-            const progress = campaign.total ? Math.round((closed / campaign.total) * 100) : 0
-            const isBusy = busyId === campaign.id
-            return (
-              <section className="card outreach-campaign-card" key={campaign.id}>
-                <div className="outreach-card-head">
-                  <div><span className="outreach-topic">{topicLabel(campaign.topic)}</span><h2>{campaign.name}</h2></div>
-                  <strong className="outreach-progress-number">{progress}%</strong>
-                </div>
-                <div className="outreach-progress-track"><span style={{ width: `${progress}%` }} /></div>
-                <div className="outreach-card-summary">
-                  <div><span>Total</span><strong>{campaign.total}</strong></div>
-                  <div><span>Not Contacted</span><strong>{campaign.not_contacted}</strong></div>
-                  <div><span>Attempted</span><strong>{campaign.attempted}</strong></div>
-                  <div><span>Reached / Active</span><strong>{campaign.spoke + campaign.follow_up}</strong></div>
-                  <div><span>Resolved</span><strong>{closed}</strong></div>
-                  <div><span>Contacted</span><strong>{contacted}</strong></div>
-                </div>
-                <div className="outreach-card-actions">
-                  <Link prefetch={false} className="btn btn-primary" href={`/campaigns/${campaign.id}`}>OPEN CAMPAIGN</Link>
-                  {campaign.can_archive ? <button className="btn btn-secondary" type="button" disabled={isBusy} onClick={() => void renameCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'RENAME'}</button> : null}
-                  {campaign.can_archive ? <button className="btn btn-secondary" type="button" disabled={isBusy} onClick={() => void archiveCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'ARCHIVE'}</button> : null}
-                  {campaign.can_archive ? <button className="btn btn-danger" type="button" disabled={isBusy} onClick={() => void deleteCampaign(campaign)}>{isBusy ? 'Working…' : 'DELETE'}</button> : null}
-                </div>
-              </section>
-            )
-          })}
+      {message ? <div className="notice outreach-notice">{message}</div> : null}
+
+      <section className="outreach-list-panel">
+        <div className="outreach-list-heading">
+          <div><h2>Active campaigns</h2><span>{campaigns.length} current</span></div>
+          <span className="outreach-list-hint">Open a campaign to work its client queue.</span>
         </div>
-      )}
+
+        {!campaigns.length ? (
+          <div className="outreach-empty">
+            <strong>No active campaigns</strong>
+            <span>Create a campaign above, then add clients from Client Records.</span>
+          </div>
+        ) : (
+          <div className="outreach-campaign-list">
+            {campaigns.map((campaign) => {
+              const closed = campaign.completed + campaign.not_interested + campaign.do_not_call + campaign.unreachable
+              const reachedActive = campaign.spoke + campaign.follow_up
+              const contacted = reachedActive + closed
+              const progress = campaign.total ? Math.round((closed / campaign.total) * 100) : 0
+              const isBusy = busyId === campaign.id
+
+              return (
+                <article className="outreach-campaign-row" key={campaign.id}>
+                  <div className="outreach-campaign-identity">
+                    <span className={`outreach-topic-dot outreach-topic-${campaign.topic}`} aria-hidden="true" />
+                    <div className="outreach-campaign-copy">
+                      <div className="outreach-name-line">
+                        <h3>{campaign.name}</h3>
+                        <span className="outreach-topic-label">{topicLabel(campaign.topic)}</span>
+                      </div>
+                      <div className="outreach-meta-line">
+                        <span>{campaign.total} client{campaign.total === 1 ? '' : 's'}</span>
+                        <span>{campaign.not_contacted} not contacted</span>
+                        <span>{campaign.follow_up} follow-up</span>
+                        {campaign.created_at ? <span>Started {shortDate(campaign.created_at)}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="outreach-row-progress">
+                    <div className="outreach-progress-label"><span>Resolved</span><strong>{progress}%</strong></div>
+                    <div className="outreach-progress-track"><span style={{ width: `${progress}%` }} /></div>
+                    <small>{closed} of {campaign.total} complete</small>
+                  </div>
+
+                  <div className="outreach-row-stats">
+                    <span><strong>{campaign.attempted}</strong> Attempted</span>
+                    <span><strong>{reachedActive}</strong> Active</span>
+                    <span><strong>{contacted}</strong> Contacted</span>
+                  </div>
+
+                  <div className="outreach-row-actions">
+                    <Link prefetch={false} className="btn btn-primary outreach-open-button" href={`/campaigns/${campaign.id}`}>OPEN</Link>
+                    {campaign.can_archive ? <button className="outreach-text-action" type="button" disabled={isBusy} onClick={() => void renameCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'Rename'}</button> : null}
+                    {campaign.can_archive ? <button className="outreach-text-action" type="button" disabled={isBusy} onClick={() => void archiveCampaign(campaign.id, campaign.name)}>{isBusy ? 'Working…' : 'Archive'}</button> : null}
+                    {campaign.can_archive ? <button className="outreach-text-action outreach-delete-action" type="button" disabled={isBusy} onClick={() => void deleteCampaign(campaign)}>{isBusy ? 'Working…' : 'Delete'}</button> : null}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <style jsx global>{`
-        .outreach-page-heading{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}.outreach-page-heading h1{margin-bottom:4px}
-        .outreach-create-card{margin-bottom:16px}.outreach-create-heading strong{display:block;font-size:1.02rem}.outreach-create-heading span{display:block;color:#64748b;font-size:.82rem;margin-top:3px}.outreach-create-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(180px,1fr) auto;gap:10px;align-items:end;margin-top:12px}.outreach-create-grid .btn{min-height:42px}
-        .outreach-campaign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.outreach-campaign-card{padding:16px;min-width:0}.outreach-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.outreach-card-head h2{font-size:1.08rem;margin:5px 0 0;color:#172033}.outreach-topic{display:inline-flex;border:1px solid #d8e1e8;border-radius:999px;padding:4px 8px;font-size:.69rem;font-weight:900;color:#526271;background:#f8fafc;text-transform:uppercase}.outreach-progress-number{font-size:1.4rem;color:#3f5b57}.outreach-progress-track{height:8px;border-radius:999px;background:#e9eef1;overflow:hidden;margin:13px 0}.outreach-progress-track span{display:block;height:100%;background:#7f9c96;border-radius:inherit}.outreach-card-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.outreach-card-summary div{border:1px solid #e1e7ec;border-radius:10px;padding:8px;background:#fbfcfd;min-width:0}.outreach-card-summary span{display:block;color:#718096;font-size:.67rem;font-weight:800;text-transform:uppercase}.outreach-card-summary strong{display:block;margin-top:2px;font-size:1.05rem;color:#253646}.outreach-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-        @media(max-width:900px){.outreach-campaign-grid{grid-template-columns:1fr}.outreach-create-grid{grid-template-columns:1fr 1fr}.outreach-create-grid .btn{grid-column:span 2}}
-        @media(max-width:640px){.outreach-create-grid{grid-template-columns:1fr}.outreach-create-grid .btn{grid-column:auto;width:100%}.outreach-card-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.outreach-card-actions .btn{flex:1;min-width:110px}.outreach-page-heading>.btn{width:100%}}
+        .outreach-shell{max-width:1280px;margin:0 auto;color:#1f2937}
+        .outreach-header{margin-bottom:14px}.outreach-heading-row{display:flex;justify-content:space-between;align-items:flex-end;gap:18px}.outreach-eyebrow{display:block;margin-bottom:5px;color:#718096;font-size:.66rem;font-weight:900;letter-spacing:.12em}.outreach-heading-row h1{margin:0;font-size:1.9rem;line-height:1.08;letter-spacing:-.025em;color:#172033}.outreach-heading-row p{margin:6px 0 0;color:#667788;font-size:.88rem}.outreach-add-clients{white-space:nowrap}
+        .outreach-kpi-strip{display:flex;align-items:center;margin-top:16px;padding:10px 0;border-top:1px solid #e1e7ec;border-bottom:1px solid #e1e7ec}.outreach-kpi-strip>div{display:flex;align-items:baseline;gap:8px;min-width:0;padding:0 20px;border-right:1px solid #e5e9ed}.outreach-kpi-strip>div:first-child{padding-left:0}.outreach-kpi-strip>div:last-child{border-right:0}.outreach-kpi-strip span{font-size:.69rem;font-weight:800;text-transform:uppercase;letter-spacing:.035em;color:#7a8794;white-space:nowrap}.outreach-kpi-strip strong{font-size:1.12rem;color:#263746}
+        .outreach-create-bar{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(280px,1.7fr) minmax(170px,.8fr) auto;gap:11px;align-items:end;margin:17px 0 14px;padding:13px 14px;border:1px solid #dce3e8;border-radius:10px;background:#f9fbfc}.outreach-create-label{align-self:center}.outreach-create-label strong{display:block;font-size:.86rem;color:#263746}.outreach-create-label span{display:block;margin-top:2px;color:#7a8794;font-size:.72rem}.outreach-compact-field{display:grid;gap:5px}.outreach-compact-field>span{color:#6f7d8a;font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.outreach-compact-field .input,.outreach-compact-field .select{min-height:39px;background:#fff}.outreach-create-button{min-height:39px;padding-inline:18px}.outreach-notice{margin:0 0 14px}
+        .outreach-list-panel{border:1px solid #dce3e8;border-radius:11px;background:#fff;overflow:hidden}.outreach-list-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #e5eaee;background:#fbfcfd}.outreach-list-heading>div{display:flex;align-items:baseline;gap:8px}.outreach-list-heading h2{margin:0;font-size:.98rem;color:#263746}.outreach-list-heading>div>span,.outreach-list-hint{color:#7b8894;font-size:.72rem}.outreach-empty{display:grid;gap:4px;padding:30px 18px;text-align:center}.outreach-empty strong{color:#344556}.outreach-empty span{color:#7b8894;font-size:.83rem}
+        .outreach-campaign-list{display:grid}.outreach-campaign-row{display:grid;grid-template-columns:minmax(300px,2.1fr) minmax(165px,.9fr) minmax(250px,1.25fr) auto;align-items:center;gap:18px;padding:14px 16px;border-bottom:1px solid #edf0f2;transition:background .15s ease}.outreach-campaign-row:last-child{border-bottom:0}.outreach-campaign-row:hover{background:#fbfcfd}.outreach-campaign-identity{display:flex;align-items:flex-start;gap:11px;min-width:0}.outreach-topic-dot{width:9px;height:9px;border-radius:50%;margin-top:7px;flex:0 0 auto;background:#8997a4}.outreach-topic-medicare{background:#9b875a}.outreach-topic-life{background:#668474}.outreach-topic-health{background:#6d839a}.outreach-topic-retirement{background:#847591}.outreach-topic-other{background:#8a7c72}.outreach-campaign-copy{min-width:0}.outreach-name-line{display:flex;align-items:center;gap:8px;min-width:0}.outreach-name-line h3{margin:0;min-width:0;color:#1f2f3d;font-size:.94rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.outreach-topic-label{display:inline-flex;align-items:center;min-height:21px;padding:2px 7px;border:1px solid #dde4e9;border-radius:999px;background:#f8fafb;color:#6e7c88;font-size:.61rem;font-weight:900;text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}.outreach-meta-line{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:5px;color:#7b8792;font-size:.7rem}.outreach-meta-line span+span:before{content:'•';margin-right:12px;color:#c0c8cf}
+        .outreach-row-progress{min-width:0}.outreach-progress-label{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.outreach-progress-label span{font-size:.65rem;font-weight:800;text-transform:uppercase;color:#798692}.outreach-progress-label strong{font-size:.84rem;color:#435866}.outreach-progress-track{height:5px;border-radius:999px;background:#e7ecef;overflow:hidden;margin:6px 0}.outreach-progress-track span{display:block;height:100%;border-radius:inherit;background:#809b94}.outreach-row-progress small{display:block;color:#8a959e;font-size:.65rem}
+        .outreach-row-stats{display:flex;align-items:center;gap:14px;min-width:0}.outreach-row-stats span{display:flex;align-items:baseline;gap:4px;color:#7b8792;font-size:.66rem;white-space:nowrap}.outreach-row-stats strong{font-size:.82rem;color:#3b4d5d}.outreach-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}.outreach-open-button{min-height:34px;padding:6px 12px;font-size:.72rem}.outreach-text-action{border:0;background:transparent;padding:5px 2px;color:#667786;font:inherit;font-size:.69rem;font-weight:800;cursor:pointer}.outreach-text-action:hover{color:#263746;text-decoration:underline}.outreach-text-action:disabled{opacity:.5;cursor:default}.outreach-delete-action{color:#965d5d}.outreach-delete-action:hover{color:#7f4242}
+        @media(max-width:1100px){.outreach-campaign-row{grid-template-columns:minmax(280px,1.8fr) minmax(150px,.8fr) auto}.outreach-row-stats{display:none}}
+        @media(max-width:850px){.outreach-create-bar{grid-template-columns:1fr 1.2fr}.outreach-create-label{grid-column:1/-1}.outreach-create-button{width:100%}.outreach-campaign-row{grid-template-columns:minmax(0,1fr) 150px;gap:12px}.outreach-row-actions{grid-column:1/-1;justify-content:flex-start;padding-left:20px}.outreach-list-hint{display:none}}
+        @media(max-width:640px){.outreach-heading-row{align-items:flex-start}.outreach-heading-row h1{font-size:1.65rem}.outreach-add-clients{min-height:36px;padding:7px 10px;font-size:.72rem}.outreach-kpi-strip{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0}.outreach-kpi-strip>div{justify-content:space-between;padding:9px 10px!important;border-right:0;border-bottom:1px solid #e5e9ed}.outreach-kpi-strip>div:nth-child(odd){border-right:1px solid #e5e9ed}.outreach-kpi-strip>div:nth-last-child(-n+2){border-bottom:0}.outreach-kpi-strip span{white-space:normal}.outreach-create-bar{grid-template-columns:1fr;padding:12px}.outreach-create-label{grid-column:auto}.outreach-campaign-row{grid-template-columns:1fr;padding:13px}.outreach-row-progress{padding-left:20px}.outreach-row-actions{grid-column:auto;padding-left:20px;gap:10px;flex-wrap:wrap}.outreach-name-line{align-items:flex-start;flex-direction:column;gap:4px}.outreach-name-line h3{white-space:normal}.outreach-meta-line{gap:4px 9px}.outreach-meta-line span+span:before{margin-right:9px}.outreach-list-heading{padding:11px 13px}.outreach-open-button{min-width:76px}.outreach-text-action{padding:6px 1px}}
       `}</style>
-    </>
+    </div>
   )
 }
