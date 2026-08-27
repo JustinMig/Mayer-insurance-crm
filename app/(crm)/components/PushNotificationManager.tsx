@@ -9,6 +9,11 @@ type BadgeNavigator = Navigator & {
   clearAppBadge?: () => Promise<void>
 }
 
+type CachedPushConfig = { enabled: boolean; publicKey: string }
+
+const CONFIG_CACHE_KEY = 'crm.push.config.session.v1'
+const SYNCED_ENDPOINT_KEY = 'crm.push.synced.endpoint.session.v1'
+
 function base64UrlToBytes(value: string) {
   const padding = '='.repeat((4 - (value.length % 4)) % 4)
   const normalized = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -36,6 +41,25 @@ async function saveSubscription(subscription: PushSubscription) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error || 'Unable to save notification subscription.')
+  try { sessionStorage.setItem(SYNCED_ENDPOINT_KEY, subscription.endpoint) } catch {}
+}
+
+async function getPushConfig(): Promise<CachedPushConfig> {
+  try {
+    const cached = sessionStorage.getItem(CONFIG_CACHE_KEY)
+    if (cached) {
+      const parsed = JSON.parse(cached) as CachedPushConfig
+      if (parsed?.enabled && parsed?.publicKey) return parsed
+    }
+  } catch {}
+
+  const configResponse = await fetch('/api/push/config', { cache: 'no-store' })
+  const config = await configResponse.json().catch(() => ({}))
+  if (!configResponse.ok || !config?.enabled || !config?.publicKey) throw new Error(config?.error || 'Phone alerts are unavailable.')
+
+  const result = { enabled: true, publicKey: String(config.publicKey) }
+  try { sessionStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(result)) } catch {}
+  return result
 }
 
 async function getServiceWorkerRegistration() {
@@ -59,11 +83,9 @@ export default function PushNotificationManager() {
       }
 
       try {
-        const configResponse = await fetch('/api/push/config', { cache: 'no-store' })
-        const config = await configResponse.json().catch(() => ({}))
-        if (!configResponse.ok || !config?.enabled || !config?.publicKey) throw new Error(config?.error || 'Phone alerts are unavailable.')
+        const config = await getPushConfig()
         if (!active) return
-        setPublicKey(String(config.publicKey))
+        setPublicKey(config.publicKey)
 
         const registration = await getServiceWorkerRegistration()
         await navigator.serviceWorker.ready
@@ -75,7 +97,9 @@ export default function PushNotificationManager() {
         }
 
         if (Notification.permission === 'granted' && existing) {
-          await saveSubscription(existing)
+          let alreadySynced = false
+          try { alreadySynced = sessionStorage.getItem(SYNCED_ENDPOINT_KEY) === existing.endpoint } catch {}
+          if (!alreadySynced) await saveSubscription(existing)
           if (active) setState('enabled')
           return
         }
@@ -139,6 +163,7 @@ export default function PushNotificationManager() {
         }).catch(() => null)
         await subscription.unsubscribe()
       }
+      try { sessionStorage.removeItem(SYNCED_ENDPOINT_KEY) } catch {}
       const badgeNavigator = navigator as BadgeNavigator
       await badgeNavigator.clearAppBadge?.().catch(() => undefined)
       setState('ready')
@@ -168,9 +193,9 @@ export default function PushNotificationManager() {
       {message ? <span className="push-alert-message" role="status">{message}</span> : null}
       <style jsx>{`
         .push-alert-control{position:relative;display:flex;align-items:center;gap:7px}
-        .push-alert-button{border:1px solid #c9d5df;background:#fff;color:#31485b;border-radius:999px;padding:7px 10px;font:inherit;font-size:.78rem;font-weight:900;white-space:nowrap;cursor:pointer}
-        .push-alert-button:hover{background:#f5f8fa}.push-alert-button.enabled{background:#e9f7ee;border-color:#b8dec5;color:#26633a}.push-alert-button.blocked{background:#f4eeee;border-color:#e4cccc;color:#755050;cursor:not-allowed}
-        .push-alert-message{position:absolute;right:0;top:calc(100% + 7px);z-index:90;width:min(310px,80vw);padding:8px 10px;border-radius:9px;background:#fff;border:1px solid #d7e0e8;box-shadow:0 8px 24px rgba(15,23,42,.14);font-size:.76rem;font-weight:700;color:#44576a}
+        .push-alert-button{border:1px solid #c9d5df;background:#fff;color:#31485b;border-radius:8px;padding:7px 10px;font:inherit;font-size:.78rem;font-weight:800;white-space:nowrap;cursor:pointer}
+        .push-alert-button.enabled{background:#eef7f1;border-color:#c8dfd0;color:#26633a}.push-alert-button.blocked{background:#f4eeee;border-color:#e4cccc;color:#755050;cursor:not-allowed}
+        .push-alert-message{position:absolute;right:0;top:calc(100% + 7px);z-index:90;width:min(310px,80vw);padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #d7e0e8;font-size:.76rem;font-weight:700;color:#44576a}
         @media(max-width:720px){.push-alert-button{padding:6px 8px;font-size:.72rem}.push-alert-message{position:fixed;right:12px;top:58px}}
       `}</style>
     </div>
