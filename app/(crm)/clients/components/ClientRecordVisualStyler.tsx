@@ -1,0 +1,54 @@
+'use client'
+
+export default function ClientRecordVisualStyler() {
+  return (
+    <style jsx global>{`
+      .client-profile-form{gap:8px!important}
+      .client-profile-form .section-details{margin:0!important;border:1px solid #d9e1e6!important;border-radius:10px!important;background:rgba(255,255,255,.72)!important;overflow:hidden!important;box-shadow:0 1px 2px rgba(24,39,52,.03)!important}
+      .client-profile-form .section-details>summary{min-height:56px!important;padding:11px 42px 11px 15px!important;border:0!important;border-radius:0!important;box-shadow:none!important;text-shadow:none!important;transition:filter .14s ease,background .14s ease}
+      .client-profile-form .section-details>summary:hover{filter:brightness(.985)}
+      .client-profile-form .section-details>summary span{font-size:.9rem!important;font-weight:900!important;letter-spacing:.005em}
+      .client-profile-form .section-details>summary small{color:#4f5f6e!important;font-size:.71rem!important;font-weight:650!important}
+      .client-profile-form .section-details>summary::after{color:#536372!important}
+
+      .client-profile-form .section-client>summary{background:#e9f0f6!important;color:#27445d!important;border-left:4px solid #486b87!important}
+      .client-profile-form .section-medicare>summary{background:#e5f2ee!important;color:#285d54!important;border-left:4px solid #3f756b!important}
+      .client-profile-form .section-care>summary{background:#eeeaf4!important;color:#57446c!important;border-left:4px solid #6b587f!important}
+      .client-profile-form .section-life>summary{background:#f5eee2!important;color:#684b28!important;border-left:4px solid #8a6737!important}
+      .client-profile-form .section-health>summary{background:#e8f3ed!important;color:#315d50!important;border-left:4px solid #497565!important}
+      .client-profile-form .section-hospital>summary{background:#f3e9ec!important;color:#694a54!important;border-left:4px solid #815d67!important}
+      .client-profile-form .section-banking>summary{background:#e8eff5!important;color:#38556c!important;border-left:4px solid #506f86!important}
+      .client-profile-form .section-outreach-history>summary{background:#e9edf7!important;color:#3f4f70!important;border-left:4px solid #5d6f98!important}
+      .client-profile-form .section-notes>summary{background:#eceff2!important;color:#475563!important;border-left:4px solid #5e6c79!important}
+
+      .client-profile-form .section-client>.intake-section-body{background:#f4f7fa!important}
+      .client-profile-form .section-medicare>.intake-section-body{background:#f2f8f6!important}
+      .client-profile-form .section-care>.intake-section-body{background:#f7f4fa!important}
+      .client-profile-form .section-life>.intake-section-body{background:#fbf7f0!important}
+      .client-profile-form .section-health>.intake-section-body{background:#f3f8f5!important}
+      .client-profile-form .section-hospital>.intake-section-body{background:#faf4f6!important}
+      .client-profile-form .section-banking>.intake-section-body{background:#f3f6f9!important}
+      .client-profile-form .section-outreach-history>.intake-section-body{background:#f4f6fb!important}
+      .client-profile-form .section-notes>.intake-section-body{background:#f6f7f8!important}
+
+      .client-profile-form .intake-section-body{display:grid;gap:8px!important;padding:10px!important;border-top:1px solid rgba(105,121,134,.14)!important}
+      .client-profile-form .intake-group,.client-profile-form .care-subsection{margin:0!important;padding:13px!important;border:1px solid rgba(203,214,222,.9)!important;border-radius:8px!important;background:rgba(255,255,255,.88)!important;box-shadow:0 1px 2px rgba(23,38,51,.025)!important}
+      .client-profile-form .intake-group-sensitive{border-left:3px solid #9aa9b6!important}
+      .client-profile-form .intake-group-files{background:rgba(255,255,255,.82)!important}
+      .client-profile-form .medicare-core-grid{gap:8px!important}
+      .client-profile-form .intake-group-heading,.client-profile-form .care-subsection-heading,.client-profile-form .medication-heading{margin-bottom:10px!important}
+      .client-profile-form .intake-group-heading strong,.client-profile-form .care-subsection-heading strong,.client-profile-form .medication-heading strong{color:#304252!important;font-size:.78rem!important;font-weight:900!important;letter-spacing:.03em;text-transform:uppercase}
+      .client-profile-form .input,.client-profile-form .select,.client-profile-form .textarea{background:rgba(255,255,255,.96)!important;border-color:#cfd9e0!important;border-radius:7px!important;box-shadow:none!important}
+      .client-profile-form .checkbox-card,.client-profile-form .specialist-card,.client-profile-form .medication-card,.client-profile-form .document-row,.client-profile-form .outreach-membership,.client-profile-form .outreach-interaction{border-color:#dbe3e8!important;border-radius:8px!important;background:rgba(255,255,255,.92)!important;box-shadow:none!important}
+      .client-profile-form .section-details:focus-within{border-color:#b9c8d2!important}
+
+      @media(max-width:760px){
+        .client-profile-form{gap:7px!important}
+        .client-profile-form .section-details>summary{min-height:52px!important;padding:10px 36px 10px 13px!important}
+        .client-profile-form .section-details>summary small{margin-top:3px!important;font-size:.67rem!important}
+        .client-profile-form .intake-section-body{gap:7px!important;padding:8px!important}
+        .client-profile-form .intake-group,.client-profile-form .care-subsection{padding:11px!important}
+      }
+    `}</style>
+  )
+}
