@@ -1,0 +1,133 @@
+.palette :global(.add-client-form .section-details > summary) {
+  color: #263746 !important;
+  border-left: 3px solid transparent !important;
+}
+
+.palette :global(.add-client-form .section-details > summary span) {
+  color: inherit !important;
+}
+
+.palette :global(.add-client-form .section-details > summary small) {
+  color: #465667 !important;
+}
+
+.palette :global(.add-client-form .section-details > summary::after) {
+  color: #465667 !important;
+}
+
+.palette :global(.add-client-form .section-details > summary:focus-visible) {
+  outline: 2px solid #315f82 !important;
+  outline-offset: -2px;
+}
+
+/* Client Information — slate blue */
+.palette :global(.add-client-form .section-client > summary) {
+  background: #e9f0f6 !important;
+  color: #27445d !important;
+  border-left-color: #486b87 !important;
+}
+.palette :global(.add-client-form .section-client > summary:hover),
+.palette :global(.add-client-form .section-client[open] > summary) {
+  background: #dfe9f1 !important;
+}
+.palette :global(.add-client-form .section-client > summary::before) { background: #486b87 !important; }
+
+/* Medicare — muted teal */
+.palette :global(.add-client-form .section-medicare > summary) {
+  background: #e5f2ee !important;
+  color: #285d54 !important;
+  border-left-color: #3f756b !important;
+}
+.palette :global(.add-client-form .section-medicare > summary:hover),
+.palette :global(.add-client-form .section-medicare[open] > summary) {
+  background: #d9eae5 !important;
+}
+.palette :global(.add-client-form .section-medicare > summary::before) { background: #3f756b !important; }
+
+/* Doctors & Medications — muted plum */
+.palette :global(.add-client-form .section-care > summary) {
+  background: #eeeaf4 !important;
+  color: #57446c !important;
+  border-left-color: #6b587f !important;
+}
+.palette :global(.add-client-form .section-care > summary:hover),
+.palette :global(.add-client-form .section-care[open] > summary) {
+  background: #e5dfec !important;
+}
+.palette :global(.add-client-form .section-care > summary::before) { background: #6b587f !important; }
+
+/* Life Insurance — restrained bronze */
+.palette :global(.add-client-form .section-life > summary) {
+  background: #f5eee2 !important;
+  color: #684b28 !important;
+  border-left-color: #8a6737 !important;
+}
+.palette :global(.add-client-form .section-life > summary:hover),
+.palette :global(.add-client-form .section-life[open] > summary) {
+  background: #eee2cf !important;
+}
+.palette :global(.add-client-form .section-life > summary::before) { background: #8a6737 !important; }
+
+/* Health Plan — sage green */
+.palette :global(.add-client-form .section-health > summary) {
+  background: #e8f3ed !important;
+  color: #315d50 !important;
+  border-left-color: #497565 !important;
+}
+.palette :global(.add-client-form .section-health > summary:hover),
+.palette :global(.add-client-form .section-health[open] > summary) {
+  background: #ddebe4 !important;
+}
+.palette :global(.add-client-form .section-health > summary::before) { background: #497565 !important; }
+
+/* Hospital Indemnity — muted burgundy */
+.palette :global(.add-client-form .section-hospital > summary) {
+  background: #f3e9ec !important;
+  color: #694a54 !important;
+  border-left-color: #815d67 !important;
+}
+.palette :global(.add-client-form .section-hospital > summary:hover),
+.palette :global(.add-client-form .section-hospital[open] > summary) {
+  background: #e9dde1 !important;
+}
+.palette :global(.add-client-form .section-hospital > summary::before) { background: #815d67 !important; }
+
+/* Banking — steel blue */
+.palette :global(.add-client-form .section-banking > summary) {
+  background: #e8eff5 !important;
+  color: #38556c !important;
+  border-left-color: #506f86 !important;
+}
+.palette :global(.add-client-form .section-banking > summary:hover),
+.palette :global(.add-client-form .section-banking[open] > summary) {
+  background: #dde6ee !important;
+}
+.palette :global(.add-client-form .section-banking > summary::before) { background: #506f86 !important; }
+
+/* Notes — neutral graphite */
+.palette :global(.add-client-form .section-notes > summary) {
+  background: #eceff2 !important;
+  color: #475563 !important;
+  border-left-color: #5e6c79 !important;
+}
+.palette :global(.add-client-form .section-notes > summary:hover),
+.palette :global(.add-client-form .section-notes[open] > summary) {
+  background: #e2e6ea !important;
+}
+.palette :global(.add-client-form .section-notes > summary::before) { background: #5e6c79 !important; }
+
+/* Keep content areas neutral so the color remains a navigation cue, not visual noise. */
+.palette :global(.add-client-form .intake-section-body) {
+  background: rgba(255, 255, 255, .46) !important;
+}
+
+@media (prefers-contrast: more) {
+  .palette :global(.add-client-form .section-details > summary) {
+    border-left-width: 5px !important;
+  }
+
+  .palette :global(.add-client-form .section-details > summary small),
+  .palette :global(.add-client-form .section-details > summary::after) {
+    color: #263746 !important;
+  }
+}
