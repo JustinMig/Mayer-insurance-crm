@@ -3,6 +3,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NewClientForm from './NewClientForm'
 import styles from './NewClientForm.module.css'
+import sectionColors from './NewClientSectionColors.module.css'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,7 +31,7 @@ export default async function NewClientPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${sectionColors.palette}`}>
       <div className={styles.heading}>
         <div>
           <span className={styles.eyebrow}>Client Intake</span>
