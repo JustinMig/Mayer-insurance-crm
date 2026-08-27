@@ -37,10 +37,11 @@ test('client-record visual styling is static CSS, not client-side React', async 
   assert.match(css, /section-outreach-history/)
 })
 
-test('lightweight rendering layer stays enabled and styling-only observer stays removed', async () => {
+test('lightweight layer removes effects without overriding semantic card colors', async () => {
   const layout = await source('app/layout.tsx')
   const enhancer = await source('app/(crm)/components/RouteScopedEnhancers.tsx')
   const lite = await source('app/performance-lite.css')
+  const dashboard = await source('app/(crm)/dashboard/page.tsx')
 
   assert.match(layout, /performance-lite\.css/)
   assert.doesNotMatch(enhancer, /AppointmentFormStyler/)
@@ -48,6 +49,19 @@ test('lightweight rendering layer stays enabled and styling-only observer stays 
   assert.match(lite, /box-shadow:\s*none !important/)
   assert.match(lite, /transition:\s*none !important/)
   assert.match(lite, /animation:\s*none !important/)
+  assert.doesNotMatch(lite, /\.crm-shell \.card[^\{]*\{[^}]*background\s*:/s)
+  assert.match(dashboard, /dashboard-premium-combined/)
+  assert.match(dashboard, /Monthly Premium/)
+  assert.match(dashboard, /Yearly Total/)
+})
+
+test('iPhone keeps only bottom navigation fixed and save controls in document flow', async () => {
+  const ios = await source('app/iphone-crm-fixes.css')
+  assert.match(ios, /\.mobile-nav\s*\{[\s\S]*position:\s*fixed !important/)
+  assert.match(ios, /\.topbar\s*\{[\s\S]*position:\s*relative !important/)
+  assert.match(ios, /\.add-client-form > \.add-client-save-row,[\s\S]*\.client-profile-form > \.sticky-save-bar\s*\{[\s\S]*position:\s*relative !important/)
+  assert.doesNotMatch(ios, /\.add-client-form \.add-client-save-row\s*\{[\s\S]*position:\s*fixed/)
+  assert.match(ios, /padding-bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/)
 })
 
 test('push notification setup is cached within the browser session', async () => {
