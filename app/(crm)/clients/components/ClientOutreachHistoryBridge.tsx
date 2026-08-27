@@ -143,7 +143,7 @@ export default function ClientOutreachHistoryBridge() {
   }, [clientId])
 
   useEffect(() => {
-    if (!clientId || !opened || loaded || loading) return
+    if (!clientId || !opened || loaded) return
     let cancelled = false
     setLoading(true)
     setError('')
@@ -166,7 +166,7 @@ export default function ClientOutreachHistoryBridge() {
     })()
 
     return () => { cancelled = true }
-  }, [clientId, loaded, loading, opened])
+  }, [clientId, loaded, opened])
 
   if (!clientId || !mountNode) return null
 
