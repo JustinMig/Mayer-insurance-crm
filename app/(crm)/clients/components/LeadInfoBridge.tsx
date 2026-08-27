@@ -27,6 +27,9 @@ type LeadInfo = {
   file_url: string | null
 }
 
+const LEAD_FILE_HELP = 'Take a picture, choose an image, or upload a PDF. JPG, PNG, HEIC, HEIF, or PDF up to 10 MB.'
+const LEAD_FILE_ACCEPT = 'image/*,.jpg,.jpeg,.png,.heic,.heif,.pdf,application/pdf'
+
 function formatDate(value: string | null, includeTime = false) {
   if (!value) return '—'
   const date = new Date(value.includes('T') ? value : `${value}T12:00:00`)
@@ -43,6 +46,49 @@ function products(lead: LeadInfo) {
   if (lead.is_medicare || lead.product_type === 'medicare') list.push('Medicare')
   if (lead.is_retirement || lead.product_type === 'retirement') list.push('Retirement')
   return Array.from(new Set(list))
+}
+
+function adaptLeadFileBox(box: HTMLElement) {
+  const heading = box.querySelector('strong')
+  const help = box.querySelector('p.subtle')
+  const input = box.querySelector<HTMLInputElement>('input[type="file"]')
+  const uploadLabel = box.querySelector<HTMLLabelElement>('label[for="workspace-lead-photo-input"]')
+
+  if (heading && heading.textContent !== 'Lead file') heading.textContent = 'Lead file'
+  if (help && help.textContent !== LEAD_FILE_HELP) help.textContent = LEAD_FILE_HELP
+  if (input) {
+    if (input.accept !== LEAD_FILE_ACCEPT) input.accept = LEAD_FILE_ACCEPT
+    if (input.hasAttribute('capture')) input.removeAttribute('capture')
+  }
+  if (uploadLabel && uploadLabel.textContent !== '📎 TAKE PHOTO / UPLOAD FILE') uploadLabel.textContent = '📎 TAKE PHOTO / UPLOAD FILE'
+
+  box.querySelectorAll<HTMLElement>('a,button').forEach((item) => {
+    const text = item.textContent || ''
+    if (text.includes('VIEW CURRENT PHOTO')) item.textContent = 'VIEW CURRENT FILE'
+    if (text.includes('REMOVE PHOTO')) item.textContent = 'REMOVE FILE'
+  })
+}
+
+function adaptLeadFileUiWithin(node: Node) {
+  const element = node instanceof Element ? node : node.parentElement
+  if (!element) return
+
+  const nearestBox = element.closest<HTMLElement>('.workspace-photo-box')
+  if (nearestBox) adaptLeadFileBox(nearestBox)
+  if (element.matches('.workspace-photo-box')) adaptLeadFileBox(element as HTMLElement)
+  element.querySelectorAll<HTMLElement>('.workspace-photo-box').forEach(adaptLeadFileBox)
+
+  const adaptLink = (link: HTMLElement) => {
+    if ((link.textContent || '').includes('PHOTO')) link.textContent = 'VIEW LEAD FILE'
+  }
+  if (element.matches('.workspace-photo-link')) adaptLink(element as HTMLElement)
+  element.querySelectorAll<HTMLElement>('.workspace-photo-link').forEach(adaptLink)
+
+  const adaptButton = (button: HTMLButtonElement) => {
+    if (button.textContent === 'SAVE LEAD + PHOTO') button.textContent = 'SAVE LEAD + FILE'
+  }
+  if (element.matches('.workspace-modal-actions .btn-primary')) adaptButton(element as HTMLButtonElement)
+  element.querySelectorAll<HTMLButtonElement>('.workspace-modal-actions .btn-primary').forEach(adaptButton)
 }
 
 export default function LeadInfoBridge() {
@@ -126,42 +172,29 @@ export default function LeadInfoBridge() {
   useEffect(() => {
     if (!pathname.startsWith('/leads') && !pathname.startsWith('/workspace')) return
 
-    const helpText = 'Take a picture, choose an image, or upload a PDF. JPG, PNG, HEIC, HEIF, or PDF up to 10 MB.'
-    const accepted = 'image/*,.jpg,.jpeg,.png,.heic,.heif,.pdf,application/pdf'
+    adaptLeadFileUiWithin(document.body)
 
-    const adaptLeadFileUi = () => {
-      document.querySelectorAll<HTMLElement>('.workspace-photo-box').forEach(box => {
-        const heading = box.querySelector('strong')
-        const help = box.querySelector('p.subtle')
-        const input = box.querySelector<HTMLInputElement>('input[type="file"]')
-        const uploadLabel = box.querySelector<HTMLLabelElement>('label[for="workspace-lead-photo-input"]')
-        if (heading && heading.textContent !== 'Lead file') heading.textContent = 'Lead file'
-        if (help && help.textContent !== helpText) help.textContent = helpText
-        if (input) {
-          if (input.accept !== accepted) input.accept = accepted
-          if (input.hasAttribute('capture')) input.removeAttribute('capture')
-        }
-        if (uploadLabel && uploadLabel.textContent !== '📎 TAKE PHOTO / UPLOAD FILE') uploadLabel.textContent = '📎 TAKE PHOTO / UPLOAD FILE'
-        box.querySelectorAll<HTMLElement>('a,button').forEach(item => {
-          const text = item.textContent || ''
-          if (text.includes('VIEW CURRENT PHOTO')) item.textContent = 'VIEW CURRENT FILE'
-          if (text.includes('REMOVE PHOTO')) item.textContent = 'REMOVE FILE'
-        })
-      })
-
-      document.querySelectorAll<HTMLElement>('.workspace-photo-link').forEach(link => {
-        if ((link.textContent || '').includes('PHOTO')) link.textContent = 'VIEW LEAD FILE'
-      })
-
-      document.querySelectorAll<HTMLButtonElement>('.workspace-modal-actions .btn-primary').forEach(button => {
-        if (button.textContent === 'SAVE LEAD + PHOTO') button.textContent = 'SAVE LEAD + FILE'
-      })
+    const pending = new Set<Node>()
+    let frame = 0
+    const flush = () => {
+      frame = 0
+      for (const node of pending) adaptLeadFileUiWithin(node)
+      pending.clear()
     }
 
-    adaptLeadFileUi()
-    const observer = new MutationObserver(adaptLeadFileUi)
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) pending.add(node)
+      }
+      if (pending.size && !frame) frame = window.requestAnimationFrame(flush)
+    })
     observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
+
+    return () => {
+      observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+      pending.clear()
+    }
   }, [pathname])
 
   if (!host) return null
