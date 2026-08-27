@@ -1,0 +1,80 @@
+/* Cross-platform runtime and interaction safeguards for Safari/iOS, Chromium/Windows, and macOS. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* Dynamic viewport units track Safari/Chrome browser chrome without removing the existing 100vh fallbacks. */
+@supports (height: 100dvh) {
+  .page-shell,
+  .crm-shell,
+  .login-shell {
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    height: 100dvh;
+  }
+}
+
+/* iOS Safari zooms the viewport when focusing controls rendered below 16px. */
+@media (max-width: 760px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Avoid unnecessary compositing and delayed-tap behavior on touch hardware, including iPhone/iPad and Windows touch PCs. */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role='button'],
+  summary,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  .card,
+  .topbar,
+  .mobile-nav,
+  .sticky-save-bar,
+  .add-client-save-row {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* Keep the CRM responsive for users/devices that request reduced motion and reduce animation work on low-power hardware. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
