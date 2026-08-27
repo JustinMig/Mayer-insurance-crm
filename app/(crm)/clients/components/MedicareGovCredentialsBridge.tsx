@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
+import { useClientRecordBootstrap } from '../../components/ClientRecordBootstrapContext'
 
 type CredentialField = 'secret_answer' | 'security_code_destination_name'
 type SavedState = Record<CredentialField, boolean>
@@ -22,6 +23,7 @@ function clientIdFromPath(pathname: string) {
 export default function MedicareGovCredentialsBridge() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
+  const bootstrap = useClientRecordBootstrap()
   const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
   const [saved, setSaved] = useState<SavedState>(emptySaved)
   const [revealed, setRevealed] = useState<RevealedState>({})
@@ -96,30 +98,26 @@ export default function MedicareGovCredentialsBridge() {
     setDestinationName('')
     setClearFields({})
     setStatus('')
-    if (!clientId) return
-
-    let cancelled = false
-    void (async () => {
-      try {
-        const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/medicare-gov`, { cache: 'no-store' })
-        const data = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(data.error || 'Unable to load Medicare.gov information.')
-        if (!cancelled) {
-          setUsername(String(data.values?.username || ''))
-          setPassword(String(data.values?.password || ''))
-          setSaved({
-            secret_answer: Boolean(data.saved?.secret_answer),
-            security_code_destination_name: Boolean(data.saved?.security_code_destination_name)
-          })
-          setLoginLoaded(true)
-        }
-      } catch (error) {
-        if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to load Medicare.gov information.')
-      }
-    })()
-
-    return () => { cancelled = true }
   }, [clientId])
+
+  useEffect(() => {
+    if (!clientId) return
+    if (bootstrap?.error) {
+      setStatus(bootstrap.error)
+      return
+    }
+    if (!bootstrap?.data) return
+
+    const medicareGov = bootstrap.data.medicare_gov
+    setUsername(String(medicareGov.values.username || ''))
+    setPassword(String(medicareGov.values.password || ''))
+    setSaved({
+      secret_answer: Boolean(medicareGov.saved.secret_answer),
+      security_code_destination_name: Boolean(medicareGov.saved.security_code_destination_name)
+    })
+    setLoginLoaded(true)
+    setStatus('')
+  }, [clientId, bootstrap?.data, bootstrap?.error])
 
   async function reveal(field: CredentialField) {
     if (!clientId) return

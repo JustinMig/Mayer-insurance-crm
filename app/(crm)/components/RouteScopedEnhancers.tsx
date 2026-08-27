@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
+import { ClientRecordBootstrapProvider } from './ClientRecordBootstrapContext'
 
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -17,7 +18,6 @@ const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridg
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
-const ClientRecordVisualStyler = dynamic(() => import('../clients/components/ClientRecordVisualStyler'), { ssr: false })
 const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 
@@ -25,17 +25,27 @@ export default function RouteScopedEnhancers() {
   const pathname = usePathname()
   const isNewClient = pathname === '/clients/new'
   const clientRecordMatch = pathname.match(/^\/clients\/([^/]+)$/)
-  const isClientRecord = Boolean(clientRecordMatch && CLIENT_ID_PATTERN.test(clientRecordMatch[1]))
+  const clientId = clientRecordMatch && CLIENT_ID_PATTERN.test(clientRecordMatch[1]) ? decodeURIComponent(clientRecordMatch[1]) : ''
+  const isClientRecord = Boolean(clientId)
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesAppointmentStyler = pathname === '/dashboard' || pathname === '/calendar'
   const usesLeadBridge = isClientForm || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
 
+  const clientRecordHelpers = isClientRecord ? (
+    <ClientRecordBootstrapProvider clientId={clientId}>
+      <DeceasedStatusBridge key={`deceased-${pathname}`} />
+      <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} />
+      <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} />
+      <ClientTextingDock key={`texting-${pathname}`} />
+      <SoaTextBridge key={`soa-text-${pathname}`} />
+    </ClientRecordBootstrapProvider>
+  ) : null
+
   return (
     <>
       <PreviousPageButton />
       <CallListNavLinks />
-      {isClientRecord ? <ClientRecordVisualStyler key={`record-style-${pathname}`} /> : null}
       {isClientForm ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
       {isClientForm ? <AddressAutoFill key={`address-${pathname}`} /> : null}
@@ -43,11 +53,8 @@ export default function RouteScopedEnhancers() {
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
       {usesAppointmentStyler ? <AppointmentFormStyler key={`appointment-${pathname}`} /> : null}
       {usesLeadBridge ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
-      {isClientForm ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
-      {isClientRecord ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
-      {isClientRecord ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
-      {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
-      {isClientRecord ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
+      {isNewClient ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
+      {clientRecordHelpers}
     </>
   )
 }

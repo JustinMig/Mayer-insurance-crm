@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
+import { useClientRecordBootstrap } from '../../components/ClientRecordBootstrapContext'
 
 function clientIdFromPath(pathname: string) {
   const match = pathname.match(/^\/clients\/([^/]+)$/)
@@ -13,6 +14,7 @@ function clientIdFromPath(pathname: string) {
 export default function DeceasedStatusBridge() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
+  const bootstrap = useClientRecordBootstrap()
   const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
   const [deceased, setDeceased] = useState(false)
 
@@ -59,22 +61,12 @@ export default function DeceasedStatusBridge() {
   }, [pathname])
 
   useEffect(() => {
-    setDeceased(false)
-    if (!clientId) return
-
-    let cancelled = false
-    void (async () => {
-      try {
-        const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/status`, { cache: 'no-store' })
-        const data = await response.json().catch(() => ({}))
-        if (!cancelled && response.ok) setDeceased(Boolean(data.is_deceased))
-      } catch {
-        // Leave the control unchecked if the status cannot be loaded.
-      }
-    })()
-
-    return () => { cancelled = true }
-  }, [clientId])
+    if (!clientId) {
+      setDeceased(false)
+      return
+    }
+    if (bootstrap?.data) setDeceased(Boolean(bootstrap.data.is_deceased))
+  }, [clientId, bootstrap?.data])
 
   useEffect(() => {
     const form = document.querySelector('.add-client-form, .client-profile-form') as HTMLFormElement | null
