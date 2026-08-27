@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './Notifications.module.css'
+import rowStyles from './NotificationsMailSpacing.module.css'
 
 type MailRow = {
   id: string
@@ -97,11 +98,11 @@ export default function NotificationsMailList({ initialMail }: { initialMail: Ma
         </div>
       </div>
       {message ? <div className={`${styles.message}${error ? ` ${styles.errorMessage}` : ''}`} style={{ margin: '10px 12px 0' }}>{message}</div> : null}
-      <div className={styles.mailList}>
+      <div className={`${styles.mailList} ${rowStyles.mailList}`}>
         {mail.map((item) => {
           const selected = selectedSet.has(item.id)
           return (
-            <div className={`${styles.mailRow}${item.read_at ? '' : ` ${styles.mailRowUnread}`}`} key={item.id}>
+            <div className={`${styles.mailRow} ${rowStyles.mailRow}${item.read_at ? '' : ` ${styles.mailRowUnread}`}`} key={item.id}>
               <label className={styles.mailCheckbox} onClick={(event) => event.stopPropagation()}>
                 <input type="checkbox" checked={selected} onChange={() => toggle(item.id)} aria-label={`Select message from ${item.sender_name || item.sender_email || 'unknown sender'}`} />
               </label>
