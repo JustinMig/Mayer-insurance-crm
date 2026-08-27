@@ -20,15 +20,12 @@ const DeceasedStatusBridge = dynamic(() => import('../clients/components/Decease
 const ClientRecordVisualStyler = dynamic(() => import('../clients/components/ClientRecordVisualStyler'), { ssr: false })
 const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
-const OutreachCampaignToolsBridge = dynamic(() => import('../campaigns/components/OutreachCampaignToolsBridge'), { ssr: false })
 
 export default function RouteScopedEnhancers() {
   const pathname = usePathname()
   const isNewClient = pathname === '/clients/new'
   const clientRecordMatch = pathname.match(/^\/clients\/([^/]+)$/)
   const isClientRecord = Boolean(clientRecordMatch && CLIENT_ID_PATTERN.test(clientRecordMatch[1]))
-  const campaignMatch = pathname.match(/^\/campaigns\/([^/]+)$/)
-  const isCampaignRecord = Boolean(campaignMatch && CLIENT_ID_PATTERN.test(campaignMatch[1]))
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesAppointmentStyler = pathname === '/dashboard' || pathname === '/calendar'
@@ -38,7 +35,6 @@ export default function RouteScopedEnhancers() {
     <>
       <PreviousPageButton />
       <CallListNavLinks />
-      {isCampaignRecord ? <OutreachCampaignToolsBridge key={`outreach-tools-${pathname}`} /> : null}
       {isClientRecord ? <ClientRecordVisualStyler key={`record-style-${pathname}`} /> : null}
       {isClientForm ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
