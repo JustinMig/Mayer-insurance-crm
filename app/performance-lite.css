@@ -1,0 +1,157 @@
+/* Lightweight CRM rendering layer. Keep functionality; remove visual/compositing overhead. */
+
+html,
+body,
+.login-shell {
+  background: #f4f5f5 !important;
+  background-image: none !important;
+  background-attachment: scroll !important;
+}
+
+.crm-shell,
+.crm-shell *,
+.login-shell,
+.login-shell * {
+  animation: none !important;
+  transition: none !important;
+  text-shadow: none !important;
+  scroll-behavior: auto !important;
+  will-change: auto !important;
+}
+
+.crm-shell img,
+.login-shell img {
+  filter: none !important;
+}
+
+.crm-shell .sidebar,
+.crm-shell .topbar,
+.crm-shell .mobile-nav,
+.crm-shell .card,
+.login-shell .login-card,
+.crm-shell .section-details,
+.crm-shell .intake-group,
+.crm-shell .care-subsection,
+.crm-shell .sticky-save-bar,
+.crm-shell .add-client-save-row,
+.crm-shell .workspace-panel,
+.crm-shell .dashboard-calendar-block,
+.crm-shell .dash-cal-editor,
+.crm-shell .outreach-campaign-row,
+.crm-shell .campaign-client-row {
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.crm-shell .sidebar {
+  background: #f2f4f5 !important;
+}
+
+.crm-shell .topbar,
+.crm-shell .mobile-nav,
+.crm-shell .card,
+.login-shell .login-card,
+.crm-shell .section-details,
+.crm-shell .intake-group,
+.crm-shell .care-subsection,
+.crm-shell .sticky-save-bar,
+.crm-shell .add-client-save-row {
+  background: #ffffff !important;
+}
+
+.crm-shell .nav > a,
+.crm-shell .nav > button,
+.crm-shell .nav form > button {
+  background: #ffffff !important;
+  color: #10263f !important;
+  box-shadow: none !important;
+}
+
+.crm-shell .nav > a[href],
+.crm-shell .nav .nav-signout,
+.crm-shell .mobile-nav > a[href],
+.crm-shell .mobile-nav .mobile-signout {
+  background: #ffffff !important;
+  color: #10263f !important;
+  box-shadow: none !important;
+  border-color: #d9dee3 !important;
+}
+
+.crm-shell .nav > a:hover,
+.crm-shell .nav button:hover,
+.crm-shell .mobile-nav > a:hover,
+.crm-shell .mobile-signout:hover,
+.crm-shell tbody tr:hover,
+.crm-shell .section-details > summary:hover,
+.crm-shell .client-profile-form .section-details > summary:hover {
+  background: inherit !important;
+  color: inherit !important;
+  filter: none !important;
+}
+
+.crm-shell .btn,
+.crm-shell button,
+.crm-shell .input,
+.crm-shell .select,
+.crm-shell .textarea,
+.crm-shell input,
+.crm-shell select,
+.crm-shell textarea,
+.crm-shell summary,
+.login-shell .btn,
+.login-shell input {
+  box-shadow: none !important;
+}
+
+.crm-shell .input:focus,
+.crm-shell .select:focus,
+.crm-shell .textarea:focus,
+.crm-shell input:focus,
+.crm-shell select:focus,
+.crm-shell textarea:focus,
+.login-shell input:focus {
+  box-shadow: none !important;
+}
+
+.crm-shell :focus-visible,
+.login-shell :focus-visible {
+  outline: 2px solid #5c7da2 !important;
+  outline-offset: 2px !important;
+}
+
+.crm-shell .client-profile-form .section-details,
+.crm-shell .client-profile-form .intake-group,
+.crm-shell .client-profile-form .care-subsection,
+.crm-shell .client-profile-form .checkbox-card,
+.crm-shell .client-profile-form .specialist-card,
+.crm-shell .client-profile-form .medication-card,
+.crm-shell .client-profile-form .document-row,
+.crm-shell .client-profile-form .outreach-membership,
+.crm-shell .client-profile-form .outreach-interaction {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.crm-shell .add-client-form > .add-client-save-row,
+.crm-shell .client-profile-form > .sticky-save-bar {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+}
+
+/* Avoid touch/GPU overscroll effects unless a horizontal data view truly needs them. */
+.crm-shell .workspace-calendar-scroll {
+  -webkit-overflow-scrolling: auto !important;
+}
+
+@media (max-width: 1024px), (pointer: coarse) {
+  .crm-shell .table-wrap,
+  .crm-shell .campaign-filter-tabs,
+  .crm-shell .tabs {
+    -webkit-overflow-scrolling: auto !important;
+  }
+}
