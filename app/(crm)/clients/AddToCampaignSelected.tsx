@@ -70,7 +70,7 @@ export default function AddToCampaignSelected({ selectedClientIds }: { selectedC
     setBusy(true)
     setMessage('')
     try {
-      const response = await fetch('/api/outreach-campaigns', {
+      const response = await fetch('/api/outreach-campaigns/agent-scoped', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createNew
@@ -82,7 +82,8 @@ export default function AddToCampaignSelected({ selectedClientIds }: { selectedC
 
       const added = Number(data.added || data.added_count || 0)
       const existing = Number(data.existing || 0)
-      setMessage(`${added} client${added === 1 ? '' : 's'} added${existing ? ` · ${existing} already in campaign` : ''}.`)
+      const unavailable = Number(data.unavailable || 0)
+      setMessage(`${added} client${added === 1 ? '' : 's'} added${existing ? ` · ${existing} already in campaign` : ''}${unavailable ? ` · ${unavailable} belong to another agent` : ''}.`)
       setOpen(false)
       setName('')
       setCreateNew(false)
