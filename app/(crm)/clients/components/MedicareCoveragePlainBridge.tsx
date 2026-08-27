@@ -35,18 +35,27 @@ export default function MedicareCoveragePlainBridge() {
 
   useEffect(() => {
     if (!isNewClient) return
-    let disposed = false
+    let observer: MutationObserver | null = null
+
     const apply = () => {
-      if (disposed) return
-      document.querySelectorAll<HTMLInputElement>('.add-client-form input[name="medicare_number"], .add-client-form input[name="medicaid_number"]').forEach((input) => prepareField(input))
+      const medicare = document.querySelector<HTMLInputElement>('.add-client-form input[name="medicare_number"]')
+      const medicaid = document.querySelector<HTMLInputElement>('.add-client-form input[name="medicaid_number"]')
+      if (medicare) prepareField(medicare)
+      if (medicaid) prepareField(medicaid)
+      return Boolean(medicare && medicaid)
     }
-    apply()
-    const observer = new MutationObserver(apply)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => {
-      disposed = true
-      observer.disconnect()
+
+    if (!apply()) {
+      observer = new MutationObserver(() => {
+        if (apply()) {
+          observer?.disconnect()
+          observer = null
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
     }
+
+    return () => observer?.disconnect()
   }, [isNewClient])
 
   useEffect(() => {
