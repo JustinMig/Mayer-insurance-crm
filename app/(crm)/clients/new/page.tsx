@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NewClientForm from './NewClientForm'
+import styles from './NewClientForm.module.css'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -29,13 +30,24 @@ export default async function NewClientPage() {
   }
 
   return (
-    <NewClientForm
-      key={`${userId}:${Date.now()}`}
-      currentUserId={userId}
-      currentUserName={profile.full_name || String(claims.email || 'Agent')}
-      currentUserEmail={String(claims.email || '')}
-      currentUserRole={canAssignAgent ? 'manager' : 'agent'}
-      agents={agents}
-    />
+    <div className={styles.page}>
+      <div className={styles.heading}>
+        <div>
+          <span className={styles.eyebrow}>Client Intake</span>
+          <h1>New Client</h1>
+          <p>Create the client record, add coverage information, and attach documents in one place.</p>
+        </div>
+        <span className={styles.requiredNote}>First name and last name are required</span>
+      </div>
+
+      <NewClientForm
+        key={`${userId}:${Date.now()}`}
+        currentUserId={userId}
+        currentUserName={profile.full_name || String(claims.email || 'Agent')}
+        currentUserEmail={String(claims.email || '')}
+        currentUserRole={canAssignAgent ? 'manager' : 'agent'}
+        agents={agents}
+      />
+    </div>
   )
 }
