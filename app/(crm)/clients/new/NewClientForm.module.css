@@ -1,0 +1,349 @@
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 2px 16px;
+  border-bottom: 1px solid rgba(108, 123, 137, .22);
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #718096;
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.72rem;
+  letter-spacing: -.02em;
+}
+
+.heading p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: .86rem;
+}
+
+.requiredNote {
+  color: #7a8794;
+  font-size: .74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.page :global(.add-client-form) {
+  gap: 8px !important;
+  margin-top: 0 !important;
+}
+
+.page :global(.add-client-form > .section-details) {
+  border: 0 !important;
+  border-bottom: 1px solid #dce3e8 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.page :global(.add-client-form > .section-details:first-of-type) {
+  border-top: 1px solid #dce3e8 !important;
+}
+
+.page :global(.add-client-form .section-details > summary) {
+  position: relative;
+  min-height: 58px !important;
+  padding: 12px 42px 12px 17px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, .44) !important;
+  color: #253646 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transition: background .15s ease;
+}
+
+.page :global(.add-client-form .section-details > summary:hover) {
+  background: rgba(255,255,255,.72) !important;
+}
+
+.page :global(.add-client-form .section-details > summary::before) {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 18px;
+  width: 6px;
+  height: 22px;
+  border-radius: 999px;
+  background: #8296a6;
+}
+
+.page :global(.add-client-form .section-client > summary::before) { background: #7890a3; }
+.page :global(.add-client-form .section-medicare > summary::before) { background: #6f988f; }
+.page :global(.add-client-form .section-care > summary::before) { background: #84789a; }
+.page :global(.add-client-form .section-life > summary::before) { background: #a58a62; }
+.page :global(.add-client-form .section-health > summary::before) { background: #6f9489; }
+.page :global(.add-client-form .section-hospital > summary::before) { background: #9a7d86; }
+.page :global(.add-client-form .section-banking > summary::before) { background: #768a9d; }
+.page :global(.add-client-form .section-notes > summary::before) { background: #7c8794; }
+
+.page :global(.add-client-form .section-details > summary span) {
+  font-size: .92rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .005em;
+}
+
+.page :global(.add-client-form .section-details > summary small) {
+  margin-left: auto;
+  color: #7a8794 !important;
+  font-size: .72rem !important;
+  font-weight: 600 !important;
+  text-align: right;
+}
+
+.page :global(.add-client-form .section-details > summary::after) {
+  color: #7b8996 !important;
+  font-size: 1.15rem !important;
+  font-weight: 500 !important;
+}
+
+.page :global(.add-client-form .section-details[open] > summary) {
+  background: rgba(246,249,250,.76) !important;
+  border-radius: 0 !important;
+}
+
+.page :global(.add-client-form .intake-section-body) {
+  display: grid;
+  gap: 0 !important;
+  padding: 0 18px 9px !important;
+  border: 0 !important;
+  background: rgba(255,255,255,.36) !important;
+}
+
+.page :global(.add-client-form .intake-group),
+.page :global(.add-client-form .care-subsection) {
+  margin: 0 !important;
+  padding: 15px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e6ebef !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.page :global(.add-client-form .intake-section-body > .intake-group:last-child),
+.page :global(.add-client-form .intake-section-body > .care-subsection:last-child) {
+  border-bottom: 0 !important;
+}
+
+.page :global(.add-client-form .intake-group-sensitive) {
+  border-left: 0 !important;
+  background: transparent !important;
+}
+
+.page :global(.add-client-form .intake-group-files) {
+  border: 0 !important;
+  border-bottom: 1px solid #e6ebef !important;
+  background: transparent !important;
+}
+
+.page :global(.add-client-form .intake-group-heading),
+.page :global(.add-client-form .care-subsection-heading),
+.page :global(.add-client-form .medication-heading) {
+  margin: 0 0 11px !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.page :global(.add-client-form .intake-group-heading strong),
+.page :global(.add-client-form .care-subsection-heading strong),
+.page :global(.add-client-form .medication-heading strong) {
+  color: #2f4050 !important;
+  font-size: .79rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.page :global(.add-client-form .intake-group-heading span),
+.page :global(.add-client-form .care-subsection-heading span),
+.page :global(.add-client-form .medication-heading span) {
+  margin-top: 2px !important;
+  color: #82909d !important;
+  font-size: .72rem !important;
+}
+
+.page :global(.add-client-form .form-grid) {
+  gap: 10px 12px !important;
+}
+
+.page :global(.add-client-form .label) {
+  gap: 4px !important;
+  color: #4a5a69 !important;
+  font-size: .75rem !important;
+  font-weight: 800 !important;
+}
+
+.page :global(.add-client-form .input),
+.page :global(.add-client-form .select),
+.page :global(.add-client-form .textarea) {
+  border-color: #cfd9e0 !important;
+  border-radius: 7px !important;
+  padding: 9px 10px !important;
+  background: rgba(255,255,255,.92) !important;
+  box-shadow: none !important;
+}
+
+.page :global(.add-client-form .textarea) {
+  min-height: 88px !important;
+}
+
+.page :global(.add-client-form .field-help) {
+  margin-top: 3px !important;
+  color: #84919d !important;
+  font-size: .69rem !important;
+}
+
+.page :global(.add-client-form .checkbox-row) {
+  gap: 7px !important;
+}
+
+.page :global(.add-client-form .checkbox-card) {
+  min-height: 36px !important;
+  padding: 7px 10px !important;
+  border: 1px solid #d8e0e5 !important;
+  border-radius: 7px !important;
+  background: rgba(255,255,255,.66) !important;
+  box-shadow: none !important;
+  font-size: .76rem !important;
+}
+
+.page :global(.add-client-form .product-choice-row .checkbox-card) {
+  min-height: 38px !important;
+  background: rgba(255,255,255,.72) !important;
+}
+
+.page :global(.add-client-form .medicare-documents-heading) {
+  gap: 10px !important;
+}
+
+.page :global(.add-client-form .document-action-row) {
+  gap: 6px !important;
+}
+
+.page :global(.add-client-form .document-action-row .btn),
+.page :global(.add-client-form .upload-button) {
+  min-height: 35px !important;
+  padding: 7px 10px !important;
+  border-radius: 7px !important;
+  font-size: .72rem !important;
+}
+
+.page :global(.add-client-form .document-row) {
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e6ebef !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.page :global(.add-client-form .specialist-card),
+.page :global(.add-client-form .medication-card) {
+  border-color: #dde4e9 !important;
+  border-radius: 8px !important;
+  background: rgba(255,255,255,.64) !important;
+  box-shadow: none !important;
+}
+
+.page :global(.add-client-form > .add-client-save-row) {
+  top: 8px !important;
+  min-height: 46px !important;
+  margin: 0 0 6px !important;
+  padding: 7px 8px !important;
+  border: 1px solid rgba(203,214,222,.9) !important;
+  border-radius: 9px !important;
+  background: rgba(250,251,251,.94) !important;
+  box-shadow: 0 5px 15px rgba(15,23,42,.08) !important;
+}
+
+.page :global(.add-client-form > .add-client-save-row .btn) {
+  min-width: 132px !important;
+  padding: 9px 14px !important;
+  border-radius: 7px !important;
+  font-size: .78rem !important;
+  letter-spacing: .015em;
+}
+
+.page :global(.document-status) {
+  margin: 5px 0 !important;
+  padding: 9px 11px !important;
+  border-radius: 7px !important;
+  font-size: .76rem !important;
+}
+
+@media (max-width: 760px) {
+  .heading {
+    align-items: flex-start;
+    padding-bottom: 12px;
+  }
+
+  .heading h1 {
+    font-size: 1.42rem;
+  }
+
+  .heading p {
+    font-size: .78rem;
+  }
+
+  .requiredNote {
+    display: none;
+  }
+
+  .page :global(.add-client-form .section-details > summary) {
+    min-height: 54px !important;
+    padding: 10px 36px 10px 16px !important;
+  }
+
+  .page :global(.add-client-form .section-details > summary small) {
+    margin: 3px 0 0 !important;
+    font-size: .68rem !important;
+    text-align: left !important;
+  }
+
+  .page :global(.add-client-form .intake-section-body) {
+    padding: 0 13px 7px !important;
+  }
+
+  .page :global(.add-client-form .intake-group),
+  .page :global(.add-client-form .care-subsection) {
+    padding: 12px 0 !important;
+  }
+
+  .page :global(.add-client-form .form-grid) {
+    gap: 9px !important;
+  }
+
+  .page :global(.add-client-form .document-action-row) {
+    width: 100%;
+  }
+
+  .page :global(.add-client-form .document-action-row > *) {
+    flex: 1 1 145px;
+  }
+
+  .page :global(.add-client-form > .add-client-save-row) {
+    top: 6px !important;
+    padding: 6px !important;
+  }
+}
