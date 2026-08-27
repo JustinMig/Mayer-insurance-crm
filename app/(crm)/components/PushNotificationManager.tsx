@@ -38,6 +38,12 @@ async function saveSubscription(subscription: PushSubscription) {
   if (!response.ok) throw new Error(data?.error || 'Unable to save notification subscription.')
 }
 
+async function getServiceWorkerRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration('/')
+  if (existing) return existing
+  return navigator.serviceWorker.register('/sw.js', { scope: '/' })
+}
+
 export default function PushNotificationManager() {
   const [state, setState] = useState<PushState>('checking')
   const [publicKey, setPublicKey] = useState('')
@@ -59,7 +65,7 @@ export default function PushNotificationManager() {
         if (!active) return
         setPublicKey(String(config.publicKey))
 
-        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        const registration = await getServiceWorkerRegistration()
         await navigator.serviceWorker.ready
         const existing = await registration.pushManager.getSubscription()
 
@@ -102,7 +108,7 @@ export default function PushNotificationManager() {
       }
       if (permission !== 'granted') return
 
-      const registration = await navigator.serviceWorker.ready
+      const registration = await getServiceWorkerRegistration()
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
