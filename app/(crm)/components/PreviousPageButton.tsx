@@ -1,5 +1,6 @@
 'use client'
 
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -17,7 +18,28 @@ function isCrmRoute(value: string | null) {
 export default function PreviousPageButton() {
   const pathname = usePathname()
   const router = useRouter()
+  const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
   const [hasPrevious, setHasPrevious] = useState(false)
+
+  useEffect(() => {
+    const content = document.querySelector<HTMLElement>('.content')
+    if (!content) return
+
+    let host = content.querySelector<HTMLElement>('#previous-page-navigation-mount')
+    let created = false
+    if (!host) {
+      host = document.createElement('div')
+      host.id = 'previous-page-navigation-mount'
+      content.prepend(host)
+      created = true
+    }
+    setMountNode(host)
+
+    return () => {
+      if (created && host?.isConnected) host.remove()
+      setMountNode(null)
+    }
+  }, [])
 
   useEffect(() => {
     const current = currentRoute()
@@ -48,9 +70,10 @@ export default function PreviousPageButton() {
     if (pathname !== '/dashboard') router.push('/dashboard')
   }
 
+  if (!mountNode) return null
   const disabled = pathname === '/dashboard' && !hasPrevious
 
-  return (
+  return createPortal(
     <div className="previous-page-row">
       <button
         type="button"
@@ -71,6 +94,7 @@ export default function PreviousPageButton() {
         .previous-page-button>span:first-child{font-size:1rem;line-height:1}
         @media(max-width:760px){.previous-page-row{margin-bottom:10px}.previous-page-button{min-height:44px;padding:9px 13px;font-size:.72rem}}
       `}</style>
-    </div>
+    </div>,
+    mountNode
   )
 }
