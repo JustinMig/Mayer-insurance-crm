@@ -14,10 +14,15 @@ type BadgeNavigator = Navigator & {
   clearAppBadge?: () => Promise<void>
 }
 
+const POLL_INTERVAL_MS = 5 * 60_000
+const FOCUS_REFRESH_MIN_MS = 60_000
+
 let sharedTotal = 0
 let pollTimer: number | null = null
 let inFlight: Promise<void> | null = null
 let eventsAttached = false
+let lastRefreshAt = 0
+let pollingSuspended = false
 const listeners = new Set<Listener>()
 
 function syncAppBadge(total: number) {
@@ -37,15 +42,30 @@ function publish(total: number) {
   listeners.forEach((listener) => listener(total))
 }
 
-async function refreshUnread() {
+function suspendPolling() {
+  pollingSuspended = true
+  if (typeof window !== 'undefined' && pollTimer) window.clearInterval(pollTimer)
+  pollTimer = null
+}
+
+async function refreshUnread(force = false) {
+  if (pollingSuspended) return
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  if (!force && Date.now() - lastRefreshAt < FOCUS_REFRESH_MIN_MS) return
   if (inFlight) return inFlight
 
   inFlight = (async () => {
     try {
-      const response = await fetch('/api/notifications/unread', { cache: 'no-store' })
+      const response = await fetch('/api/notifications/unread', { cache: 'no-store', redirect: 'follow' })
+      const finalUrl = response.url || ''
+      if (response.redirected || response.status === 401 || response.status === 403 || finalUrl.includes('/login')) {
+        suspendPolling()
+        return
+      }
+      if (!response.ok) return
       const result = await response.json().catch(() => ({}))
-      if (response.ok) publish(Number(result.total || 0))
+      lastRefreshAt = Date.now()
+      publish(Number(result.total || 0))
     } catch {
       // Keep navigation usable if the unread counter cannot refresh.
     } finally {
@@ -57,14 +77,14 @@ async function refreshUnread() {
 }
 
 function onVisibleOrFocus() {
-  if (document.visibilityState === 'visible') void refreshUnread()
+  if (document.visibilityState === 'visible') void refreshUnread(false)
 }
 
 function startSharedPolling() {
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined' || pollingSuspended) return
   if (!pollTimer) {
-    void refreshUnread()
-    pollTimer = window.setInterval(() => void refreshUnread(), 60_000)
+    void refreshUnread(lastRefreshAt === 0)
+    pollTimer = window.setInterval(() => void refreshUnread(true), POLL_INTERVAL_MS)
   }
   if (!eventsAttached) {
     document.addEventListener('visibilitychange', onVisibleOrFocus)
