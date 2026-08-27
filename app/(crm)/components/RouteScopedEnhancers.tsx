@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const PreviousPageButton = dynamic(() => import('./PreviousPageButton'), { ssr: false })
 const ClientDraftGuard = dynamic(() => import('./ClientDraftGuard'), { ssr: false })
 const AddressAutoFill = dynamic(() => import('./AddressAutoFill'), { ssr: false })
 const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), { ssr: false })
@@ -35,6 +36,7 @@ export default function RouteScopedEnhancers() {
 
   return (
     <>
+      <PreviousPageButton />
       <CallListNavLinks />
       {isCampaignRecord ? <OutreachCampaignToolsBridge key={`outreach-tools-${pathname}`} /> : null}
       {isClientRecord ? <ClientRecordVisualStyler key={`record-style-${pathname}`} /> : null}
