@@ -79,6 +79,25 @@
   margin-top: 8px;
 }
 
+@media (hover: none), (pointer: coarse) {
+  .scope :global(.outreach-campaign-row),
+  .scope :global(.campaign-client-row) {
+    transition: none !important;
+    box-shadow: none !important;
+  }
+
+  .scope :global(.outreach-campaign-row:hover),
+  .scope :global(.campaign-client-row:hover) {
+    border-color: #dfe5e9 !important;
+    background: rgba(255, 255, 255, .96) !important;
+    box-shadow: none !important;
+  }
+
+  .scope :global(.campaign-client-row-focus) {
+    box-shadow: none !important;
+  }
+}
+
 @media (max-width: 640px) {
   .scope :global(.outreach-campaign-list),
   .scope :global(.campaign-client-table) {
