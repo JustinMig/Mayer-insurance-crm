@@ -4,11 +4,23 @@ import { interestList, isJustinWebsiteLeadUser, type WebsiteLead } from '@/lib/w
 import { CRM_GMAIL_LABEL, gmailConfigured } from '@/lib/gmail-mail'
 import MailCenterRefresh from '../mail-center/MailCenterRefresh'
 import MessagesCenter from '../messages/MessagesCenter'
+import NotificationsMailList from './NotificationsMailList'
+import styles from './Notifications.module.css'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 type SearchParams = Promise<{ tab?: string; connected?: string; gmail_error?: string; agent?: string; deleted?: string }>
+
+type MailRow = {
+  id: string
+  sender_name: string | null
+  sender_email: string | null
+  subject: string | null
+  snippet: string | null
+  received_at: string
+  read_at: string | null
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
@@ -23,7 +35,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const rawAgent = params.agent
   const initialAgent = rawAgent === 'isaiah' ? 'isaiah' : rawAgent === 'justin' ? 'justin' : 'all'
 
-  let mail: any[] = []
+  let mail: MailRow[] = []
   let unreadMailCount = 0
   let connected = false
   let configured = false
@@ -62,7 +74,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       if (mailResult.error) throw new Error(mailResult.error.message)
       connected = Boolean(connectionResult.data)
       gmailEmail = connectionResult.data?.gmail_email || ''
-      mail = mailResult.data || []
+      mail = (mailResult.data || []) as MailRow[]
     } else if (activeTab === 'forms') {
       const formsResult = await supabase.from('website_leads')
         .select('id,first_name,last_name,phone,email,interests,comments,status,source,read_at,created_at,updated_at,sms_consent')
@@ -75,101 +87,98 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   }
 
   return (
-    <>
-      <div className="clients-page-heading">
-        <h1>Notifications</h1>
-        <p className="subtle">Mail, client text messages, and website form submissions in one place.</p>
+    <div className={styles.page}>
+      <div className={styles.heading}>
+        <div>
+          <span className={styles.eyebrow}>Activity Center</span>
+          <h1>Notifications</h1>
+          <p>Mail, client text messages, and website form submissions in one streamlined workspace.</p>
+        </div>
+        {canUseMailAndForms ? (
+          <div className={styles.summaryMeta}>
+            <span>{unreadMailCount} unread mail</span>
+            <span>{unreadFormsCount} new forms</span>
+          </div>
+        ) : null}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-        {canUseMailAndForms && (
-          <Link prefetch={false} href="/notifications?tab=mail" className={`btn ${activeTab === 'mail' ? 'btn-primary' : 'btn-secondary'}`}>
-            MAIL{unreadMailCount > 0 ? ` (${unreadMailCount})` : ''}
+      <nav className={styles.tabs} aria-label="Notification categories">
+        {canUseMailAndForms ? (
+          <Link prefetch={false} href="/notifications?tab=mail" className={`${styles.tab}${activeTab === 'mail' ? ` ${styles.tabActive}` : ''}`}>
+            Mail{unreadMailCount > 0 ? <span className={styles.count}>{unreadMailCount}</span> : null}
           </Link>
-        )}
-        <Link prefetch={false} href="/notifications?tab=text" className={`btn ${activeTab === 'text' ? 'btn-primary' : 'btn-secondary'}`}>TEXT MESSAGES</Link>
-        {canUseMailAndForms && (
-          <Link prefetch={false} href="/notifications?tab=forms" className={`btn ${activeTab === 'forms' ? 'btn-primary' : 'btn-secondary'}`}>
-            FORMS{unreadFormsCount > 0 ? ` (${unreadFormsCount})` : ''}
+        ) : null}
+        <Link prefetch={false} href="/notifications?tab=text" className={`${styles.tab}${activeTab === 'text' ? ` ${styles.tabActive}` : ''}`}>
+          Text Messages
+        </Link>
+        {canUseMailAndForms ? (
+          <Link prefetch={false} href="/notifications?tab=forms" className={`${styles.tab}${activeTab === 'forms' ? ` ${styles.tabActive}` : ''}`}>
+            Forms{unreadFormsCount > 0 ? <span className={styles.count}>{unreadFormsCount}</span> : null}
           </Link>
-        )}
-      </div>
+        ) : null}
+      </nav>
 
       {activeTab === 'mail' && canUseMailAndForms ? (
         <>
-          <section className="card card-pad" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <span className="subtle">Connected mailbox</span>
-              <div style={{ fontWeight: 800, marginTop: 3 }}>{gmailEmail || 'Not connected'}</div>
-              <p className="subtle" style={{ margin: '5px 0 0' }}>Gmail messages labeled <strong>{CRM_GMAIL_LABEL}</strong> appear here.</p>
+          <section className={styles.statusBar}>
+            <div className={styles.mailIdentity}>
+              <span className={`${styles.statusDot}${connected ? '' : ` ${styles.statusDotOff}`}`} aria-hidden="true" />
+              <div>
+                <strong>{gmailEmail || 'Gmail not connected'}</strong>
+                <span>{connected ? `Messages labeled ${CRM_GMAIL_LABEL} sync into this CRM mailbox.` : 'Connect Gmail to sync labeled messages into the CRM.'}</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ textAlign: 'center', minWidth: 62 }}><div style={{ fontSize: '1.45rem', fontWeight: 900 }}>{unreadMailCount}</div><span className="subtle">unread</span></div>
+            <div className={styles.statusActions}>
+              <div className={styles.metric}><strong>{unreadMailCount}</strong><span>unread</span></div>
               {connected ? <MailCenterRefresh connected /> : null}
               {!connected && configured ? <a className="btn btn-primary" href="/api/gmail/connect">Connect Gmail</a> : null}
             </div>
           </section>
 
-          {!configured && <div className="notice" style={{ marginTop: 16 }}>Gmail needs its Google OAuth environment values before the mailbox can connect.</div>}
-          {params.connected === '1' && <div className="notice" style={{ marginTop: 16 }}>Gmail connected successfully.</div>}
-          {params.gmail_error && <div className="notice" style={{ marginTop: 16 }}>Gmail connection did not complete. Try connecting again.</div>}
+          {!configured ? <div className={styles.notice}>Gmail needs its Google OAuth environment values before the mailbox can connect.</div> : null}
+          {params.connected === '1' ? <div className={styles.notice}>Gmail connected successfully.</div> : null}
+          {params.gmail_error ? <div className={styles.notice}>Gmail connection did not complete. Try connecting again.</div> : null}
 
-          <section className="card" style={{ marginTop: 16 }}>
-            {mail.length ? (
-              <div className="website-leads-list">
-                {mail.map((message: any) => (
-                  <Link prefetch={false} href={`/mail-center/${message.id}`} key={message.id} className={`website-lead-row${message.read_at ? '' : ' is-new'}`}>
-                    <div className="website-lead-main">
-                      <div className="website-lead-title">
-                        <strong>{message.sender_name || message.sender_email || 'Unknown sender'}</strong>
-                        {!message.read_at && <span className="website-lead-new-badge">NEW</span>}
-                      </div>
-                      <strong style={{ color: '#0f172a' }}>{message.subject}</strong>
-                      {message.snippet && <span>{message.snippet}</span>}
-                    </div>
-                    <div className="website-lead-meta"><span>{formatDate(message.received_at)}</span><b>Open ›</b></div>
-                  </Link>
-                ))}
-              </div>
-            ) : <div className="empty">No CRM mail yet.</div>}
+          <section className={styles.content}>
+            <NotificationsMailList initialMail={mail} />
           </section>
         </>
       ) : activeTab === 'forms' && canUseMailAndForms ? (
         <>
-          {params.deleted === '1' && <div className="notice" style={{ marginTop: 16 }}>Form submission deleted.</div>}
-          <section className="card card-pad website-leads-summary" style={{ marginTop: 16 }}>
-            <div><span className="subtle">New submissions</span><strong>{unreadFormsCount}</strong></div>
-            <div><span className="subtle">Total shown</span><strong>{forms.length}</strong></div>
+          {params.deleted === '1' ? <div className={styles.notice}>Form submission deleted.</div> : null}
+          <section className={styles.formsSummary}>
+            <div><span>New submissions</span><strong>{unreadFormsCount}</strong></div>
+            <div><span>Total shown</span><strong>{forms.length}</strong></div>
           </section>
-          <section className="card" style={{ marginTop: 16 }}>
+          <section className={styles.content}>
             {forms.length ? (
-              <div className="website-leads-list">
+              <div className={styles.formList}>
                 {forms.map((lead) => {
                   const interests = interestList(lead.interests)
                   return (
-                    <Link prefetch={false} className={`website-lead-row${lead.read_at ? '' : ' is-new'}`} href={`/website-leads/${lead.id}`} key={lead.id}>
-                      <div className="website-lead-main">
-                        <div className="website-lead-title">
+                    <Link prefetch={false} className={`${styles.formRow}${lead.read_at ? '' : ` ${styles.formRowNew}`}`} href={`/website-leads/${lead.id}`} key={lead.id}>
+                      <div className={styles.formMain}>
+                        <div className={styles.formTitle}>
                           <strong>{lead.first_name} {lead.last_name}</strong>
-                          {!lead.read_at && <span className="website-lead-new-badge">NEW</span>}
-                          {lead.sms_consent && <span className="website-lead-new-badge" style={{ background: '#e7f7ed', color: '#176b38' }}>SMS OK</span>}
+                          {!lead.read_at ? <span className={styles.newBadge}>NEW</span> : null}
+                          {lead.sms_consent ? <span className={styles.newBadge}>SMS OK</span> : null}
                         </div>
                         <span>{lead.phone} · {lead.email}</span>
-                        {interests.length > 0 && <span>Coverage: {interests.join(', ')}</span>}
+                        {interests.length > 0 ? <span>Coverage: {interests.join(', ')}</span> : null}
                       </div>
-                      <div className="website-lead-meta"><span>{formatDate(lead.created_at)}</span><b>Open ›</b></div>
+                      <div className={styles.formMeta}><span>{formatDate(lead.created_at)}</span><b>Open ›</b></div>
                     </Link>
                   )
                 })}
               </div>
-            ) : <div className="empty">No website form submissions yet.</div>}
+            ) : <div className={styles.empty}>No website form submissions yet.</div>}
           </section>
         </>
       ) : (
-        <div style={{ marginTop: 18 }}>
+        <div className={styles.textWrap}>
           <MessagesCenter viewerName={profile?.full_name || ''} initialAgent={initialAgent} />
         </div>
       )}
-    </>
+    </div>
   )
 }
