@@ -19,6 +19,31 @@ type Member = {
 }
 
 type Agent = { id: string; full_name: string }
+type CampaignCounts = {
+  total: number
+  not_contacted: number
+  attempted: number
+  spoke: number
+  follow_up: number
+  completed: number
+  not_interested: number
+  do_not_call: number
+  unreachable: number
+}
+
+function emptyCounts(): CampaignCounts {
+  return {
+    total: 0,
+    not_contacted: 0,
+    attempted: 0,
+    spoke: 0,
+    follow_up: 0,
+    completed: 0,
+    not_interested: 0,
+    do_not_call: 0,
+    unreachable: 0
+  }
+}
 
 export default async function CampaignsPage() {
   const { supabase, userId, profile } = await getCrmSession()
@@ -56,10 +81,19 @@ export default async function CampaignsPage() {
   const members = (memberResult.data || []) as Member[]
   const agents = (agentResult.data || []) as Agent[]
   const agentNames = new Map(agents.map((agent) => [agent.id, agent.full_name]))
+  const countsByCampaign = new Map<string, CampaignCounts>()
+
+  for (const member of members) {
+    const counts = countsByCampaign.get(member.campaign_id) || emptyCounts()
+    counts.total += 1
+    if (member.status in counts && member.status !== 'total') {
+      counts[member.status as keyof Omit<CampaignCounts, 'total'>] += 1
+    }
+    countsByCampaign.set(member.campaign_id, counts)
+  }
 
   const summaries = campaigns.map((campaign) => {
-    const rows = members.filter((member) => member.campaign_id === campaign.id)
-    const count = (status: string) => rows.filter((member) => member.status === status).length
+    const counts = countsByCampaign.get(campaign.id) || emptyCounts()
     return {
       id: campaign.id,
       name: campaign.name,
@@ -68,15 +102,7 @@ export default async function CampaignsPage() {
       agent_name: agentNames.get(campaign.assigned_agent_id) || 'Agent',
       created_at: campaign.created_at,
       can_archive: manager || campaign.assigned_agent_id === userId,
-      total: rows.length,
-      not_contacted: count('not_contacted'),
-      attempted: count('attempted'),
-      spoke: count('spoke'),
-      follow_up: count('follow_up'),
-      completed: count('completed'),
-      not_interested: count('not_interested'),
-      do_not_call: count('do_not_call'),
-      unreachable: count('unreachable')
+      ...counts
     }
   })
 
