@@ -1,0 +1,66 @@
+/* Dashboard-only rendering hints. These avoid laying out below-the-fold tools until needed. */
+.dashboard-agent-split,
+.dashboard-personal-stats,
+.isaiah-premium-tools,
+.dashboard-deferred-tools,
+.dashboard-backup-home-tab {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 260px;
+}
+
+.dashboard-deferred-tools {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.dashboard-deferred-tool {
+  overflow: hidden;
+  border: 1px solid #d7e0e6;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.dashboard-deferred-tool > summary {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 16px;
+  cursor: pointer;
+  list-style: none;
+  color: #263d50;
+  font-weight: 900;
+}
+
+.dashboard-deferred-tool > summary::-webkit-details-marker { display: none; }
+.dashboard-deferred-tool > summary::after {
+  content: '+';
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #cbd6de;
+  border-radius: 999px;
+  background: #f8fafb;
+  font-size: 18px;
+  line-height: 1;
+}
+.dashboard-deferred-tool[open] > summary::after { content: '–'; }
+.dashboard-deferred-tool > summary small {
+  margin-left: auto;
+  color: #687887;
+  font-size: .75rem;
+  font-weight: 700;
+}
+.dashboard-deferred-tool-body { border-top: 1px solid #e2e8ec; padding: 0 14px 14px; }
+.dashboard-deferred-tool-body > .card { margin-top: 14px !important; }
+.dashboard-deferred-loading { padding: 18px 4px 4px; color: #657084; font-size: .84rem; }
+
+@media (max-width: 720px) {
+  .dashboard-deferred-tool > summary { align-items: flex-start; padding: 12px; }
+  .dashboard-deferred-tool > summary small { display: none; }
+  .dashboard-deferred-tool-body { padding: 0 10px 10px; }
+}

@@ -41,36 +41,30 @@ export default async function ClientProfilePage({ params, searchParams }: { para
   const { supabase, claims, userId, profile } = await getCrmSession()
   if (!profile?.agency_id) redirect('/account-setup')
 
-  const { data: client } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
-  if (!client) notFound()
-
   const canAssignAgents = profile?.role === 'admin' || profile?.role === 'manager'
-  const [
-    { data: medicare },
-    { data: careInfo },
-    { data: specialists },
-    { data: medications },
-    { data: lifeInsurance },
-    { data: healthPlan },
-    { data: hospitalIndemnity },
-    { data: banking },
-    { data: documents },
-    agentsResult
-  ] = await Promise.all([
-    supabase.from('medicare_info').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('client_care_info').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('client_specialists').select('*').eq('client_id', id).order('slot'),
-    supabase.from('client_medications').select('*').eq('client_id', id).order('sort_order').order('created_at'),
-    supabase.from('client_life_insurance').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('client_health_plan_info').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('client_hospital_indemnity').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('client_banking_info').select('*').eq('client_id', id).maybeSingle(),
-    supabase.from('documents').select('id, file_name, mime_type, document_type, created_at').eq('client_id', id).order('created_at', { ascending: false }),
+  const [bundleResult, agentsResult] = await Promise.all([
+    supabase.rpc('crm_client_record_bundle', { p_client_id: id }),
     canAssignAgents && profile?.agency_id
       ? supabase.from('profiles').select('id, full_name, role, active').eq('agency_id', profile.agency_id).eq('active', true).in('role', ['admin', 'agent']).order('full_name')
       : Promise.resolve({ data: null, error: null })
   ])
 
+  if (bundleResult.error) throw new Error(`Unable to load client record: ${bundleResult.error.message}`)
+  if (agentsResult.error) throw new Error(`Unable to load agent choices: ${agentsResult.error.message}`)
+
+  const bundle = bundleResult.data as any
+  const client = bundle?.client
+  if (!client) notFound()
+
+  const medicare = bundle.medicare || null
+  const careInfo = bundle.careInfo || null
+  const specialists = Array.isArray(bundle.specialists) ? bundle.specialists : []
+  const medications = Array.isArray(bundle.medications) ? bundle.medications : []
+  const lifeInsurance = bundle.lifeInsurance || null
+  const healthPlan = bundle.healthPlan || null
+  const hospitalIndemnity = bundle.hospitalIndemnity || null
+  const banking = bundle.banking || null
+  const documents = Array.isArray(bundle.documents) ? bundle.documents : []
   const agentEmail = String(claims.email || '')
   const agents = agentsResult.data
 
@@ -248,7 +242,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
                 clientAddress={[client.address_line1, client.city, client.state, client.zip_code].filter(Boolean).join(', ')}
                 agentName={profile?.full_name || 'Mayer Insurance Group Agent'}
                 agentEmail={agentEmail}
-                initialDocuments={(documents || []).filter(doc => ['medicare_document', 'medicare_photo', 'scope_of_appointment', 'card_information'].includes(doc.document_type || ''))}
+                initialDocuments={documents.filter((doc: any) => ['medicare_document', 'medicare_photo', 'scope_of_appointment', 'card_information'].includes(doc.document_type || ''))}
               />
             </div>
 
@@ -266,8 +260,8 @@ export default async function ClientProfilePage({ params, searchParams }: { para
         <details className="section-details section-care">
           <summary><span>Doctors &amp; Medications</span><small>Doctors, pharmacy, prescriptions &amp; medication files</small></summary>
           <div className="section-body intake-section-body">
-            <DoctorsMedicationsFields careInfo={careInfo} specialists={specialists || []} medications={medications || []} />
-            <div className="intake-group intake-group-files"><MedicationDocuments clientId={client.id} initialDocuments={(documents || []).filter(doc => doc.document_type === 'medications')} /></div>
+            <DoctorsMedicationsFields careInfo={careInfo} specialists={specialists} medications={medications} />
+            <div className="intake-group intake-group-files"><MedicationDocuments clientId={client.id} initialDocuments={documents.filter((doc: any) => doc.document_type === 'medications')} /></div>
           </div>
         </details>
 
@@ -275,7 +269,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <summary><span>Life Insurance</span><small>Carrier, coverage, premium, policy type &amp; files</small></summary>
           <div className="section-body intake-section-body">
             <div className="intake-group"><div className="intake-group-heading"><div><strong>Policy Details</strong><span>Carrier and coverage information.</span></div></div><LifeInsuranceFields lifeInsurance={lifeInsurance} /></div>
-            <div className="intake-group intake-group-files"><LifeInsuranceDocuments clientId={client.id} initialDocuments={(documents || []).filter(doc => doc.document_type === 'life_insurance')} /></div>
+            <div className="intake-group intake-group-files"><LifeInsuranceDocuments clientId={client.id} initialDocuments={documents.filter((doc: any) => doc.document_type === 'life_insurance')} /></div>
           </div>
         </details>
 
@@ -283,7 +277,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <summary><span>Health Plan Info</span><small>Company, member ID, plan ID, effective date &amp; files</small></summary>
           <div className="section-body intake-section-body">
             <div className="intake-group"><div className="intake-group-heading"><div><strong>Health Plan Details</strong><span>Current medical plan information.</span></div></div><HealthPlanFields healthPlan={healthPlan} clientId={client.id} memberMasked={healthMemberMasked} /></div>
-            <div className="intake-group intake-group-files"><HealthPlanDocuments clientId={client.id} initialDocuments={(documents || []).filter(doc => doc.document_type === 'health_plan')} /></div>
+            <div className="intake-group intake-group-files"><HealthPlanDocuments clientId={client.id} initialDocuments={documents.filter((doc: any) => doc.document_type === 'health_plan')} /></div>
           </div>
         </details>
 
@@ -291,7 +285,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           <summary><span>Hospital Indemnity Plan</span><small>Company, premium &amp; effective date</small></summary>
           <div className="section-body intake-section-body">
             <div className="intake-group"><div className="intake-group-heading"><div><strong>Plan Details</strong><span>Hospital indemnity coverage information.</span></div></div><HospitalIndemnityFields hospitalIndemnity={hospitalIndemnity} /></div>
-            <div className="intake-group intake-group-files"><HospitalIndemnityDocuments clientId={client.id} initialDocuments={(documents || []).filter(doc => doc.document_type === 'hospital_indemnity')} /></div>
+            <div className="intake-group intake-group-files"><HospitalIndemnityDocuments clientId={client.id} initialDocuments={documents.filter((doc: any) => doc.document_type === 'hospital_indemnity')} /></div>
           </div>
         </details>
 
@@ -329,7 +323,7 @@ export default async function ClientProfilePage({ params, searchParams }: { para
           </div>
         </details>
 
-        <OtherCoverageDocuments clientId={client.id} documents={(documents || []).filter(doc => ['aca', 'dental', 'hearing', 'vision', 'retirement'].includes(doc.document_type || ''))} />
+        <OtherCoverageDocuments clientId={client.id} documents={documents.filter((doc: any) => ['aca', 'dental', 'hearing', 'vision', 'retirement'].includes(doc.document_type || ''))} />
 
         <details className="section-details section-notes">
           <summary><span>Notes</span><small>Additional client information</small></summary>

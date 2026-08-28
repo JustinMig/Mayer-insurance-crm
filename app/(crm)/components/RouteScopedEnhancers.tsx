@@ -1,12 +1,12 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { ClientRecordBootstrapProvider } from './ClientRecordBootstrapContext'
 
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-const PreviousPageButton = dynamic(() => import('./PreviousPageButton'), { ssr: false })
 const ClientDraftGuard = dynamic(() => import('./ClientDraftGuard'), { ssr: false })
 const AddressAutoFill = dynamic(() => import('./AddressAutoFill'), { ssr: false })
 const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), { ssr: false })
@@ -17,8 +17,67 @@ const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridg
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
-const CallListNavLinks = dynamic(() => import('./CallListNavLinks'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
+
+type SectionFlags = {
+  client: boolean
+  medicare: boolean
+}
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+  cancelIdleCallback?: (handle: number) => void
+}
+
+const CLOSED_SECTIONS: SectionFlags = { client: false, medicare: false }
+
+function useClientRecordActivation(enabled: boolean) {
+  const [sections, setSections] = useState<SectionFlags>(CLOSED_SECTIONS)
+  const [deferredReady, setDeferredReady] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      setSections(CLOSED_SECTIONS)
+      setDeferredReady(false)
+      return
+    }
+
+    const form = document.querySelector<HTMLElement>('.client-profile-form')
+    const clientSection = form?.querySelector<HTMLDetailsElement>('.section-client') || null
+    const medicareSection = form?.querySelector<HTMLDetailsElement>('.section-medicare') || null
+
+    const sync = () => {
+      setSections({
+        client: Boolean(clientSection?.open),
+        medicare: Boolean(medicareSection?.open)
+      })
+    }
+
+    clientSection?.addEventListener('toggle', sync)
+    medicareSection?.addEventListener('toggle', sync)
+    sync()
+
+    const idleWindow = window as IdleWindow
+    let idleId: number | null = null
+    let timerId: number | null = null
+    const enableDeferred = () => setDeferredReady(true)
+
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      idleId = idleWindow.requestIdleCallback(enableDeferred, { timeout: 2500 })
+    } else {
+      timerId = window.setTimeout(enableDeferred, 1400)
+    }
+
+    return () => {
+      clientSection?.removeEventListener('toggle', sync)
+      medicareSection?.removeEventListener('toggle', sync)
+      if (idleId !== null && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(idleId)
+      if (timerId !== null) window.clearTimeout(timerId)
+    }
+  }, [enabled])
+
+  return { sections, deferredReady }
+}
 
 export default function RouteScopedEnhancers() {
   const pathname = usePathname()
@@ -29,29 +88,32 @@ export default function RouteScopedEnhancers() {
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesLeadBridge = isClientForm || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
+  const { sections, deferredReady } = useClientRecordActivation(isClientRecord)
 
-  const clientRecordHelpers = isClientRecord ? (
-    <ClientRecordBootstrapProvider clientId={clientId}>
-      <DeceasedStatusBridge key={`deceased-${pathname}`} />
-      <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} />
-      <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} />
-      <ClientTextingDock key={`texting-${pathname}`} />
-      <SoaTextBridge key={`soa-text-${pathname}`} />
-    </ClientRecordBootstrapProvider>
-  ) : null
+  const needsClientHelpers = isNewClient || sections.client
+  const needsMedicareHelpers = isNewClient || sections.medicare
+  const needsBootstrap = isClientRecord && (sections.client || sections.medicare)
 
   return (
     <>
-      <PreviousPageButton />
-      <CallListNavLinks />
-      {isClientForm ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
-      {isClientForm ? <AddressAutoFill key={`address-${pathname}`} /> : null}
-      {isClientForm ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
+      {needsClientHelpers ? <AddressAutoFill key={`address-${pathname}`} /> : null}
+      {needsClientHelpers ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
+      {needsMedicareHelpers ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
-      {usesLeadBridge ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
+      {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {isNewClient ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
-      {clientRecordHelpers}
+
+      {needsBootstrap ? (
+        <ClientRecordBootstrapProvider clientId={clientId}>
+          {sections.client ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
+          {sections.medicare ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
+        </ClientRecordBootstrapProvider>
+      ) : null}
+
+      {isClientRecord && sections.medicare ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
+      {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
+      {isClientRecord && deferredReady ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
     </>
   )
 }

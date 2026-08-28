@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+const POLL_INTERVAL_MS = 5 * 60_000
+const VISIBILITY_REFRESH_MIN_MS = 60_000
+
 export default function MailCenterRefresh({ connected }: { connected: boolean }) {
   const router = useRouter()
   const busyRef = useRef(false)
+  const lastSyncAtRef = useRef(0)
   const [syncing, setSyncing] = useState(false)
   const [status, setStatus] = useState('')
 
@@ -19,6 +23,7 @@ export default function MailCenterRefresh({ connected }: { connected: boolean })
       const response = await fetch('/api/mail-center/sync', { method: 'POST', cache: 'no-store' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Mail check failed.')
+      lastSyncAtRef.current = Date.now()
 
       if (result.labelMissing) {
         setStatus('Create the Gmail label “Send to CRM” to sync messages.')
@@ -42,9 +47,11 @@ export default function MailCenterRefresh({ connected }: { connected: boolean })
   useEffect(() => {
     if (!connected) return
     void sync(true)
-    const timer = window.setInterval(() => void sync(true), 90_000)
+    const timer = window.setInterval(() => void sync(true), POLL_INTERVAL_MS)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void sync(true)
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastSyncAtRef.current < VISIBILITY_REFRESH_MIN_MS) return
+      void sync(true)
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {

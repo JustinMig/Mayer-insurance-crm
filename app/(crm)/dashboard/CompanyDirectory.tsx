@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import type { CompanyContact } from '@/lib/company-contacts'
 
 const NASSAU_CONTACT: CompanyContact = {
@@ -19,6 +19,9 @@ const CICA_CITIZENS_LIFE_CONTACT: CompanyContact = {
   notes: []
 }
 
+let cachedContacts: CompanyContact[] | null = null
+let contactsRequest: Promise<CompanyContact[]> | null = null
+
 function normalized(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9@.]+/g, ' ').trim()
 }
@@ -33,9 +36,48 @@ function searchableText(contact: CompanyContact) {
   ].join(' '))
 }
 
-export default function CompanyDirectory({ contacts }: { contacts: CompanyContact[] }) {
+async function fetchContacts() {
+  if (cachedContacts) return cachedContacts
+  if (contactsRequest) return contactsRequest
+
+  contactsRequest = (async () => {
+    const response = await fetch('/api/dashboard/company-contacts', { cache: 'force-cache' })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(result.error || 'Unable to load the company directory.')
+    const contacts = Array.isArray(result.contacts) ? result.contacts as CompanyContact[] : []
+    cachedContacts = contacts
+    return contacts
+  })()
+
+  try {
+    return await contactsRequest
+  } finally {
+    contactsRequest = null
+  }
+}
+
+export default function CompanyDirectory() {
+  const [contacts, setContacts] = useState<CompanyContact[]>(() => cachedContacts || [])
+  const [loading, setLoading] = useState(() => !cachedContacts)
+  const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [selectedCompany, setSelectedCompany] = useState('')
+
+  useEffect(() => {
+    if (cachedContacts) return
+    let cancelled = false
+    void fetchContacts()
+      .then((loaded) => {
+        if (!cancelled) setContacts(loaded)
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Unable to load the company directory.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const directoryContacts = useMemo(() => {
     const extras = [NASSAU_CONTACT, CICA_CITIZENS_LIFE_CONTACT]
@@ -67,24 +109,27 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
   }
 
   return (
-    <section className="card card-pad company-directory-card dashboard-lookup-accent dashboard-lookup-accent-directory" style={{ marginTop: 20 }}>
+    <section className="card card-pad company-directory-card dashboard-lookup-accent dashboard-lookup-accent-directory" style={{ marginTop: 0 }}>
       <div className="company-directory-heading">
         <div>
           <h2 style={{ marginBottom: 4 }}>Company Contact Directory</h2>
           <p className="subtle" style={{ margin: 0 }}>Search an insurance company to find its phone, fax, email, and notes.</p>
         </div>
-        <span className="company-directory-count">{directoryContacts.length} companies</span>
+        <span className="company-directory-count">{loading ? 'Loading…' : `${directoryContacts.length} companies`}</span>
       </div>
+
+      {error ? <div className="notice notice-error" style={{ marginTop: 14 }}>{error}</div> : null}
 
       <div className="company-directory-search-wrap">
         <input
           className="input company-directory-search dashboard-field dashboard-field-directory"
           value={query}
+          disabled={loading || Boolean(error)}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setQuery(event.target.value)
             if (event.target.value !== selectedCompany) setSelectedCompany('')
           }}
-          placeholder="Search company name, phone, fax, or email"
+          placeholder={loading ? 'Loading company directory…' : 'Search company name, phone, fax, or email'}
           autoComplete="off"
           aria-label="Search company contact directory"
         />
@@ -125,7 +170,7 @@ export default function CompanyDirectory({ contacts }: { contacts: CompanyContac
           ) : null}
         </div>
       ) : (
-        <div className="company-directory-empty">Start typing a company name above.</div>
+        <div className="company-directory-empty">{loading ? 'Loading directory…' : 'Start typing a company name above.'}</div>
       )}
     </section>
   )

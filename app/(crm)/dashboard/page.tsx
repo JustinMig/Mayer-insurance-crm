@@ -1,11 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
-import CompanyDirectory from './CompanyDirectory'
-import BuildChartLookup from './BuildChartLookup'
 import DashboardCalendar from './DashboardCalendar'
 import DashboardNotes from './DashboardNotes'
-import { COMPANY_CONTACTS } from '@/lib/company-contacts'
+import DeferredDashboardTools from './DeferredDashboardTools'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -297,8 +295,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         </section>
       ) : null}
 
-      <CompanyDirectory contacts={COMPANY_CONTACTS} />
-      <BuildChartLookup />
+      <DeferredDashboardTools />
 
       {canBackupCrm ? (
         <Link prefetch={false} href="/backup" className="dashboard-home-nav-tab dashboard-backup-home-tab">

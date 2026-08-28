@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import '../../../client-record-visual.css'
 
 export default function ClientRecordLayout({ children }: { children: ReactNode }) {
   return (
