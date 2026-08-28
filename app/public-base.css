@@ -71,6 +71,8 @@ button { cursor: pointer; }
 .login-card .btn { border: 0; border-radius: 10px; padding: 11px 15px; font-weight: 700; }
 .login-card .btn-primary { background: var(--navy); color: #fff; }
 .login-card .btn-primary:hover { background: var(--navy-2); }
+.login-card .notice { border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.login-card .notice-error { border: 1px solid #f0caca; background: #fff0f0; color: #7f2929; }
 
 @media (max-width: 520px) {
   .login-shell { padding: 14px; }
