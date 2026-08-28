@@ -65,7 +65,27 @@ export default function DeceasedStatusBridge() {
       setDeceased(false)
       return
     }
-    if (bootstrap?.data) setDeceased(Boolean(bootstrap.data.is_deceased))
+
+    if (bootstrap?.data) {
+      setDeceased(Boolean(bootstrap.data.is_deceased))
+      return
+    }
+
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/status`, {
+          cache: 'no-store',
+          signal: controller.signal
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!controller.signal.aborted && response.ok) setDeceased(Boolean(data.is_deceased))
+      } catch {
+        // Preserve the unchecked fallback if status cannot be loaded.
+      }
+    })()
+
+    return () => controller.abort()
   }, [clientId, bootstrap?.data])
 
   useEffect(() => {

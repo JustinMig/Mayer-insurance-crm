@@ -11,7 +11,7 @@ async function source(relativePath) {
   return readFile(path.join(root, relativePath), 'utf8')
 }
 
-test('client-record startup helpers share one bootstrap request and wait for the relevant section', async () => {
+test('Deceased status is always submitted while Medicare credential helpers wait for the Medicare section', async () => {
   const bootstrap = await source('app/api/clients/[id]/bootstrap/route.ts')
   const enhancer = await source('app/(crm)/components/RouteScopedEnhancers.tsx')
   const deceased = await source('app/(crm)/clients/components/DeceasedStatusBridge.tsx')
@@ -21,10 +21,11 @@ test('client-record startup helpers share one bootstrap request and wait for the
   assert.match(bootstrap, /from\('clients'\)/)
   assert.match(bootstrap, /from\('medicare_info'\)/)
   assert.match(enhancer, /useClientRecordActivation/)
-  assert.match(enhancer, /needsBootstrap/)
-  assert.match(enhancer, /sections\.client/)
-  assert.match(enhancer, /sections\.medicare/)
-  assert.equal((deceased.match(/fetch\(/g) || []).length, 0, 'Deceased helper should not launch its own startup API request')
+  assert.match(enhancer, /isClientForm \? <DeceasedStatusBridge/)
+  assert.match(enhancer, /isClientRecord && sections\.medicare/)
+  assert.doesNotMatch(enhancer, /sections\.client \? <DeceasedStatusBridge/)
+  assert.equal((deceased.match(/fetch\(/g) || []).length, 1, 'Deceased helper should load the saved status exactly once')
+  assert.match(deceased, /\/api\/clients\/\$\{encodeURIComponent\(clientId\)\}\/status/)
   assert.equal((medicareGov.match(/fetch\(/g) || []).length, 1, 'Medicare.gov helper should only fetch for an explicit secure reveal')
   assert.match(medicareGov, /method:\s*'POST'/)
 })

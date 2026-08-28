@@ -92,22 +92,20 @@ export default function RouteScopedEnhancers() {
 
   const needsClientHelpers = isNewClient || sections.client
   const needsMedicareHelpers = isNewClient || sections.medicare
-  const needsBootstrap = isClientRecord && (sections.client || sections.medicare)
 
   return (
     <>
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
+      {isClientForm ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
       {needsClientHelpers ? <AddressAutoFill key={`address-${pathname}`} /> : null}
       {needsClientHelpers ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
       {needsMedicareHelpers ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
-      {isNewClient ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
 
-      {needsBootstrap ? (
+      {isClientRecord && sections.medicare ? (
         <ClientRecordBootstrapProvider clientId={clientId}>
-          {sections.client ? <DeceasedStatusBridge key={`deceased-${pathname}`} /> : null}
-          {sections.medicare ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
+          <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} />
         </ClientRecordBootstrapProvider>
       ) : null}
 
