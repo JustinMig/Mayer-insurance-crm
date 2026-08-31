@@ -8,6 +8,7 @@ export type ClientRecordBootstrapData = {
     values: {
       username: string
       password: string
+      secret_answer: string
     }
     saved: {
       username: boolean
