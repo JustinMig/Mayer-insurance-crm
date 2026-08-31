@@ -13,6 +13,8 @@ const SLOT_MINUTES = 15
 const WORKDAY_START_MINUTES = 8 * 60
 const WORKDAY_END_MINUTES = 20 * 60
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CAMPAIGN_ID_PATTERN = CLIENT_ID_PATTERN
+const SPOKE_APPOINTMENT_VALUE = '__appointment__'
 
 function manualDateToIso(value: string) {
   const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
@@ -31,6 +33,17 @@ function isoDateToManual(value: string) {
   const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return ''
   return `${match[2]}/${match[3]}/${match[1]}`
+}
+
+function centralTodayManual() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.month}/${values.day}/${values.year}`
 }
 
 function timeToMinutes(value: string | null | undefined) {
@@ -100,6 +113,12 @@ function clientIdFromRow(row: Element | null) {
   const match = link.getAttribute('href')?.match(/^\/clients\/([^/?#]+)/)
   const clientId = match ? decodeURIComponent(match[1]) : ''
   return CLIENT_ID_PATTERN.test(clientId) ? clientId : ''
+}
+
+function campaignIdFromPath() {
+  const match = window.location.pathname.match(/^\/campaigns\/([^/?#]+)/)
+  const campaignId = match ? decodeURIComponent(match[1]) : ''
+  return CAMPAIGN_ID_PATTERN.test(campaignId) ? campaignId : ''
 }
 
 function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
@@ -226,6 +245,109 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
   void loadAvailability()
 }
 
+function ensureSpokeAppointment(dialog: HTMLElement, clientId: string) {
+  if (!clientId) return
+
+  const resultLabel = findLabel(dialog, 'Conversation result')
+  const resultSelect = resultLabel?.querySelector<HTMLSelectElement>('select') || null
+  const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
+  if (!resultSelect || !form) return
+
+  if (!resultSelect.querySelector(`option[value="${SPOKE_APPOINTMENT_VALUE}"]`)) {
+    const option = document.createElement('option')
+    option.value = SPOKE_APPOINTMENT_VALUE
+    option.textContent = 'Appointment — schedule on calendar'
+    resultSelect.appendChild(option)
+  }
+
+  let fields = form.querySelector<HTMLElement>('[data-spoke-appointment-fields]') || null
+  if (!fields) {
+    fields = document.createElement('div')
+    fields.className = 'outreach-followup-row outreach-spoke-appointment-fields'
+    fields.dataset.spokeAppointmentFields = '1'
+    fields.innerHTML = `
+      <label class="label">Appointment date<input class="input" inputmode="numeric" value="${centralTodayManual()}" placeholder="MM/DD/YYYY" /></label>
+      <label class="label">Time (optional)<input class="input" type="time" /></label>
+    `
+    const notesLabel = findLabel(dialog, 'Notes')
+    if (notesLabel?.parentElement === form) form.insertBefore(fields, notesLabel)
+    else form.appendChild(fields)
+  }
+
+  const syncVisibility = () => {
+    if (!fields) return
+    const appointmentMode = resultSelect.value === SPOKE_APPOINTMENT_VALUE
+    fields.style.display = appointmentMode ? '' : 'none'
+    if (appointmentMode) enhanceAppointmentDialog(dialog, clientId)
+  }
+
+  if (resultSelect.dataset.spokeAppointmentBound !== '1') {
+    resultSelect.dataset.spokeAppointmentBound = '1'
+    resultSelect.addEventListener('change', syncVisibility)
+  }
+  syncVisibility()
+
+  const saveButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+    button.textContent?.trim().toLowerCase().includes('save result')
+  ) || null
+
+  if (!saveButton || saveButton.dataset.spokeAppointmentBound === '1') return
+  saveButton.dataset.spokeAppointmentBound = '1'
+
+  saveButton.addEventListener('click', async (event) => {
+    if (resultSelect.value !== SPOKE_APPOINTMENT_VALUE) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+
+    const campaignId = campaignIdFromPath()
+    const datePicker = fields?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
+    const timeSelect = fields?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
+    const notes = findLabel(dialog, 'Notes')?.querySelector<HTMLTextAreaElement>('textarea')?.value?.trim() || ''
+
+    let status = dialog.querySelector<HTMLElement>('[data-spoke-appointment-status]') || null
+    if (!status) {
+      status = document.createElement('div')
+      status.className = 'notice outreach-spoke-appointment-status'
+      status.dataset.spokeAppointmentStatus = '1'
+      form.insertAdjacentElement('afterend', status)
+    }
+
+    if (!campaignId || !datePicker?.value || !timeSelect?.value) {
+      status.textContent = 'Choose an appointment date and an available appointment time.'
+      return
+    }
+
+    const previousText = saveButton.textContent || 'Save result'
+    saveButton.disabled = true
+    saveButton.textContent = 'Saving appointment…'
+    status.textContent = 'Saving appointment to the calendar…'
+
+    try {
+      const response = await fetch('/api/outreach-campaigns/spoke-appointment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          client_id: clientId,
+          event_date: datePicker.value,
+          start_time: timeSelect.value,
+          note: notes
+        })
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Unable to create appointment.')
+      status.textContent = 'Appointment saved to the calendar.'
+      window.location.reload()
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : 'Unable to create appointment.'
+      saveButton.disabled = false
+      saveButton.textContent = previousText
+    }
+  }, true)
+}
+
 export default function OutreachAppointmentTimeBlocker() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('.content')
@@ -236,13 +358,16 @@ export default function OutreachAppointmentTimeBlocker() {
     const captureAppointmentClient = (event: Event) => {
       const target = event.target instanceof Element ? event.target : null
       const button = target?.closest<HTMLButtonElement>('button') || null
-      if (!button || button.textContent?.trim().toLowerCase() !== 'appointment') return
+      const text = button?.textContent?.trim().toLowerCase() || ''
+      if (!button || (text !== 'appointment' && text !== 'spoke / update')) return
       activeClientId = clientIdFromRow(button.closest('.campaign-client-row'))
     }
 
     const enhance = () => {
       root.querySelectorAll<HTMLElement>('.outreach-dialog[aria-label="Create client appointment"]')
         .forEach((dialog) => enhanceAppointmentDialog(dialog, activeClientId))
+      root.querySelectorAll<HTMLElement>('.outreach-dialog[aria-label="Record client conversation"]')
+        .forEach((dialog) => ensureSpokeAppointment(dialog, activeClientId))
     }
 
     root.addEventListener('click', captureAppointmentClient, true)
@@ -265,6 +390,8 @@ export default function OutreachAppointmentTimeBlocker() {
       .outreach-appointment-time-select:disabled{background:#eef1f3!important;color:#7b8790!important;cursor:not-allowed}
       .outreach-appointment-time-select option:disabled{color:#9b4f4f;background:#f7eded}
       .outreach-appointment-time-help{display:block;margin-top:6px;color:#61717e;font-size:.72rem;font-weight:700;line-height:1.35}
+      .outreach-spoke-appointment-fields{margin-top:2px}
+      .outreach-spoke-appointment-status{margin-top:10px}
     `}</style>
   )
 }
