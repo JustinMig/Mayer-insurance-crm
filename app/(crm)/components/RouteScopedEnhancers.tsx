@@ -114,7 +114,7 @@ export default function RouteScopedEnhancers() {
         </ClientRecordBootstrapProvider>
       ) : null}
 
-      {isClientRecord && sections.medicare ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
+      {isClientRecord ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
     </>
