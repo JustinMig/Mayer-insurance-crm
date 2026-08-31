@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -181,6 +182,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
     if (requestedClient && requestedLead) return NextResponse.json({ error: 'Tag either a client or a lead, not both.' }, { status: 400 })
 
     const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
+    if (eventType === 'appointment') {
+      await assertAppointmentTimeAvailable(supabase, agencyId, ownerId, eventDate, startTime, endTime, id)
+    }
+
     const clientId = await resolveClient(supabase, agencyId, ownerId, requestedClient)
     const leadId = await resolveLead(supabase, agencyId, ownerId, requestedLead)
     const wasNeedsReschedule = existing.status === 'needs_reschedule'
