@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -148,6 +149,17 @@ export async function POST(request: NextRequest) {
       if (!validDate(eventDate)) return json({ error: 'Enter a valid appointment date.' }, 400)
       if (startTime && !TIME_PATTERN.test(startTime)) return json({ error: 'Enter a valid appointment time.' }, 400)
 
+      if (startTime) {
+        await assertAppointmentTimeAvailable(
+          admin,
+          profile.agency_id,
+          member.assigned_agent_id,
+          eventDate,
+          startTime,
+          ''
+        )
+      }
+
       const clientName = [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'Client'
       const { data: event, error: eventError } = await admin
         .from('workspace_calendar_events')
@@ -174,7 +186,13 @@ export async function POST(request: NextRequest) {
         actor_id: userId,
         client_id: member.client_id,
         action: 'outreach.appointment_created',
-        details: { campaign_id: member.campaign_id, event_id: event.id, assigned_agent_id: member.assigned_agent_id, event_date: eventDate }
+        details: {
+          campaign_id: member.campaign_id,
+          event_id: event.id,
+          assigned_agent_id: member.assigned_agent_id,
+          event_date: eventDate,
+          start_time: startTime || null
+        }
       })
 
       return json({ event })
