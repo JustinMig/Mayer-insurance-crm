@@ -18,6 +18,14 @@ const CLASS_BY_LABEL: Record<string, string> = {
 
 const FIELD_CLASSES = Object.values(CLASS_BY_LABEL)
 const LABEL_SELECTOR = '.dash-cal-editor .dash-cal-form-grid label'
+const SLOT_MINUTES = 15
+
+type CalendarBlock = {
+  id: string
+  title: string | null
+  start_time: string | null
+  end_time: string | null
+}
 
 function styleLabel(label: HTMLLabelElement) {
   const name = label.querySelector(':scope > span')?.textContent?.trim() || ''
@@ -43,12 +51,250 @@ function styleWithin(node: Node) {
   element.querySelectorAll<HTMLLabelElement>(LABEL_SELECTOR).forEach(styleLabel)
 }
 
+function labelByName(editor: HTMLElement, name: string) {
+  return Array.from(editor.querySelectorAll<HTMLLabelElement>('.dash-cal-form-grid label')).find((label) =>
+    label.querySelector(':scope > span')?.textContent?.trim() === name
+  ) || null
+}
+
+function timeToMinutes(value: string | null | undefined) {
+  const match = String(value || '').slice(0, 5).match(/^(\d{2}):(\d{2})$/)
+  if (!match) return null
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
+function minutesToTime(minutes: number) {
+  const normalized = Math.max(0, Math.min(23 * 60 + 59, minutes))
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`
+}
+
+function formatTimeLabel(value: string) {
+  const minutes = timeToMinutes(value)
+  if (minutes === null) return value
+  const hour24 = Math.floor(minutes / 60)
+  const minute = minutes % 60
+  const suffix = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`
+}
+
+function effectiveRange(start: string | null | undefined, end: string | null | undefined) {
+  const startMinutes = timeToMinutes(start)
+  if (startMinutes === null) return null
+  const parsedEnd = timeToMinutes(end)
+  return {
+    start: startMinutes,
+    end: parsedEnd !== null && parsedEnd > startMinutes ? parsedEnd : startMinutes + SLOT_MINUTES
+  }
+}
+
+function rangesOverlap(start: string, end: string, block: CalendarBlock) {
+  const first = effectiveRange(start, end)
+  const second = effectiveRange(block.start_time, block.end_time)
+  if (!first || !second) return false
+  return first.start < second.end && second.start < first.end
+}
+
+function setControlledInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  if (setter) setter.call(input, value)
+  else input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+function buildTimeValues(current: string) {
+  const values: string[] = []
+  for (let minutes = 0; minutes < 24 * 60; minutes += SLOT_MINUTES) values.push(minutesToTime(minutes))
+  const normalizedCurrent = String(current || '').slice(0, 5)
+  if (normalizedCurrent && !values.includes(normalizedCurrent)) values.push(normalizedCurrent)
+  return values.sort()
+}
+
+function attachBookedTimePicker(editor: HTMLElement) {
+  if (editor.dataset.bookedTimePicker === '1') return
+
+  const startLabel = labelByName(editor, 'Start Time')
+  const endLabel = labelByName(editor, 'End Time')
+  const dateLabel = labelByName(editor, 'Date')
+  const typeLabel = labelByName(editor, 'Type')
+  if (!startLabel || !endLabel || !dateLabel || !typeLabel) return
+
+  const startInput = startLabel.querySelector<HTMLInputElement>('input[type="time"]')
+  const endInput = endLabel.querySelector<HTMLInputElement>('input[type="time"]')
+  const dateInput = dateLabel.querySelector<HTMLInputElement>('input[type="date"]')
+  const typeSelect = typeLabel.querySelector<HTMLSelectElement>('select')
+  const agentSelect = labelByName(editor, 'Agent')?.querySelector<HTMLSelectElement>('select') || null
+  const titleInput = labelByName(editor, 'Title')?.querySelector<HTMLInputElement>('input') || null
+  if (!startInput || !endInput || !dateInput || !typeSelect) return
+
+  editor.dataset.bookedTimePicker = '1'
+
+  const startSelect = document.createElement('select')
+  const endSelect = document.createElement('select')
+  startSelect.className = `${startInput.className} appt-booked-time-select`
+  endSelect.className = `${endInput.className} appt-booked-time-select`
+  startSelect.setAttribute('aria-label', 'Start Time')
+  endSelect.setAttribute('aria-label', 'End Time')
+
+  const help = document.createElement('small')
+  help.className = 'appt-booked-time-help'
+  help.textContent = 'Scheduled appointment times will be blocked.'
+
+  startInput.style.display = 'none'
+  endInput.style.display = 'none'
+  startInput.setAttribute('aria-hidden', 'true')
+  endInput.setAttribute('aria-hidden', 'true')
+  startInput.insertAdjacentElement('afterend', startSelect)
+  endInput.insertAdjacentElement('afterend', endSelect)
+  startSelect.insertAdjacentElement('afterend', help)
+
+  let blocks: CalendarBlock[] = []
+  let requestNumber = 0
+  let selfBlockId = ''
+  const editing = (editor.querySelector('.dash-cal-modal-head h2')?.textContent || '').toLowerCase().includes('edit')
+  const initial = {
+    date: dateInput.value,
+    owner: agentSelect?.value || '',
+    title: titleInput?.value || '',
+    start: startInput.value.slice(0, 5),
+    end: endInput.value.slice(0, 5)
+  }
+
+  const filteredBlocks = () => blocks.filter((block) => block.id !== selfBlockId)
+
+  function populate() {
+    const startValue = startInput.value.slice(0, 5)
+    const endValue = endInput.value.slice(0, 5)
+    const isAppointment = typeSelect.value === 'appointment'
+    const activeBlocks = isAppointment ? filteredBlocks() : []
+
+    startSelect.replaceChildren()
+    const emptyStart = document.createElement('option')
+    emptyStart.value = ''
+    emptyStart.textContent = 'Select start time'
+    startSelect.appendChild(emptyStart)
+
+    for (const value of buildTimeValues(startValue)) {
+      const option = document.createElement('option')
+      option.value = value
+      const next = minutesToTime((timeToMinutes(value) || 0) + SLOT_MINUTES)
+      const booked = activeBlocks.some((block) => rangesOverlap(value, next, block))
+      option.disabled = booked && value !== startValue
+      option.textContent = `${formatTimeLabel(value)}${booked && value !== startValue ? ' — BOOKED' : ''}`
+      startSelect.appendChild(option)
+    }
+    startSelect.value = startValue
+
+    endSelect.replaceChildren()
+    const emptyEnd = document.createElement('option')
+    emptyEnd.value = ''
+    emptyEnd.textContent = 'Select end time'
+    endSelect.appendChild(emptyEnd)
+
+    const startMinutes = timeToMinutes(startValue)
+    for (const value of buildTimeValues(endValue)) {
+      const option = document.createElement('option')
+      option.value = value
+      const endMinutes = timeToMinutes(value)
+      const beforeStart = startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes
+      const conflicts = Boolean(startValue) && activeBlocks.some((block) => rangesOverlap(startValue, value, block))
+      const unavailable = beforeStart || conflicts
+      option.disabled = unavailable && value !== endValue
+      option.textContent = `${formatTimeLabel(value)}${unavailable && value !== endValue ? ' — UNAVAILABLE' : ''}`
+      endSelect.appendChild(option)
+    }
+    endSelect.value = endValue
+  }
+
+  async function loadAvailability() {
+    const currentRequest = ++requestNumber
+    const date = dateInput.value
+    if (!date || typeSelect.value !== 'appointment') {
+      blocks = []
+      help.textContent = typeSelect.value === 'appointment'
+        ? 'Choose a date to see blocked appointment times.'
+        : 'Activities can overlap appointment times.'
+      populate()
+      return
+    }
+
+    help.textContent = 'Checking scheduled appointment times…'
+    try {
+      const params = new URLSearchParams({ date })
+      if (agentSelect?.value) params.set('owner', agentSelect.value)
+      const response = await fetch(`/api/workspace/calendar-availability?${params.toString()}`, { cache: 'no-store' })
+      const result = await response.json().catch(() => ({}))
+      if (currentRequest !== requestNumber) return
+      if (!response.ok) throw new Error(result.error || 'Unable to load booked appointment times.')
+      blocks = Array.isArray(result.blocks) ? result.blocks as CalendarBlock[] : []
+
+      if (editing && !selfBlockId && date === initial.date && (agentSelect?.value || '') === initial.owner) {
+        const exact = blocks.find((block) =>
+          String(block.start_time || '').slice(0, 5) === initial.start &&
+          String(block.end_time || '').slice(0, 5) === initial.end &&
+          (!initial.title || block.title === initial.title)
+        )
+        const fallback = blocks.find((block) =>
+          String(block.start_time || '').slice(0, 5) === initial.start &&
+          String(block.end_time || '').slice(0, 5) === initial.end
+        )
+        selfBlockId = exact?.id || fallback?.id || ''
+      }
+
+      const count = filteredBlocks().length
+      help.textContent = count
+        ? `${count} scheduled appointment${count === 1 ? '' : 's'} on this date. Booked times are disabled.`
+        : 'No appointment times are blocked on this date.'
+      populate()
+    } catch (error) {
+      if (currentRequest !== requestNumber) return
+      blocks = []
+      help.textContent = error instanceof Error
+        ? `${error.message} Conflicts will still be checked when you save.`
+        : 'Unable to load booked times. Conflicts will still be checked when you save.'
+      populate()
+    }
+  }
+
+  startSelect.addEventListener('change', () => {
+    setControlledInputValue(startInput, startSelect.value)
+    const endValue = endInput.value.slice(0, 5)
+    const endMinutes = timeToMinutes(endValue)
+    const startMinutes = timeToMinutes(startSelect.value)
+    if (endValue && startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+      setControlledInputValue(endInput, '')
+    }
+    populate()
+  })
+
+  endSelect.addEventListener('change', () => {
+    setControlledInputValue(endInput, endSelect.value)
+    populate()
+  })
+
+  dateInput.addEventListener('change', () => void loadAvailability())
+  dateInput.addEventListener('input', () => void loadAvailability())
+  typeSelect.addEventListener('change', () => void loadAvailability())
+  agentSelect?.addEventListener('change', () => void loadAvailability())
+  startInput.addEventListener('input', populate)
+  endInput.addEventListener('input', populate)
+
+  populate()
+  void loadAvailability()
+}
+
+function enhanceEditors(root: ParentNode) {
+  root.querySelectorAll<HTMLElement>('.dash-cal-editor').forEach(attachBookedTimePicker)
+}
+
 export default function AppointmentFormStyler() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('.content')
     if (!root) return
 
     styleWithin(root)
+    enhanceEditors(root)
 
     const pending = new Set<Node>()
     let frame = 0
@@ -56,6 +302,7 @@ export default function AppointmentFormStyler() {
       frame = 0
       for (const node of pending) styleWithin(node)
       pending.clear()
+      enhanceEditors(root)
     }
 
     const observer = new MutationObserver((mutations) => {
@@ -138,6 +385,17 @@ export default function AppointmentFormStyler() {
         border-radius:999px!important;
         padding:4px 10px!important;
       }
+      .dash-cal-editor .appt-booked-time-select{
+        width:100%;
+        border:1px solid #cbd5e1;
+        border-radius:10px;
+        padding:10px 11px;
+        background:#fff;
+        color:#172033;
+        font:inherit;
+      }
+      .dash-cal-editor .appt-booked-time-select option:disabled{color:#9f3f3f;background:#f7e8e8}
+      .dash-cal-editor .appt-booked-time-help{display:block;margin-top:6px;color:#64748b;font-size:.72rem;font-weight:700;line-height:1.25}
 
       @media(max-width:720px){
         .dash-cal-editor .dash-cal-form-grid label{padding:9px!important}
