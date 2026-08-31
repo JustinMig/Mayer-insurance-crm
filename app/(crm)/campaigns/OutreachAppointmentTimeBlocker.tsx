@@ -103,19 +103,21 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
   const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]') || null
   if (!dateInput || !timeInput || !timeLabel) return
 
+  const appointmentDateInput = dateInput
+  const appointmentTimeInput = timeInput
   dialog.dataset.outreachAvailability = '1'
 
   const select = document.createElement('select')
-  select.className = `${timeInput.className} outreach-appointment-time-select`
+  select.className = `${appointmentTimeInput.className} outreach-appointment-time-select`
   select.setAttribute('aria-label', 'Available appointment time')
 
   const help = document.createElement('small')
   help.className = 'outreach-appointment-time-help'
   help.textContent = 'Enter the appointment date to check available times.'
 
-  timeInput.style.display = 'none'
-  timeInput.setAttribute('aria-hidden', 'true')
-  timeInput.insertAdjacentElement('afterend', select)
+  appointmentTimeInput.style.display = 'none'
+  appointmentTimeInput.setAttribute('aria-hidden', 'true')
+  appointmentTimeInput.insertAdjacentElement('afterend', select)
   select.insertAdjacentElement('afterend', help)
 
   let blocks: CalendarBlock[] = []
@@ -123,10 +125,10 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
   let debounceTimer = 0
 
   function renderOptions(enabled: boolean) {
-    let selected = timeInput.value.slice(0, 5)
+    let selected = appointmentTimeInput.value.slice(0, 5)
     if (selected && isSlotBlocked(selected, blocks)) {
       selected = ''
-      setControlledInputValue(timeInput, '')
+      setControlledInputValue(appointmentTimeInput, '')
     }
 
     select.replaceChildren()
@@ -151,9 +153,9 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
 
   async function loadAvailability() {
     const requestId = ++requestNumber
-    const isoDate = manualDateToIso(dateInput.value)
+    const isoDate = manualDateToIso(appointmentDateInput.value)
     blocks = []
-    setControlledInputValue(timeInput, '')
+    setControlledInputValue(appointmentTimeInput, '')
 
     if (!isoDate) {
       help.textContent = 'Enter the appointment date as MM/DD/YYYY to see available times.'
@@ -195,14 +197,14 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
   select.addEventListener('change', () => {
     if (select.value && isSlotBlocked(select.value, blocks)) {
       select.value = ''
-      setControlledInputValue(timeInput, '')
+      setControlledInputValue(appointmentTimeInput, '')
       return
     }
-    setControlledInputValue(timeInput, select.value)
+    setControlledInputValue(appointmentTimeInput, select.value)
   })
 
-  dateInput.addEventListener('input', scheduleAvailabilityCheck)
-  dateInput.addEventListener('change', scheduleAvailabilityCheck)
+  appointmentDateInput.addEventListener('input', scheduleAvailabilityCheck)
+  appointmentDateInput.addEventListener('change', scheduleAvailabilityCheck)
 
   renderOptions(false)
   void loadAvailability()
