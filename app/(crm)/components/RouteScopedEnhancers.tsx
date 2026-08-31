@@ -106,6 +106,8 @@ export default function RouteScopedEnhancers() {
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
 
+      {isNewClient ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
+
       {isClientRecord && sections.medicare ? (
         <ClientRecordBootstrapProvider clientId={clientId}>
           <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} />
