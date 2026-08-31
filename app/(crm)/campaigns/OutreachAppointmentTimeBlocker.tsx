@@ -10,6 +10,8 @@ type CalendarBlock = {
 }
 
 const SLOT_MINUTES = 15
+const WORKDAY_START_MINUTES = 8 * 60
+const WORKDAY_END_MINUTES = 20 * 60
 const CLIENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function manualDateToIso(value: string) {
@@ -23,6 +25,12 @@ function manualDateToIso(value: string) {
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return ''
 
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function isoDateToManual(value: string) {
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+  return `${match[2]}/${match[3]}/${match[1]}`
 }
 
 function timeToMinutes(value: string | null | undefined) {
@@ -101,11 +109,21 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
   const timeLabel = findLabel(dialog, 'Time (optional)')
   const dateInput = dateLabel?.querySelector<HTMLInputElement>('input') || null
   const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]') || null
-  if (!dateInput || !timeInput || !timeLabel) return
+  if (!dateInput || !timeInput || !dateLabel || !timeLabel) return
 
   const appointmentDateInput = dateInput
   const appointmentTimeInput = timeInput
   dialog.dataset.outreachAvailability = '1'
+
+  const datePicker = document.createElement('input')
+  datePicker.type = 'date'
+  datePicker.className = `${appointmentDateInput.className} outreach-appointment-date-picker`
+  datePicker.setAttribute('aria-label', 'Appointment date')
+  datePicker.value = manualDateToIso(appointmentDateInput.value)
+
+  appointmentDateInput.style.display = 'none'
+  appointmentDateInput.setAttribute('aria-hidden', 'true')
+  appointmentDateInput.insertAdjacentElement('afterend', datePicker)
 
   const select = document.createElement('select')
   select.className = `${appointmentTimeInput.className} outreach-appointment-time-select`
@@ -113,7 +131,7 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
 
   const help = document.createElement('small')
   help.className = 'outreach-appointment-time-help'
-  help.textContent = 'Enter the appointment date to check available times.'
+  help.textContent = 'Choose a date to see available times from 8:00 AM to 8:00 PM.'
 
   appointmentTimeInput.style.display = 'none'
   appointmentTimeInput.setAttribute('aria-hidden', 'true')
@@ -122,11 +140,12 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
 
   let blocks: CalendarBlock[] = []
   let requestNumber = 0
-  let debounceTimer = 0
 
   function renderOptions(enabled: boolean) {
     let selected = appointmentTimeInput.value.slice(0, 5)
-    if (selected && isSlotBlocked(selected, blocks)) {
+    const selectedMinutes = timeToMinutes(selected)
+    const outsideWorkday = selectedMinutes !== null && (selectedMinutes < WORKDAY_START_MINUTES || selectedMinutes > WORKDAY_END_MINUTES)
+    if (selected && (outsideWorkday || isSlotBlocked(selected, blocks))) {
       selected = ''
       setControlledInputValue(appointmentTimeInput, '')
     }
@@ -134,10 +153,10 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
     select.replaceChildren()
     const empty = document.createElement('option')
     empty.value = ''
-    empty.textContent = enabled ? 'No time selected' : 'Choose a valid date first'
+    empty.textContent = enabled ? 'Select appointment time' : 'Choose a date first'
     select.appendChild(empty)
 
-    for (let minutes = 0; minutes < 24 * 60; minutes += SLOT_MINUTES) {
+    for (let minutes = WORKDAY_START_MINUTES; minutes <= WORKDAY_END_MINUTES; minutes += SLOT_MINUTES) {
       const value = minutesToTime(minutes)
       const booked = isSlotBlocked(value, blocks)
       const option = document.createElement('option')
@@ -153,12 +172,12 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
 
   async function loadAvailability() {
     const requestId = ++requestNumber
-    const isoDate = manualDateToIso(appointmentDateInput.value)
+    const isoDate = datePicker.value
     blocks = []
     setControlledInputValue(appointmentTimeInput, '')
 
     if (!isoDate) {
-      help.textContent = 'Enter the appointment date as MM/DD/YYYY to see available times.'
+      help.textContent = 'Choose an appointment date to see available times from 8:00 AM to 8:00 PM.'
       renderOptions(false)
       return
     }
@@ -176,8 +195,8 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
       blocks = Array.isArray(result.blocks) ? result.blocks as CalendarBlock[] : []
       const count = blocks.length
       help.textContent = count
-        ? `${count} appointment${count === 1 ? '' : 's'} already scheduled. Booked times are disabled.`
-        : 'No appointment times are blocked on this date.'
+        ? `${count} appointment${count === 1 ? '' : 's'} already scheduled. Booked times are disabled. Hours shown: 8:00 AM–8:00 PM.`
+        : 'No appointment times are blocked on this date. Hours shown: 8:00 AM–8:00 PM.'
       renderOptions(true)
     } catch (error) {
       if (requestId !== requestNumber || !dialog.isConnected) return
@@ -189,11 +208,6 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
     }
   }
 
-  function scheduleAvailabilityCheck() {
-    if (debounceTimer) window.clearTimeout(debounceTimer)
-    debounceTimer = window.setTimeout(() => void loadAvailability(), 120)
-  }
-
   select.addEventListener('change', () => {
     if (select.value && isSlotBlocked(select.value, blocks)) {
       select.value = ''
@@ -203,10 +217,12 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string) {
     setControlledInputValue(appointmentTimeInput, select.value)
   })
 
-  appointmentDateInput.addEventListener('input', scheduleAvailabilityCheck)
-  appointmentDateInput.addEventListener('change', scheduleAvailabilityCheck)
+  datePicker.addEventListener('change', () => {
+    setControlledInputValue(appointmentDateInput, isoDateToManual(datePicker.value))
+    void loadAvailability()
+  })
 
-  renderOptions(false)
+  renderOptions(Boolean(datePicker.value))
   void loadAvailability()
 }
 
@@ -243,7 +259,9 @@ export default function OutreachAppointmentTimeBlocker() {
 
   return (
     <style>{`
+      .outreach-appointment-date-picker,
       .outreach-appointment-time-select{width:100%}
+      .outreach-appointment-date-picker{cursor:pointer;color-scheme:light}
       .outreach-appointment-time-select:disabled{background:#eef1f3!important;color:#7b8790!important;cursor:not-allowed}
       .outreach-appointment-time-select option:disabled{color:#9b4f4f;background:#f7eded}
       .outreach-appointment-time-help{display:block;margin-top:6px;color:#61717e;font-size:.72rem;font-weight:700;line-height:1.35}
