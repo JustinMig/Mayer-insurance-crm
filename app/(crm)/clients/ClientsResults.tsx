@@ -20,6 +20,7 @@ type ClientRow = {
   is_medicare: boolean
   is_life: boolean
   is_retirement: boolean
+  created_at: string | null
 }
 
 type ExportFilters = {
@@ -34,6 +35,23 @@ type PaginationInfo = {
   pageSize: number
   total: number
   baseParams: Record<string, string>
+}
+
+const addedAtFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short'
+})
+
+function formatAddedAt(value: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return addedAtFormatter.format(date)
 }
 
 export default function ClientsResults({
@@ -175,6 +193,7 @@ export default function ClientsResults({
                     />
                   </th>
                   <th>Client Name</th>
+                  <th>Added</th>
                   <th>Agent</th>
                   <th>DOB</th>
                   <th>Phone</th>
@@ -200,6 +219,9 @@ export default function ClientsResults({
                         <Link prefetch={false} className="client-name-link" href={`/clients/${client.id}`}>
                           {client.first_name || ''} {client.last_name || ''}
                         </Link>
+                      </td>
+                      <td>
+                        <time dateTime={client.created_at || undefined}>{formatAddedAt(client.created_at)}</time>
                       </td>
                       <td><strong>{agentNames[client.assigned_agent_id || ''] || 'Unassigned'}</strong></td>
                       <td>{client.date_of_birth || '—'}</td>
