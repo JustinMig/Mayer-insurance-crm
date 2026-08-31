@@ -128,12 +128,17 @@ function attachBookedTimePicker(editor: HTMLElement) {
   const titleInput = labelByName(editor, 'Title')?.querySelector<HTMLInputElement>('input') || null
   if (!startInput || !endInput || !dateInput || !typeSelect) return
 
+  const startTimeInput: HTMLInputElement = startInput
+  const endTimeInput: HTMLInputElement = endInput
+  const appointmentDateInput: HTMLInputElement = dateInput
+  const appointmentTypeSelect: HTMLSelectElement = typeSelect
+
   editor.dataset.bookedTimePicker = '1'
 
   const startSelect = document.createElement('select')
   const endSelect = document.createElement('select')
-  startSelect.className = `${startInput.className} appt-booked-time-select`
-  endSelect.className = `${endInput.className} appt-booked-time-select`
+  startSelect.className = `${startTimeInput.className} appt-booked-time-select`
+  endSelect.className = `${endTimeInput.className} appt-booked-time-select`
   startSelect.setAttribute('aria-label', 'Start Time')
   endSelect.setAttribute('aria-label', 'End Time')
 
@@ -141,12 +146,12 @@ function attachBookedTimePicker(editor: HTMLElement) {
   help.className = 'appt-booked-time-help'
   help.textContent = 'Scheduled appointment times will be blocked.'
 
-  startInput.style.display = 'none'
-  endInput.style.display = 'none'
-  startInput.setAttribute('aria-hidden', 'true')
-  endInput.setAttribute('aria-hidden', 'true')
-  startInput.insertAdjacentElement('afterend', startSelect)
-  endInput.insertAdjacentElement('afterend', endSelect)
+  startTimeInput.style.display = 'none'
+  endTimeInput.style.display = 'none'
+  startTimeInput.setAttribute('aria-hidden', 'true')
+  endTimeInput.setAttribute('aria-hidden', 'true')
+  startTimeInput.insertAdjacentElement('afterend', startSelect)
+  endTimeInput.insertAdjacentElement('afterend', endSelect)
   startSelect.insertAdjacentElement('afterend', help)
 
   let blocks: CalendarBlock[] = []
@@ -154,19 +159,19 @@ function attachBookedTimePicker(editor: HTMLElement) {
   let selfBlockId = ''
   const editing = (editor.querySelector('.dash-cal-modal-head h2')?.textContent || '').toLowerCase().includes('edit')
   const initial = {
-    date: dateInput.value,
+    date: appointmentDateInput.value,
     owner: agentSelect?.value || '',
     title: titleInput?.value || '',
-    start: startInput.value.slice(0, 5),
-    end: endInput.value.slice(0, 5)
+    start: startTimeInput.value.slice(0, 5),
+    end: endTimeInput.value.slice(0, 5)
   }
 
   const filteredBlocks = () => blocks.filter((block) => block.id !== selfBlockId)
 
   function populate() {
-    const startValue = startInput.value.slice(0, 5)
-    const endValue = endInput.value.slice(0, 5)
-    const isAppointment = typeSelect.value === 'appointment'
+    const startValue = startTimeInput.value.slice(0, 5)
+    const endValue = endTimeInput.value.slice(0, 5)
+    const isAppointment = appointmentTypeSelect.value === 'appointment'
     const activeBlocks = isAppointment ? filteredBlocks() : []
 
     startSelect.replaceChildren()
@@ -209,10 +214,10 @@ function attachBookedTimePicker(editor: HTMLElement) {
 
   async function loadAvailability() {
     const currentRequest = ++requestNumber
-    const date = dateInput.value
-    if (!date || typeSelect.value !== 'appointment') {
+    const date = appointmentDateInput.value
+    if (!date || appointmentTypeSelect.value !== 'appointment') {
       blocks = []
-      help.textContent = typeSelect.value === 'appointment'
+      help.textContent = appointmentTypeSelect.value === 'appointment'
         ? 'Choose a date to see blocked appointment times.'
         : 'Activities can overlap appointment times.'
       populate()
@@ -258,27 +263,27 @@ function attachBookedTimePicker(editor: HTMLElement) {
   }
 
   startSelect.addEventListener('change', () => {
-    setControlledInputValue(startInput, startSelect.value)
-    const endValue = endInput.value.slice(0, 5)
+    setControlledInputValue(startTimeInput, startSelect.value)
+    const endValue = endTimeInput.value.slice(0, 5)
     const endMinutes = timeToMinutes(endValue)
     const startMinutes = timeToMinutes(startSelect.value)
     if (endValue && startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
-      setControlledInputValue(endInput, '')
+      setControlledInputValue(endTimeInput, '')
     }
     populate()
   })
 
   endSelect.addEventListener('change', () => {
-    setControlledInputValue(endInput, endSelect.value)
+    setControlledInputValue(endTimeInput, endSelect.value)
     populate()
   })
 
-  dateInput.addEventListener('change', () => void loadAvailability())
-  dateInput.addEventListener('input', () => void loadAvailability())
-  typeSelect.addEventListener('change', () => void loadAvailability())
+  appointmentDateInput.addEventListener('change', () => void loadAvailability())
+  appointmentDateInput.addEventListener('input', () => void loadAvailability())
+  appointmentTypeSelect.addEventListener('change', () => void loadAvailability())
   agentSelect?.addEventListener('change', () => void loadAvailability())
-  startInput.addEventListener('input', populate)
-  endInput.addEventListener('input', populate)
+  startTimeInput.addEventListener('input', populate)
+  endTimeInput.addEventListener('input', populate)
 
   populate()
   void loadAvailability()
