@@ -52,7 +52,8 @@ export async function GET(_request: Request, { params }: { params: Params }) {
       medicare_gov: {
         values: {
           username: medicare?.medicare_gov_username_ciphertext ? decryptValue(medicare.medicare_gov_username_ciphertext) || '' : '',
-          password: medicare?.medicare_gov_password_ciphertext ? decryptValue(medicare.medicare_gov_password_ciphertext) || '' : ''
+          password: medicare?.medicare_gov_password_ciphertext ? decryptValue(medicare.medicare_gov_password_ciphertext) || '' : '',
+          secret_answer: medicare?.medicare_gov_secret_answer_ciphertext ? decryptValue(medicare.medicare_gov_secret_answer_ciphertext) || '' : ''
         },
         saved: {
           username: Boolean(medicare?.medicare_gov_username_ciphertext),
