@@ -18,6 +18,7 @@ const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
+const OutreachAppointmentTimeBlocker = dynamic(() => import('../campaigns/OutreachAppointmentTimeBlocker'), { ssr: false })
 
 type SectionFlags = {
   client: boolean
@@ -88,6 +89,7 @@ export default function RouteScopedEnhancers() {
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesLeadBridge = isClientForm || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
+  const usesOutreachAppointmentBlocking = pathname.startsWith('/campaigns/')
   const { sections, deferredReady } = useClientRecordActivation(isClientRecord)
 
   const needsClientHelpers = isNewClient || sections.client
@@ -102,6 +104,7 @@ export default function RouteScopedEnhancers() {
       {needsMedicareHelpers ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
+      {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
 
       {isClientRecord && sections.medicare ? (
         <ClientRecordBootstrapProvider clientId={clientId}>
