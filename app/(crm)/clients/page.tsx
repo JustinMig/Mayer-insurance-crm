@@ -24,7 +24,15 @@ type AgentProfile = {
   role: string
 }
 
-const SORT_OPTIONS = new Set(['first_name', 'last_name', 'county'])
+const SORT_OPTIONS = new Set(['first_name', 'last_name', 'county', 'created_desc', 'created_asc'])
+
+function sortLabel(sort: string) {
+  if (sort === 'first_name') return 'First name A-Z'
+  if (sort === 'county') return 'County A-Z'
+  if (sort === 'created_desc') return 'Newest added first'
+  if (sort === 'created_asc') return 'Oldest added first'
+  return 'Last name A-Z'
+}
 
 function getCentralTodayParts() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -163,7 +171,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     if (!selectedHealthCompany || (healthClientIds && healthClientIds.length > 0)) {
       let query = supabase
         .from('clients')
-        .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, county, state, is_medicare, is_life, is_retirement')
+        .select('id, assigned_agent_id, first_name, last_name, date_of_birth, phone, county, state, is_medicare, is_life, is_retirement, created_at')
 
       // Defense in depth in addition to database RLS. Managers alone may omit
       // the agent filter or intentionally choose another agent's book.
@@ -174,6 +182,10 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         query = query.order('first_name', { ascending: true, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false })
       } else if (sort === 'county') {
         query = query.order('county', { ascending: true, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false }).order('first_name', { ascending: true, nullsFirst: false })
+      } else if (sort === 'created_desc') {
+        query = query.order('created_at', { ascending: false, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false }).order('first_name', { ascending: true, nullsFirst: false })
+      } else if (sort === 'created_asc') {
+        query = query.order('created_at', { ascending: true, nullsFirst: false }).order('last_name', { ascending: true, nullsFirst: false }).order('first_name', { ascending: true, nullsFirst: false })
       } else {
         query = query.order('last_name', { ascending: true, nullsFirst: false }).order('first_name', { ascending: true, nullsFirst: false })
       }
@@ -275,6 +287,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
           <option value="last_name">Last name A-Z</option>
           <option value="first_name">First name A-Z</option>
           <option value="county">County A-Z</option>
+          <option value="created_desc">Newest added first</option>
+          <option value="created_asc">Oldest added first</option>
         </select>
 
         <button className="btn btn-primary" type="submit">Search</button>
@@ -287,7 +301,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
         <div className="notice" style={{ marginBottom: 14 }}>
           <strong>Agent view:</strong> {selectedAgent ? agentNames[selectedAgent] || 'Selected agent' : 'All agents'}
           {selectedHealthCompany ? <> &nbsp;•&nbsp; <strong>Health plan:</strong> {selectedHealthCompany}</> : null}
-          <> &nbsp;•&nbsp; <strong>Sort:</strong> {sort === 'first_name' ? 'First name A-Z' : sort === 'county' ? 'County A-Z' : 'Last name A-Z'}</>
+          <> &nbsp;•&nbsp; <strong>Sort:</strong> {sortLabel(sort)}</>
         </div>
       ) : null}
 
