@@ -5,14 +5,20 @@ import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { useClientRecordBootstrap } from '../../components/ClientRecordBootstrapContext'
 
-type CredentialField = 'secret_answer' | 'security_code_destination_name'
-type SavedState = Record<CredentialField, boolean>
-type RevealedState = Partial<Record<CredentialField, string>>
+type ProtectedField = 'security_code_destination_name'
+type SavedState = Record<ProtectedField, boolean>
+type RevealedState = Partial<Record<ProtectedField, string>>
 
-const emptySaved: SavedState = {
-  secret_answer: false,
-  security_code_destination_name: false
+type PendingNewClientCredentials = {
+  created_at: number
+  username: string
+  password: string
+  secret_answer: string
+  security_code_destination_name: string
 }
+
+const PENDING_NEW_CLIENT_KEY = 'crm-pending-new-client-medicare-gov'
+const emptySaved: SavedState = { security_code_destination_name: false }
 
 function clientIdFromPath(pathname: string) {
   const match = pathname.match(/^\/clients\/([^/]+)$/)
@@ -20,23 +26,46 @@ function clientIdFromPath(pathname: string) {
   return decodeURIComponent(match[1])
 }
 
+function pendingCredentialsForCreatedClient(clientId: string) {
+  if (!clientId || typeof window === 'undefined') return null
+  const query = new URLSearchParams(window.location.search)
+  if (query.get('created') !== '1') return null
+
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_NEW_CLIENT_KEY)
+    if (!raw) return null
+    const value = JSON.parse(raw) as PendingNewClientCredentials
+    if (!value?.created_at || Date.now() - Number(value.created_at) > 10 * 60 * 1000) {
+      window.sessionStorage.removeItem(PENDING_NEW_CLIENT_KEY)
+      return null
+    }
+    return value
+  } catch {
+    window.sessionStorage.removeItem(PENDING_NEW_CLIENT_KEY)
+    return null
+  }
+}
+
 export default function MedicareGovCredentialsBridge() {
   const pathname = usePathname()
+  const isNewClient = pathname === '/clients/new'
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
   const bootstrap = useClientRecordBootstrap()
+  const pendingCreatedCredentials = useMemo(() => pendingCredentialsForCreatedClient(clientId), [clientId])
+
   const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
   const [saved, setSaved] = useState<SavedState>(emptySaved)
   const [revealed, setRevealed] = useState<RevealedState>({})
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [loginLoaded, setLoginLoaded] = useState(false)
   const [secretAnswer, setSecretAnswer] = useState('')
   const [destinationName, setDestinationName] = useState('')
-  const [clearFields, setClearFields] = useState<Partial<Record<CredentialField, boolean>>>({})
+  const [recordLoaded, setRecordLoaded] = useState(false)
+  const [clearFields, setClearFields] = useState<Partial<Record<ProtectedField, boolean>>>({})
   const [status, setStatus] = useState('')
 
   useEffect(() => {
-    if (!clientId) {
+    if (!clientId && !isNewClient) {
       setMountNode(null)
       return
     }
@@ -47,7 +76,8 @@ export default function MedicareGovCredentialsBridge() {
 
     const attach = () => {
       if (disposed) return false
-      const body = document.querySelector('.client-profile-form .section-medicare .section-body') as HTMLElement | null
+      const formSelector = isNewClient ? '.add-client-form' : '.client-profile-form'
+      const body = document.querySelector(`${formSelector} .section-medicare .section-body`) as HTMLElement | null
       if (!body) return false
 
       let host = body.querySelector('#medicare-gov-credentials-mount') as HTMLElement | null
@@ -87,21 +117,21 @@ export default function MedicareGovCredentialsBridge() {
       if (createdHost?.isConnected) createdHost.remove()
       setMountNode(null)
     }
-  }, [clientId])
+  }, [clientId, isNewClient])
 
   useEffect(() => {
     setRevealed({})
     setUsername('')
     setPassword('')
-    setLoginLoaded(false)
     setSecretAnswer('')
     setDestinationName('')
+    setRecordLoaded(false)
     setClearFields({})
     setStatus('')
-  }, [clientId])
+  }, [clientId, isNewClient])
 
   useEffect(() => {
-    if (!clientId) return
+    if (isNewClient || !clientId || pendingCreatedCredentials) return
     if (bootstrap?.error) {
       setStatus(bootstrap.error)
       return
@@ -111,15 +141,88 @@ export default function MedicareGovCredentialsBridge() {
     const medicareGov = bootstrap.data.medicare_gov
     setUsername(String(medicareGov.values.username || ''))
     setPassword(String(medicareGov.values.password || ''))
+    setSecretAnswer(String(medicareGov.values.secret_answer || ''))
     setSaved({
-      secret_answer: Boolean(medicareGov.saved.secret_answer),
       security_code_destination_name: Boolean(medicareGov.saved.security_code_destination_name)
     })
-    setLoginLoaded(true)
+    setRecordLoaded(true)
     setStatus('')
-  }, [clientId, bootstrap?.data, bootstrap?.error])
+  }, [bootstrap?.data, bootstrap?.error, clientId, isNewClient, pendingCreatedCredentials])
 
-  async function reveal(field: CredentialField) {
+  useEffect(() => {
+    if (!isNewClient || !mountNode) return
+    const form = document.querySelector<HTMLFormElement>('.add-client-form')
+    if (!form) return
+
+    const remember = () => {
+      const data = new FormData(form)
+      const pending: PendingNewClientCredentials = {
+        created_at: Date.now(),
+        username: String(data.get('medicare_gov_username') || '').trim(),
+        password: String(data.get('medicare_gov_password') || '').trim(),
+        secret_answer: String(data.get('medicare_gov_secret_answer') || '').trim(),
+        security_code_destination_name: String(data.get('medicare_gov_security_code_destination_name') || '').trim()
+      }
+      window.sessionStorage.setItem(PENDING_NEW_CLIENT_KEY, JSON.stringify(pending))
+    }
+
+    form.addEventListener('submit', remember, true)
+    return () => form.removeEventListener('submit', remember, true)
+  }, [isNewClient, mountNode])
+
+  useEffect(() => {
+    if (!clientId || !pendingCreatedCredentials) return
+    let cancelled = false
+
+    setUsername(pendingCreatedCredentials.username)
+    setPassword(pendingCreatedCredentials.password)
+    setSecretAnswer(pendingCreatedCredentials.secret_answer)
+    setDestinationName('')
+    setSaved({
+      security_code_destination_name: Boolean(pendingCreatedCredentials.security_code_destination_name)
+    })
+    setRecordLoaded(true)
+
+    const hasAnyValue = Boolean(
+      pendingCreatedCredentials.username ||
+      pendingCreatedCredentials.password ||
+      pendingCreatedCredentials.secret_answer ||
+      pendingCreatedCredentials.security_code_destination_name
+    )
+
+    if (!hasAnyValue) {
+      window.sessionStorage.removeItem(PENDING_NEW_CLIENT_KEY)
+      return
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/medicare-gov`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({
+            action: 'save',
+            username: pendingCreatedCredentials.username,
+            password: pendingCreatedCredentials.password,
+            secret_answer: pendingCreatedCredentials.secret_answer,
+            security_code_destination_name: pendingCreatedCredentials.security_code_destination_name
+          })
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.error || 'Unable to save Medicare.gov information from the intake form.')
+        if (cancelled) return
+        window.sessionStorage.removeItem(PENDING_NEW_CLIENT_KEY)
+        setStatus('')
+      } catch (error) {
+        if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to save Medicare.gov information from the intake form.')
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [clientId, pendingCreatedCredentials])
+
+  async function reveal(field: ProtectedField) {
     if (!clientId) return
     if (revealed[field] !== undefined) {
       setRevealed(current => {
@@ -146,7 +249,7 @@ export default function MedicareGovCredentialsBridge() {
     }
   }
 
-  function toggleClear(field: CredentialField, checkedValue: boolean) {
+  function toggleClear(field: ProtectedField, checkedValue: boolean) {
     setClearFields(current => ({ ...current, [field]: checkedValue }))
     setRevealed(current => {
       const next = { ...current }
@@ -155,16 +258,15 @@ export default function MedicareGovCredentialsBridge() {
     })
   }
 
-  if (!clientId || !mountNode) return null
+  if ((!clientId && !isNewClient) || !mountNode) return null
 
-  const secureField = (
-    key: CredentialField,
+  const protectedField = (
+    key: ProtectedField,
     formName: string,
     clearName: string,
     label: string,
     fieldValue: string,
     setter: (value: string) => void,
-    type: 'text' | 'password' = 'text',
     placeholder = ''
   ) => (
     <div className="label medicare-gov-field">
@@ -180,7 +282,7 @@ export default function MedicareGovCredentialsBridge() {
       <input
         className="input"
         name={formName}
-        type={type}
+        type="text"
         autoComplete="off"
         value={fieldValue}
         onChange={(event) => setter(event.target.value)}
@@ -205,7 +307,7 @@ export default function MedicareGovCredentialsBridge() {
       <div className="intake-group-heading">
         <div>
           <strong>Medicare.gov</strong>
-          <span>Username and password are directly editable. Verification details remain protected.</span>
+          <span>Username, password, and Secret Answer are visible and directly editable. Saved values remain encrypted in storage.</span>
         </div>
       </div>
 
@@ -213,15 +315,19 @@ export default function MedicareGovCredentialsBridge() {
         <label className="label medicare-gov-field">
           <span>Username</span>
           <input className="input" name="medicare_gov_username" type="text" autoComplete="off" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Medicare.gov username" />
-          <input type="hidden" name="clear_medicare_gov_username" value={loginLoaded && !username.trim() ? 'on' : ''} />
+          {!isNewClient ? <input type="hidden" name="clear_medicare_gov_username" value={recordLoaded && !username.trim() ? 'on' : ''} /> : null}
         </label>
         <label className="label medicare-gov-field">
           <span>Password</span>
           <input className="input" name="medicare_gov_password" type="text" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Medicare.gov password" />
-          <input type="hidden" name="clear_medicare_gov_password" value={loginLoaded && !password.trim() ? 'on' : ''} />
+          {!isNewClient ? <input type="hidden" name="clear_medicare_gov_password" value={recordLoaded && !password.trim() ? 'on' : ''} /> : null}
         </label>
-        {secureField('secret_answer', 'medicare_gov_secret_answer', 'clear_medicare_gov_secret_answer', 'Secret Answer', secretAnswer, setSecretAnswer, 'password', 'Security question answer')}
-        {secureField('security_code_destination_name', 'medicare_gov_security_code_destination_name', 'clear_medicare_gov_security_code_destination_name', 'Security Code Destination Name', destinationName, setDestinationName, 'text', 'Example: Mary’s cell phone or Gmail')}
+        <label className="label medicare-gov-field">
+          <span>Secret Answer</span>
+          <input className="input" name="medicare_gov_secret_answer" type="text" autoComplete="off" value={secretAnswer} onChange={(event) => setSecretAnswer(event.target.value)} placeholder="Security question answer" />
+          {!isNewClient ? <input type="hidden" name="clear_medicare_gov_secret_answer" value={recordLoaded && !secretAnswer.trim() ? 'on' : ''} /> : null}
+        </label>
+        {protectedField('security_code_destination_name', 'medicare_gov_security_code_destination_name', 'clear_medicare_gov_security_code_destination_name', 'Security Code Destination Name', destinationName, setDestinationName, 'Example: Mary’s cell phone or Gmail')}
       </div>
 
       {status ? <div className="medicare-gov-status">{status}</div> : null}
