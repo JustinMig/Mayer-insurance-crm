@@ -4,45 +4,61 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
+const DEFAULT_PRODUCTS = [
+  'Medicare Advantage (Part C) / Cost Plans',
+  'Stand-alone Prescription Drug Plans (Part D)',
+  'Medicare Supplement (Medigap)',
+  'Dental / Vision / Hearing products',
+  'Hospital Indemnity products',
+  'Other Medicare-related health products'
+]
+
 export default function SoaTextBridge() {
   const pathname = usePathname()
-  const [target, setTarget] = useState<HTMLElement | null>(null)
+  const [footerTarget, setFooterTarget] = useState<HTMLElement | null>(null)
+  const [actionTarget, setActionTarget] = useState<HTMLElement | null>(null)
   const [sending, setSending] = useState(false)
-  const [message, setMessage] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+  const [footerMessage, setFooterMessage] = useState('')
 
   const match = pathname.match(/^\/clients\/([^/]+)$/)
   const clientId = match?.[1] || ''
 
   useEffect(() => {
     if (!clientId) {
-      setTarget(null)
+      setFooterTarget(null)
+      setActionTarget(null)
       return
     }
 
     const root = document.querySelector<HTMLElement>('.content')
     if (!root) return
 
-    const findTarget = () => {
+    const findTargets = () => {
       const footer = root.querySelector<HTMLElement>('.soa-modal .soa-footer') || null
-      setTarget((current) => current === footer ? current : footer)
+      const actions = root.querySelector<HTMLElement>('.medicare-documents-panel .document-action-row') || null
+      setFooterTarget((current) => current === footer ? current : footer)
+      setActionTarget((current) => current === actions ? current : actions)
     }
 
-    findTarget()
-    const observer = new MutationObserver(findTarget)
+    findTargets()
+    const observer = new MutationObserver(findTargets)
     observer.observe(root, { childList: true, subtree: true })
     return () => {
       observer.disconnect()
-      setTarget(null)
+      setFooterTarget(null)
+      setActionTarget(null)
     }
   }, [clientId])
 
-  async function send() {
-    if (!clientId || sending) return
-    const modal = document.querySelector<HTMLElement>('.soa-modal')
-    if (!modal) return
+  function currentClientPhone() {
+    return document.querySelector<HTMLInputElement>('.client-profile-form input[name="phone"]')?.value?.trim() || ''
+  }
 
-    const phoneInputs = Array.from(modal.querySelectorAll<HTMLInputElement>('input[type="tel"]'))
-    const phone = phoneInputs[0]?.value?.trim() || ''
+  function productsFromModal() {
+    const modal = document.querySelector<HTMLElement>('.soa-modal')
+    if (!modal) return { products: DEFAULT_PRODUCTS, otherProduct: '' }
+
     const products = Array.from(modal.querySelectorAll<HTMLElement>('.soa-products .checkbox-card'))
       .filter(label => label.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked)
       .map(label => (label.textContent || '').trim())
@@ -50,13 +66,32 @@ export default function SoaTextBridge() {
     const otherProduct = Array.from(modal.querySelectorAll<HTMLInputElement>('input'))
       .find(input => input.placeholder === 'Optional')?.value?.trim() || ''
 
+    return { products, otherProduct }
+  }
+
+  async function send(mode: 'direct' | 'modal') {
+    if (!clientId || sending) return
+
+    const modal = mode === 'modal' ? document.querySelector<HTMLElement>('.soa-modal') : null
+    const modalPhone = modal
+      ? Array.from(modal.querySelectorAll<HTMLInputElement>('input[type="tel"]'))[0]?.value?.trim() || ''
+      : ''
+    const phone = modalPhone || currentClientPhone()
+    const { products, otherProduct } = mode === 'modal'
+      ? productsFromModal()
+      : { products: DEFAULT_PRODUCTS, otherProduct: '' }
+
     if (!phone) {
-      setMessage('Enter the beneficiary mobile number first.')
+      const text = 'Enter a valid client mobile number first.'
+      if (mode === 'modal') setFooterMessage(text)
+      else setActionMessage(text)
       return
     }
 
     setSending(true)
-    setMessage('')
+    if (mode === 'modal') setFooterMessage('')
+    else setActionMessage('')
+
     try {
       const response = await fetch(`/api/clients/${clientId}/soa-text`, {
         method: 'POST',
@@ -65,24 +100,48 @@ export default function SoaTextBridge() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to text the SOA.')
-      setMessage(`SOA signing link sent to ${result.phone || phone}.`)
+      const text = `SOA signing link sent to ${result.phone || phone}.`
+      if (mode === 'modal') setFooterMessage(text)
+      else setActionMessage(text)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to text the SOA.')
+      const text = error instanceof Error ? error.message : 'Unable to text the SOA.'
+      if (mode === 'modal') setFooterMessage(text)
+      else setActionMessage(text)
     } finally {
       setSending(false)
     }
   }
 
-  if (!target || !clientId) return null
+  if (!clientId) return null
 
-  return createPortal(
-    <div style={{ width: '100%', display: 'grid', gap: 8, marginRight: 'auto' }}>
-      <button type="button" className="btn btn-primary" disabled={sending} onClick={() => void send()}>
-        {sending ? 'Sending SOA…' : 'TEXT SOA TO CLIENT'}
-      </button>
-      <span className="field-help">Uses the Beneficiary phone number above. The client signs on their phone and the completed SOA is saved automatically to this client’s files.</span>
-      {message ? <div className="document-status">{message}</div> : null}
-    </div>,
-    target
+  return (
+    <>
+      {actionTarget ? createPortal(
+        <div className="soa-text-direct-action">
+          <button type="button" className="btn btn-primary" disabled={sending} onClick={() => void send('direct')}>
+            {sending ? 'Sending SOA…' : 'TEXT SOA TO CLIENT'}
+          </button>
+          {actionMessage ? <span className="document-status soa-text-action-status">{actionMessage}</span> : null}
+        </div>,
+        actionTarget
+      ) : null}
+
+      {footerTarget ? createPortal(
+        <div className="soa-text-footer-action">
+          <button type="button" className="btn btn-primary" disabled={sending} onClick={() => void send('modal')}>
+            {sending ? 'Sending SOA…' : 'TEXT SOA TO CLIENT'}
+          </button>
+          <span className="field-help">Uses the Beneficiary phone number above. The client signs on their phone and the completed SOA is saved automatically to this client’s files.</span>
+          {footerMessage ? <div className="document-status">{footerMessage}</div> : null}
+        </div>,
+        footerTarget
+      ) : null}
+
+      <style>{`
+        .soa-text-direct-action{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .soa-text-action-status{max-width:360px;margin:0!important}
+        .soa-text-footer-action{width:100%;display:grid;gap:8px;margin-right:auto}
+      `}</style>
+    </>
   )
 }
