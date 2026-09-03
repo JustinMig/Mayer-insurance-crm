@@ -64,7 +64,12 @@
   gap: 13px;
 }
 
+.methods form {
+  margin: 0;
+}
+
 .method {
+  width: 100%;
   min-height: 86px;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr) auto;
@@ -74,8 +79,10 @@
   border: 1px solid #dce3e8;
   border-radius: 18px;
   background: #fff;
+  font: inherit;
   text-align: left;
   box-shadow: 0 6px 18px rgba(16, 38, 63, 0.06);
+  cursor: pointer;
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   -webkit-tap-highlight-color: transparent;
 }
