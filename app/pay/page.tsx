@@ -48,15 +48,15 @@ export default function PayPage() {
         <div className={styles.methods} aria-label="Payment methods">
           <a
             className={`${styles.method} ${styles.paypal}`}
-            href="https://www.paypal.com/myaccount/transfer"
-            aria-label="Open PayPal Send Money"
+            href="https://paypal.me/MayerBrokerage"
+            aria-label="Open Justin Mayer's PayPal payment page"
           >
             <span className={styles.badge} aria-hidden="true">P</span>
             <span className={styles.methodText}>
-              <strong>PayPal — Send Money</strong>
-              <small>Send to JMayerFinancial@Gmail.Com</small>
+              <strong>PayPal</strong>
+              <small>paypal.me/MayerBrokerage</small>
             </span>
-            <span className={styles.continueText} aria-hidden="true">Send →</span>
+            <span className={styles.continueText} aria-hidden="true">Pay →</span>
           </a>
 
           {paymentMethods.map((method) => (
