@@ -1,0 +1,228 @@
+.page {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at top left, rgba(30, 96, 170, 0.13), transparent 34rem),
+    linear-gradient(180deg, #edf4f8 0%, #f8fafb 100%);
+}
+
+.card {
+  width: min(620px, 100%);
+  padding: 34px;
+  border: 1px solid rgba(16, 38, 63, 0.12);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 70px rgba(16, 38, 63, 0.14);
+  text-align: center;
+}
+
+.identityMark {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #10263f;
+  color: #fff;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  box-shadow: 0 10px 24px rgba(16, 38, 63, 0.2);
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: #315d88;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.card h1 {
+  margin: 0;
+  color: #10263f;
+  font-size: clamp(32px, 7vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.intro {
+  max-width: 500px;
+  margin: 14px auto 26px;
+  color: #5a6675;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.methods {
+  display: grid;
+  gap: 13px;
+}
+
+.method {
+  min-height: 86px;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 18px 13px 14px;
+  border: 1px solid #dce3e8;
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(16, 38, 63, 0.06);
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.method:hover,
+.method:focus-visible {
+  transform: translateY(-2px);
+  border-color: currentColor;
+  box-shadow: 0 12px 28px rgba(16, 38, 63, 0.12);
+}
+
+.method:focus-visible {
+  outline: 3px solid rgba(49, 93, 136, 0.28);
+  outline-offset: 3px;
+}
+
+.badge {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: #fff;
+  font-size: 27px;
+  font-weight: 900;
+}
+
+.methodText {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.methodText strong {
+  color: #172033;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.methodText small {
+  overflow-wrap: anywhere;
+  color: #697485;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.continueText {
+  color: currentColor;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.paypal {
+  color: #173c7a;
+}
+
+.paypal .badge {
+  background: linear-gradient(145deg, #253b80, #169bd7);
+}
+
+.venmo {
+  color: #0074cc;
+}
+
+.venmo .badge {
+  background: #008cff;
+}
+
+.zelle {
+  color: #5f24a8;
+}
+
+.zelle .badge {
+  background: #6d1ed4;
+}
+
+.cashApp {
+  color: #087f34;
+}
+
+.cashApp .badge {
+  background: #00c244;
+}
+
+.securityNote {
+  margin: 24px 4px 0;
+  padding-top: 20px;
+  border-top: 1px solid #e3e8ec;
+  color: #6d7785;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .page {
+    place-items: start center;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .card {
+    padding: 26px 16px 22px;
+    border-radius: 22px;
+  }
+
+  .identityMark {
+    width: 66px;
+    height: 66px;
+    font-size: 23px;
+  }
+
+  .intro {
+    margin-bottom: 22px;
+    font-size: 15px;
+  }
+
+  .method {
+    min-height: 80px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 13px;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .badge {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    font-size: 24px;
+  }
+
+  .methodText strong {
+    font-size: 19px;
+  }
+
+  .methodText small {
+    font-size: 13px;
+  }
+
+  .continueText {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .method {
+    transition: none;
+  }
+}
