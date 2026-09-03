@@ -46,29 +46,18 @@ export default function PayPage() {
         </p>
 
         <div className={styles.methods} aria-label="Payment methods">
-          <form action="https://www.paypal.com/cgi-bin/webscr" method="post">
-            <input type="hidden" name="cmd" value="_xclick" />
-            <input type="hidden" name="business" value="JMayerFinancial@Gmail.Com" />
-            <input type="hidden" name="item_name" value="Payment to Justin Mayer" />
-            <input type="hidden" name="currency_code" value="USD" />
-            <input type="hidden" name="button_subtype" value="services" />
-            <input type="hidden" name="no_shipping" value="1" />
-            <input type="hidden" name="no_note" value="0" />
-            <input type="hidden" name="return" value="https://crm.mayerig.com/pay" />
-            <input type="hidden" name="cancel_return" value="https://crm.mayerig.com/pay" />
-            <button
-              className={`${styles.method} ${styles.paypal}`}
-              type="submit"
-              aria-label="Continue to PayPal to pay Justin Mayer"
-            >
-              <span className={styles.badge} aria-hidden="true">P</span>
-              <span className={styles.methodText}>
-                <strong>PayPal</strong>
-                <small>JMayerFinancial@Gmail.Com</small>
-              </span>
-              <span className={styles.continueText} aria-hidden="true">Continue →</span>
-            </button>
-          </form>
+          <a
+            className={`${styles.method} ${styles.paypal}`}
+            href="https://www.paypal.com/myaccount/transfer"
+            aria-label="Open PayPal Send Money"
+          >
+            <span className={styles.badge} aria-hidden="true">P</span>
+            <span className={styles.methodText}>
+              <strong>PayPal — Send Money</strong>
+              <small>Send to JMayerFinancial@Gmail.Com</small>
+            </span>
+            <span className={styles.continueText} aria-hidden="true">Send →</span>
+          </a>
 
           {paymentMethods.map((method) => (
             <a
