@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { resolveDashboardNoteAccess } from '@/lib/dashboard-note-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -8,53 +9,73 @@ function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max)
 }
 
-function isJustin(value: unknown) {
-  return String(value || '').trim().toLowerCase() === 'justin mayer'
-}
-
-async function requireJustin() {
-  const session = await getCrmSession()
-  if (!session.profile?.agency_id || !isJustin(session.profile.full_name)) return null
-  return session
+function noStoreJson(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      'Cache-Control': 'private, no-store, no-cache, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0'
+    }
+  })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireJustin()
-  if (!session) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  try {
+    const session = await getCrmSession()
+    const access = await resolveDashboardNoteAccess(session.userId, session.profile)
+    if (!access) return noStoreJson({ error: 'Not authorized.' }, 403)
 
-  const { id } = await params
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>
-  const title = cleanText(body.title, 180)
-  const noteBody = cleanText(body.body, 20000)
+    const { id } = await params
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>
+    const title = cleanText(body.title, 180)
+    const noteBody = cleanText(body.body, 20000)
 
-  if (!title) return NextResponse.json({ error: 'Give the note a name.' }, { status: 400 })
-  if (!noteBody) return NextResponse.json({ error: 'Enter a note.' }, { status: 400 })
+    if (!title) return noStoreJson({ error: 'Give the note a name.' }, 400)
+    if (!noteBody) return noStoreJson({ error: 'Enter a note.' }, 400)
 
-  const { data, error } = await session.supabase
-    .from('dashboard_notes')
-    .update({ title, body: noteBody, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('owner_id', session.userId)
-    .select('id,title,body,created_at,updated_at')
-    .maybeSingle()
+    const { data, error } = await session.supabase
+      .from('dashboard_notes')
+      .update({ title, body: noteBody, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('agency_id', access.agencyId)
+      .eq('owner_id', access.viewerId)
+      .select('id,owner_id,title,body,created_at,updated_at')
+      .maybeSingle()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  if (!data) return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
-  return NextResponse.json({ note: data })
+    if (error) return noStoreJson({ error: error.message }, 400)
+    if (!data) return noStoreJson({ error: 'You can edit only your own notes.' }, 404)
+
+    return noStoreJson({
+      note: {
+        ...data,
+        owner_name: access.viewerName,
+        can_edit: true
+      }
+    })
+  } catch (error) {
+    return noStoreJson({ error: error instanceof Error ? error.message : 'Unable to update note.' }, 500)
+  }
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireJustin()
-  if (!session) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  try {
+    const session = await getCrmSession()
+    const access = await resolveDashboardNoteAccess(session.userId, session.profile)
+    if (!access) return noStoreJson({ error: 'Not authorized.' }, 403)
 
-  const { id } = await params
-  const { error, count } = await session.supabase
-    .from('dashboard_notes')
-    .delete({ count: 'exact' })
-    .eq('id', id)
-    .eq('owner_id', session.userId)
+    const { id } = await params
+    const { error, count } = await session.supabase
+      .from('dashboard_notes')
+      .delete({ count: 'exact' })
+      .eq('id', id)
+      .eq('agency_id', access.agencyId)
+      .eq('owner_id', access.viewerId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  if (!count) return NextResponse.json({ error: 'Note not found.' }, { status: 404 })
-  return NextResponse.json({ ok: true })
+    if (error) return noStoreJson({ error: error.message }, 400)
+    if (!count) return noStoreJson({ error: 'You can delete only your own notes.' }, 404)
+    return noStoreJson({ ok: true })
+  } catch (error) {
+    return noStoreJson({ error: error instanceof Error ? error.message : 'Unable to delete note.' }, 500)
+  }
 }
