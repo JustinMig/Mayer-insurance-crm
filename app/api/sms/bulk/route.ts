@@ -1,24 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canSeeAllClients } from '@/lib/client-access'
-import { normalizeUsPhone, sendTwilioSms } from '@/lib/twilio'
+import { processBulkSmsJob } from '@/lib/background-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MAX_RECIPIENTS = 250
-const SEND_CONCURRENCY = 5
 
 type ClientRow = {
   id: string
   first_name: string | null
   last_name: string | null
   phone: string | null
-}
-
-function clientName(client: ClientRow) {
-  return [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'Client'
 }
 
 export async function POST(request: NextRequest) {
@@ -50,86 +45,47 @@ export async function POST(request: NextRequest) {
 
     const clients = (clientData || []) as ClientRow[]
     const accessibleIds = new Set(clients.map((client) => client.id))
-    const failures: string[] = clientIds
+    const preflightFailures = clientIds
       .filter((id) => !accessibleIds.has(id))
       .map(() => 'One selected client is not accessible.')
 
-    const recipients = clients.flatMap((client) => {
-      const phone = normalizeUsPhone(String(client.phone || ''))
-      if (!phone) {
-        failures.push(`${clientName(client)}: invalid or missing U.S. mobile number`)
-        return []
-      }
-      return [{ client, phone }]
+    if (!clients.length) return NextResponse.json({ error: 'None of the selected clients are accessible.' }, { status: 403 })
+
+    const { data: job, error: jobError } = await admin
+      .from('crm_background_jobs')
+      .insert({
+        agency_id: profile.agency_id,
+        created_by: userId,
+        job_type: 'bulk_sms',
+        status: 'queued',
+        payload: { client_ids: clients.map((client) => client.id), body, preflight_failures: preflightFailures },
+        total_items: clients.length,
+        failed_items: preflightFailures.length
+      })
+      .select('id,status,total_items,created_at')
+      .single()
+
+    if (jobError || !job) return NextResponse.json({ error: jobError?.message || 'Unable to queue mass text.' }, { status: 500 })
+
+    after(async () => {
+      await processBulkSmsJob(job.id)
     })
 
-    if (!recipients.length) {
-      return NextResponse.json({ sent_count: 0, failed_count: failures.length, failures })
-    }
-
-    const now = new Date().toISOString()
-    const { data: pendingRows, error: pendingError } = await admin
-      .from('client_sms_messages')
-      .insert(recipients.map(({ client, phone }) => ({
-        client_id: client.id,
-        user_id: userId,
-        direction: 'outbound',
-        body,
-        to_number: phone,
-        status: 'sending',
-        read_at: now
-      })))
-      .select('id,client_id')
-
-    if (pendingError) return NextResponse.json({ error: pendingError.message }, { status: 500 })
-    const pendingByClient = new Map((pendingRows || []).map((row) => [row.client_id, row.id]))
-
-    let sentCount = 0
-    for (let index = 0; index < recipients.length; index += SEND_CONCURRENCY) {
-      const batch = recipients.slice(index, index + SEND_CONCURRENCY)
-      const results = await Promise.all(batch.map(async ({ client, phone }) => {
-        const pendingId = pendingByClient.get(client.id)
-        try {
-          const sent = await sendTwilioSms(phone, body)
-          const sid = String(sent.sid || '')
-          const status = String(sent.status || 'queued')
-          const from = String(sent.from || '')
-          if (pendingId) {
-            await admin
-              .from('client_sms_messages')
-              .update({
-                twilio_message_sid: sid || null,
-                status,
-                from_number: from || null,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', pendingId)
-          }
-          return { ok: true as const }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unable to send'
-          if (pendingId) {
-            await admin
-              .from('client_sms_messages')
-              .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
-              .eq('id', pendingId)
-          }
-          return { ok: false as const, failure: `${clientName(client)}: ${message}` }
-        }
-      }))
-
-      for (const result of results) {
-        if (result.ok) sentCount += 1
-        else failures.push(result.failure)
-      }
-    }
+    await admin.from('audit_log').insert({
+      agency_id: profile.agency_id,
+      actor_id: userId,
+      client_id: null,
+      action: 'bulk_sms.job_queued',
+      details: { job_id: job.id, recipients: clients.length, inaccessible: preflightFailures.length }
+    })
 
     return NextResponse.json({
-      sent_count: sentCount,
-      failed_count: failures.length,
-      failures
-    })
+      queued: true,
+      job_id: job.id,
+      total_count: clients.length,
+      preflight_failed_count: preflightFailures.length
+    }, { status: 202 })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to send mass text.' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to queue mass text.' }, { status: 500 })
   }
 }
