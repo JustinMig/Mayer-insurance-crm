@@ -14,11 +14,14 @@ type AgentProfile = {
   role: string
 }
 
-type PremiumRollupRow = {
-  assigned_agent_id: string | null
-  effective_year: number | null
-  effective_month: number | null
-  premium_total: number | string | null
+type StatsRpcRow = {
+  agent_id: string
+  total_clients: number | string | null
+  medicare_clients: number | string | null
+  life_clients: number | string | null
+  turning65: number | string | null
+  month_premium: number | string | null
+  year_premium: number | string | null
 }
 
 type AgentDashboardStats = {
@@ -115,80 +118,44 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   }
 
   const targetAgentIds = targetAgents.map((agent) => agent.id)
+  const currentStatsPromise = targetAgentIds.length
+    ? supabase.rpc('crm_dashboard_agent_stats', {
+        p_agent_ids: targetAgentIds,
+        p_year: currentYear,
+        p_month: currentMonth + 1,
+        p_turn65_year: turn65Year
+      })
+    : Promise.resolve({ data: [] as StatsRpcRow[], error: null })
 
-  const premiumQuery = supabase
-    .from('life_premium_dashboard_rollup')
-    .select('assigned_agent_id,effective_year,effective_month,premium_total')
+  const selectedStatsPromise = isIsaiahPortal && targetAgentIds.length && (selectedPremiumYear !== currentYear || selectedPremiumMonth !== currentMonth)
+    ? supabase.rpc('crm_dashboard_agent_stats', {
+        p_agent_ids: targetAgentIds,
+        p_year: selectedPremiumYear,
+        p_month: selectedPremiumMonth + 1,
+        p_turn65_year: turn65Year
+      })
+    : currentStatsPromise
 
-  if (!isIsaiahPortal) premiumQuery.eq('effective_year', currentYear)
-  if (isIsaiahPortal) premiumQuery.eq('assigned_agent_id', userId)
+  const [currentStatsResult, selectedStatsResult] = await Promise.all([currentStatsPromise, selectedStatsPromise])
+  if (currentStatsResult.error) throw new Error(`Unable to load dashboard totals: ${currentStatsResult.error.message}`)
+  if (selectedStatsResult.error) throw new Error(`Unable to load selected premium totals: ${selectedStatsResult.error.message}`)
 
-  const [premiumRollupResult, clientStatsResult] = await Promise.all([
-    premiumQuery,
-    targetAgentIds.length
-      ? supabase
-          .from('clients')
-          .select('assigned_agent_id,is_medicare,is_life,date_of_birth')
-          .in('assigned_agent_id', targetAgentIds)
-      : Promise.resolve({ data: [], error: null })
-  ])
-
-  if (premiumRollupResult.error) throw new Error(`Unable to load Life Insurance premium totals: ${premiumRollupResult.error.message}`)
-  if (clientStatsResult.error) throw new Error(`Unable to load dashboard client totals: ${clientStatsResult.error.message}`)
-
-  const premiumRows = (premiumRollupResult.data || []) as PremiumRollupRow[]
-  const clientRows = (clientStatsResult.data || []) as Array<{
-    assigned_agent_id: string | null
-    is_medicare: boolean | null
-    is_life: boolean | null
-    date_of_birth: string | null
-  }>
+  const currentByAgent = new Map(((currentStatsResult.data || []) as StatsRpcRow[]).map((row) => [row.agent_id, row]))
+  const selectedByAgent = new Map(((selectedStatsResult.data || []) as StatsRpcRow[]).map((row) => [row.agent_id, row]))
 
   const dashboardStats = targetAgents.map((agent): AgentDashboardStats => {
-    let totalClients = 0
-    let medicareClients = 0
-    let lifeClients = 0
-    let turning65 = 0
-    let currentMonthPremium = 0
-    let selectedMonthPremium = 0
-    let currentYearPremium = 0
-
-    for (const client of clientRows) {
-      if (client.assigned_agent_id !== agent.id) continue
-      totalClients += 1
-      if (client.is_medicare) medicareClients += 1
-      if (client.is_life) lifeClients += 1
-      if (client.date_of_birth?.startsWith(`${turn65Year}-`)) turning65 += 1
-    }
-
-    for (const row of premiumRows) {
-      if (row.assigned_agent_id !== agent.id) continue
-      const amount = numeric(row.premium_total)
-      const rowYear = Number(row.effective_year || currentYear)
-      const rowMonth = Number(row.effective_month) - 1
-
-      if (rowYear === currentYear && rowMonth === currentMonth) currentMonthPremium += amount
-
-      if (isIsaiahPortal) {
-        if (rowYear === selectedPremiumYear) {
-          currentYearPremium += amount
-          if (rowMonth === selectedPremiumMonth) selectedMonthPremium += amount
-        }
-      } else if (rowYear === currentYear) {
-        currentYearPremium += amount
-      }
-    }
-
+    const current = currentByAgent.get(agent.id)
+    const selected = selectedByAgent.get(agent.id) || current
     return {
       agentId: agent.id,
       agentName: agent.full_name || 'Agent',
-      totalClients,
-      medicareClients,
-      lifeClients,
-      turning65,
-      currentMonthPremium,
-      selectedMonthPremium,
-      currentYearPremium
+      totalClients: numeric(current?.total_clients),
+      medicareClients: numeric(current?.medicare_clients),
+      lifeClients: numeric(current?.life_clients),
+      turning65: numeric(current?.turning65),
+      currentMonthPremium: numeric(current?.month_premium),
+      selectedMonthPremium: numeric(selected?.month_premium),
+      currentYearPremium: numeric(isIsaiahPortal ? selected?.year_premium : current?.year_premium)
     }
   })
 
@@ -222,14 +189,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <DashboardCalendar agents={calendarAgents} viewerName={currentProfile.full_name || ''} />
       </div>
 
+      <DashboardNotes />
+
       {isJustinPortal ? (
-        <>
-          <DashboardNotes />
-          <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
-            <span>FEX QUOTES</span>
-            <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
-          </Link>
-        </>
+        <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
+          <span>FEX QUOTES</span>
+          <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
+        </Link>
       ) : null}
 
       {isManager ? (
@@ -298,10 +264,16 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       <DeferredDashboardTools />
 
       {canBackupCrm ? (
-        <Link prefetch={false} href="/backup" className="dashboard-home-nav-tab dashboard-backup-home-tab">
-          <span>CRM BACKUP</span>
-          <span className="dashboard-home-nav-meta">Open Google Drive backup screen <b>→</b></span>
-        </Link>
+        <>
+          <Link prefetch={false} href="/system-health" className="dashboard-home-nav-tab dashboard-health-home-tab">
+            <span>SYSTEM HEALTH</span>
+            <span className="dashboard-home-nav-meta">Performance, jobs &amp; maintenance <b>→</b></span>
+          </Link>
+          <Link prefetch={false} href="/backup" className="dashboard-home-nav-tab dashboard-backup-home-tab">
+            <span>CRM BACKUP</span>
+            <span className="dashboard-home-nav-meta">Open Google Drive backup screen <b>→</b></span>
+          </Link>
+        </>
       ) : null}
 
       <style>{`
@@ -321,7 +293,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         .dashboard-home-nav-meta b{display:grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:rgba(255,255,255,.16);font-size:.9rem;color:#fff}
         .dashboard-fex-home-tab{margin-top:10px;background:#b4232f;border-color:#991f28;box-shadow:0 3px 10px rgba(180,35,47,.18)}
         .dashboard-fex-home-tab .dashboard-home-nav-meta{color:#ffe4e6}
-        .dashboard-backup-home-tab{margin-top:22px;background:#05070a;border-color:#101827;color:#5aa9ff;box-shadow:0 3px 12px rgba(2,6,23,.22)}
+        .dashboard-health-home-tab{margin-top:22px;background:#294b43;border-color:#355e54;color:#eef8f4}
+        .dashboard-backup-home-tab{margin-top:10px;background:#05070a;border-color:#101827;color:#5aa9ff;box-shadow:0 3px 12px rgba(2,6,23,.22)}
         .dashboard-backup-home-tab:hover{background:#000;color:#76b9ff}
         .dashboard-backup-home-tab .dashboard-home-nav-meta{color:#5aa9ff}
         .dashboard-backup-home-tab .dashboard-home-nav-meta b{background:rgba(59,130,246,.18);color:#5aa9ff}
