@@ -39,7 +39,8 @@ test('Dashboard statistics are aggregated in the database', async () => {
   const page = await source('app/(crm)/dashboard/page.tsx')
   assert.match(page, /crm_dashboard_agent_stats/)
   assert.doesNotMatch(page, /from\('clients'\).*is_medicare.*date_of_birth/s)
-  assert.match(page, /<DashboardNotes \/>/)
+  assert.match(page, /<DashboardQuickTools \/>/)
+  assert.doesNotMatch(page, /<DashboardNotes \/>/)
 })
 
 test('Dashboard Notes and Text SOA no longer use DOM bridge files', async () => {
