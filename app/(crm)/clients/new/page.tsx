@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
-import NewClientForm from './NewClientForm'
+import NewClientFormLoader from './NewClientFormLoader'
 import styles from './NewClientForm.module.css'
 import sectionColors from './NewClientSectionColors.module.css'
 
@@ -41,7 +41,7 @@ export default async function NewClientPage() {
         <span className={styles.requiredNote}>First name and last name are required</span>
       </div>
 
-      <NewClientForm
+      <NewClientFormLoader
         key={`${userId}:${Date.now()}`}
         currentUserId={userId}
         currentUserName={profile.full_name || String(claims.email || 'Agent')}

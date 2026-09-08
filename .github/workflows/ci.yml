@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -34,3 +34,9 @@ jobs:
 
       - name: TypeScript check
         run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+      - name: Built-server smoke tests
+        run: npm run test:smoke

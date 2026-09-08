@@ -10,6 +10,7 @@ import NotificationsNavLink from './components/NotificationsNavLink'
 import PushNotificationManager from './components/PushNotificationManager'
 import PreviousPageButton from './components/PreviousPageButton'
 import RouteScopedEnhancers from './components/RouteScopedEnhancers'
+import WebVitalsReporter from './components/WebVitalsReporter'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getCrmSession()
@@ -46,6 +47,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="crm-shell">
+      <WebVitalsReporter />
       <style>{`
         a[href="/clients/document-import"]{display:none!important}
         .dashboard-form-alert{display:none!important}

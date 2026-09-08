@@ -9,9 +9,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/critical-regressions.test.mjs",
+    "test": "node --test tests/critical-regressions.test.mjs tests/performance-upgrades.test.mjs tests/dashboard-quick-tools.test.mjs",
+    "test:smoke": "node --test tests/production-smoke.test.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "npm run test && npm run typecheck"
+    "check": "npm run test && npm run typecheck && npm run build && npm run test:smoke"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.0",

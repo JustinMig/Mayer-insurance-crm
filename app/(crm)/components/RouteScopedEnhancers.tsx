@@ -11,9 +11,8 @@ const ClientDraftGuard = dynamic(() => import('./ClientDraftGuard'), { ssr: fals
 const AddressAutoFill = dynamic(() => import('./AddressAutoFill'), { ssr: false })
 const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), { ssr: false })
 const ClientTextingDock = dynamic(() => import('./ClientTextingDock'), { ssr: false })
-const SoaTextBridge = dynamic(() => import('./SoaTextBridge'), { ssr: false })
+const ClientSoaTextAction = dynamic(() => import('./ClientSoaTextAction'), { ssr: false })
 const ManualWorkspaceDates = dynamic(() => import('./ManualWorkspaceDates'), { ssr: false })
-const DashboardNotesBridge = dynamic(() => import('./DashboardNotesBridge'), { ssr: false })
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
@@ -21,16 +20,8 @@ const DeceasedStatusBridge = dynamic(() => import('../clients/components/Decease
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 const OutreachAppointmentTimeBlocker = dynamic(() => import('../campaigns/OutreachAppointmentTimeBlocker'), { ssr: false })
 
-type SectionFlags = {
-  client: boolean
-  medicare: boolean
-}
-
-type IdleWindow = Window & {
-  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-  cancelIdleCallback?: (handle: number) => void
-}
-
+type SectionFlags = { client: boolean; medicare: boolean }
+type IdleWindow = Window & { requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number; cancelIdleCallback?: (handle: number) => void }
 const CLOSED_SECTIONS: SectionFlags = { client: false, medicare: false }
 
 function useClientRecordActivation(enabled: boolean) {
@@ -47,14 +38,7 @@ function useClientRecordActivation(enabled: boolean) {
     const form = document.querySelector<HTMLElement>('.client-profile-form')
     const clientSection = form?.querySelector<HTMLDetailsElement>('.section-client') || null
     const medicareSection = form?.querySelector<HTMLDetailsElement>('.section-medicare') || null
-
-    const sync = () => {
-      setSections({
-        client: Boolean(clientSection?.open),
-        medicare: Boolean(medicareSection?.open)
-      })
-    }
-
+    const sync = () => setSections({ client: Boolean(clientSection?.open), medicare: Boolean(medicareSection?.open) })
     clientSection?.addEventListener('toggle', sync)
     medicareSection?.addEventListener('toggle', sync)
     sync()
@@ -63,12 +47,8 @@ function useClientRecordActivation(enabled: boolean) {
     let idleId: number | null = null
     let timerId: number | null = null
     const enableDeferred = () => setDeferredReady(true)
-
-    if (typeof idleWindow.requestIdleCallback === 'function') {
-      idleId = idleWindow.requestIdleCallback(enableDeferred, { timeout: 2500 })
-    } else {
-      timerId = window.setTimeout(enableDeferred, 1400)
-    }
+    if (typeof idleWindow.requestIdleCallback === 'function') idleId = idleWindow.requestIdleCallback(enableDeferred, { timeout: 2500 })
+    else timerId = window.setTimeout(enableDeferred, 1400)
 
     return () => {
       clientSection?.removeEventListener('toggle', sync)
@@ -89,7 +69,6 @@ export default function RouteScopedEnhancers() {
   const isClientRecord = Boolean(clientId)
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
-  const usesDashboardNotes = pathname === '/dashboard'
   const usesLeadBridge = isClientForm || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesOutreachAppointmentBlocking = pathname.startsWith('/campaigns/')
   const { sections, deferredReady } = useClientRecordActivation(isClientRecord)
@@ -105,19 +84,17 @@ export default function RouteScopedEnhancers() {
       {needsClientHelpers ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
       {needsMedicareHelpers ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
-      {usesDashboardNotes ? <DashboardNotesBridge key={`dashboard-notes-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
 
       {isNewClient ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
-
       {isClientRecord && sections.medicare ? (
         <ClientRecordBootstrapProvider clientId={clientId}>
           <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} />
         </ClientRecordBootstrapProvider>
       ) : null}
 
-      {isClientRecord ? <SoaTextBridge key={`soa-text-${pathname}`} /> : null}
+      {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
     </>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   carrierLiveSupport,
@@ -11,9 +11,10 @@ import {
 } from '@/lib/medicare-provider-live'
 
 export const maxDuration = 60
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 type SelectedDoctor = NetworkDoctor
-
 type PlanRow = NetworkPlan
 
 type ProviderRow = {
@@ -40,6 +41,24 @@ type NetworkRow = {
   verified_at: string | null
 }
 
+type ExactCacheRow = {
+  carrier: string
+  contract_id: string
+  plan_id: string
+  segment_id: string
+  plan_year: number
+  npi: string
+  location_key: string
+  status: LiveNetworkStatus
+  source_url: string | null
+  message: string | null
+  network_refs: string[] | null
+  practitioner_id: string | null
+  location_verified: boolean
+  verified_at: string | null
+  expires_at: string
+}
+
 type DoctorMatch = {
   slot_id: string
   npi: string
@@ -52,13 +71,13 @@ type DoctorMatch = {
   verification_method: 'cache' | 'live' | 'unavailable'
 }
 
-const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const LEGACY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const EXACT_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const LIVE_CHECK_CONCURRENCY = 6
 
 async function settleWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
   const results = new Array<PromiseSettledResult<R>>(items.length)
   let cursor = 0
-
   async function runner() {
     while (true) {
       const index = cursor
@@ -71,7 +90,6 @@ async function settleWithConcurrency<T, R>(items: T[], limit: number, worker: (i
       }
     }
   }
-
   const runnerCount = Math.min(Math.max(1, limit), items.length)
   await Promise.all(Array.from({ length: runnerCount }, () => runner()))
   return results
@@ -100,21 +118,37 @@ function canonicalStreet(value: string | null | undefined) {
     .trim()
 }
 
+function exactLocationKey(doctor: SelectedDoctor) {
+  const supplied = String(doctor.location_key || '').trim()
+  if (supplied) return supplied.slice(0, 500)
+  return [canonicalStreet(doctor.address), String(doctor.city || '').trim().toUpperCase(), String(doctor.state || '').trim().toUpperCase(), cleanZip(doctor.postal_code)].join('|')
+}
+
+function exactPlanKey(plan: PlanRow) {
+  return [plan.carrier, plan.contract_id, plan.plan_id, plan.segment_id || '0', String(plan.plan_year || 2026)].join('|')
+}
+
+function exactCacheKey(doctor: SelectedDoctor, plan: PlanRow) {
+  return `${exactPlanKey(plan)}|${doctor.npi}|${exactLocationKey(doctor)}`
+}
+
+function exactRowKey(row: ExactCacheRow) {
+  return [row.carrier, row.contract_id, row.plan_id, row.segment_id || '0', String(row.plan_year), row.npi, row.location_key].join('|')
+}
+
 function sameSelectedLocation(provider: ProviderRow, doctor: SelectedDoctor) {
   if ((provider.npi || '') !== doctor.npi) return false
   if (cleanZip(provider.zip_code) !== cleanZip(doctor.postal_code)) return false
-
   const selectedStreet = canonicalStreet(doctor.address)
   const providerStreet = canonicalStreet(provider.address_line1)
   if (selectedStreet && providerStreet) return selectedStreet === providerStreet
-
   return (provider.city || '').trim().toUpperCase() === doctor.city.trim().toUpperCase()
 }
 
-function isFresh(value: string | null | undefined) {
+function isLegacyFresh(value: string | null | undefined) {
   if (!value) return false
   const timestamp = new Date(value).getTime()
-  return Number.isFinite(timestamp) && Date.now() - timestamp <= CACHE_MAX_AGE_MS
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= LEGACY_CACHE_MAX_AGE_MS
 }
 
 function emptyMatch(doctor: SelectedDoctor, status: LiveNetworkStatus = 'not_verified', message: string | null = null): DoctorMatch {
@@ -131,7 +165,7 @@ function emptyMatch(doctor: SelectedDoctor, status: LiveNetworkStatus = 'not_ver
   }
 }
 
-function cacheMatch(doctor: SelectedDoctor, row: NetworkRow): DoctorMatch {
+function legacyCacheMatch(doctor: SelectedDoctor, row: NetworkRow): DoctorMatch {
   return {
     slot_id: doctor.slot_id,
     npi: doctor.npi,
@@ -142,6 +176,20 @@ function cacheMatch(doctor: SelectedDoctor, row: NetworkRow): DoctorMatch {
     verified_at: row.verified_at,
     message: 'Verified carrier-network result from the CRM cache.',
     verification_method: 'cache'
+  }
+}
+
+function exactCacheMatch(doctor: SelectedDoctor, row: ExactCacheRow): DoctorMatch {
+  return {
+    slot_id: doctor.slot_id,
+    npi: doctor.npi,
+    location_key: doctor.location_key || null,
+    name: doctor.name,
+    status: row.status,
+    source_url: row.source_url,
+    verified_at: row.verified_at,
+    message: row.message || 'Recent exact plan and office verification from the CRM cache.',
+    verification_method: row.status === 'source_unavailable' ? 'unavailable' : 'cache'
   }
 }
 
@@ -159,9 +207,36 @@ function liveMatch(doctor: SelectedDoctor, result: LiveNetworkResult): DoctorMat
   }
 }
 
-async function persistLiveResult(doctor: SelectedDoctor, plan: PlanRow, result: LiveNetworkResult) {
-  if (!['in_network', 'out_of_network'].includes(result.status) || !result.verified_at) return
+async function persistExactResult(agencyId: string, doctor: SelectedDoctor, plan: PlanRow, result: LiveNetworkResult) {
+  try {
+    const admin = createAdminClient()
+    const now = new Date()
+    await admin.from('medicare_network_verification_cache').upsert({
+      agency_id: agencyId,
+      carrier: plan.carrier,
+      contract_id: plan.contract_id,
+      plan_id: plan.plan_id,
+      segment_id: plan.segment_id || '0',
+      plan_year: plan.plan_year || 2026,
+      npi: doctor.npi,
+      location_key: exactLocationKey(doctor),
+      status: result.status,
+      source_url: result.source_url,
+      message: result.message,
+      network_refs: result.network_refs || [],
+      practitioner_id: result.practitioner_id,
+      location_verified: Boolean(result.location_verified),
+      verified_at: result.verified_at || now.toISOString(),
+      expires_at: new Date(now.getTime() + EXACT_CACHE_TTL_MS).toISOString(),
+      updated_at: now.toISOString()
+    }, { onConflict: 'carrier,contract_id,plan_id,segment_id,plan_year,npi,location_key' })
+  } catch {
+    // Exact cache is an acceleration layer; live verification remains usable if persistence fails.
+  }
+}
 
+async function persistLegacyResult(doctor: SelectedDoctor, plan: PlanRow, result: LiveNetworkResult) {
+  if (!['in_network', 'out_of_network'].includes(result.status) || !result.verified_at) return
   try {
     const admin = createAdminClient()
     const { data: providerData } = await admin
@@ -169,13 +244,12 @@ async function persistLiveResult(doctor: SelectedDoctor, plan: PlanRow, result: 
       .select('id, carrier, npi, practitioner_id, full_name, specialty, address_line1, city, state, zip_code, source_url, source_updated_at')
       .eq('carrier', plan.carrier)
       .eq('npi', doctor.npi)
-      .eq('state', 'MS')
+      .eq('state', doctor.state || 'MS')
       .eq('zip_code', cleanZip(doctor.postal_code))
       .limit(20)
 
     const providers = (providerData || []) as ProviderRow[]
     let provider = providers.find((row) => sameSelectedLocation(row, doctor)) || null
-
     if (!provider) {
       const { data: inserted } = await admin
         .from('medicare_network_providers')
@@ -196,41 +270,31 @@ async function persistLiveResult(doctor: SelectedDoctor, plan: PlanRow, result: 
         .single()
       provider = inserted as ProviderRow | null
     } else {
-      await admin
-        .from('medicare_network_providers')
-        .update({
-          practitioner_id: result.practitioner_id || provider.practitioner_id,
-          source_url: result.source_url || provider.source_url,
-          source_updated_at: result.verified_at,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', provider.id)
+      await admin.from('medicare_network_providers').update({
+        practitioner_id: result.practitioner_id || provider.practitioner_id,
+        source_url: result.source_url || provider.source_url,
+        source_updated_at: result.verified_at,
+        updated_at: new Date().toISOString()
+      }).eq('id', provider.id)
     }
-
     if (!provider?.id) return
-
     const networkId = `live:${plan.carrier}:${plan.contract_id}-${plan.plan_id}-${plan.segment_id || '0'}`
-    await admin
-      .from('medicare_provider_plan_networks')
-      .upsert({
-        provider_id: provider.id,
-        medicare_plan_id: plan.id,
-        network_id: networkId,
-        in_network: result.status === 'in_network',
-        source_url: result.source_url,
-        verified_at: result.verified_at
-      }, {
-        onConflict: 'provider_id,medicare_plan_id,network_id'
-      })
+    await admin.from('medicare_provider_plan_networks').upsert({
+      provider_id: provider.id,
+      medicare_plan_id: plan.id,
+      network_id: networkId,
+      in_network: result.status === 'in_network',
+      source_url: result.source_url,
+      verified_at: result.verified_at
+    }, { onConflict: 'provider_id,medicare_plan_id,network_id' })
   } catch {
-    // Live verification remains useful even if server-side cache credentials are absent.
+    // Historical cache is secondary to the exact cache and live result.
   }
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: claimsData } = await supabase.auth.getClaims()
-  if (!claimsData?.claims) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase, profile } = await getCrmSession()
+  if (!profile?.agency_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: { doctors?: SelectedDoctor[]; plan_ids?: string[] }
   try {
@@ -241,37 +305,40 @@ export async function POST(request: NextRequest) {
 
   const doctors = (body.doctors || []).filter((doctor) => doctor?.npi && doctor?.slot_id).slice(0, 5)
   const planIds = [...new Set((body.plan_ids || []).filter(Boolean))].slice(0, 100)
-
-  if (!doctors.length || !planIds.length) {
-    return NextResponse.json({ available: true, plans: {}, verified_matches: 0, carrier_support: {} })
-  }
+  if (!doctors.length || !planIds.length) return NextResponse.json({ available: true, plans: {}, verified_matches: 0, carrier_support: {} })
 
   const { data: planData, error: planError } = await supabase
     .from('medicare_plans')
     .select('id, plan_year, carrier, contract_id, plan_id, segment_id, plan_name')
     .in('id', planIds)
-
   if (planError) return NextResponse.json({ error: 'Unable to load plans for doctor-network verification.' }, { status: 500 })
   const plans = (planData || []) as PlanRow[]
   const planById = new Map(plans.map((plan) => [plan.id, plan]))
 
   const npis = [...new Set(doctors.map((doctor) => doctor.npi))]
+  const carriers = [...new Set(plans.map((plan) => plan.carrier))]
+  const admin = createAdminClient()
+  const { data: exactCacheData } = await admin
+    .from('medicare_network_verification_cache')
+    .select('carrier,contract_id,plan_id,segment_id,plan_year,npi,location_key,status,source_url,message,network_refs,practitioner_id,location_verified,verified_at,expires_at')
+    .eq('agency_id', profile.agency_id)
+    .in('npi', npis)
+    .in('carrier', carriers)
+    .gt('expires_at', new Date().toISOString())
+  const exactCache = new Map(((exactCacheData || []) as ExactCacheRow[]).map((row) => [exactRowKey(row), row]))
+
   const { data: providerData } = await supabase
     .from('medicare_network_providers')
     .select('id, carrier, npi, practitioner_id, full_name, specialty, address_line1, city, state, zip_code, source_url, source_updated_at')
     .in('npi', npis)
     .eq('state', 'MS')
-
   const providers = (providerData || []) as ProviderRow[]
   const providerIdsByDoctorCarrier = new Map<string, string[]>()
   for (const doctor of doctors) {
     for (const plan of plans) {
       const key = `${doctor.slot_id}|${plan.carrier}`
       if (providerIdsByDoctorCarrier.has(key)) continue
-      providerIdsByDoctorCarrier.set(
-        key,
-        providers.filter((provider) => provider.carrier === plan.carrier && sameSelectedLocation(provider, doctor)).map((provider) => provider.id)
-      )
+      providerIdsByDoctorCarrier.set(key, providers.filter((provider) => provider.carrier === plan.carrier && sameSelectedLocation(provider, doctor)).map((provider) => provider.id))
     }
   }
 
@@ -294,49 +361,48 @@ export async function POST(request: NextRequest) {
     if (!plan) continue
     for (const doctor of doctors) {
       const key = `${plan.id}|${doctor.slot_id}`
+      const exact = exactCache.get(exactCacheKey(doctor, plan))
+      if (exact) {
+        resultMatrix.set(key, exactCacheMatch(doctor, exact))
+        continue
+      }
       const providerIds = new Set(providerIdsByDoctorCarrier.get(`${doctor.slot_id}|${plan.carrier}`) || [])
-      const cached = networkRows
-        .filter((row) => row.medicare_plan_id === plan.id && providerIds.has(row.provider_id) && isFresh(row.verified_at))
+      const legacy = networkRows
+        .filter((row) => row.medicare_plan_id === plan.id && providerIds.has(row.provider_id) && isLegacyFresh(row.verified_at))
         .sort((a, b) => new Date(b.verified_at || 0).getTime() - new Date(a.verified_at || 0).getTime())[0]
-
-      if (cached) resultMatrix.set(key, cacheMatch(doctor, cached))
+      if (legacy) resultMatrix.set(key, legacyCacheMatch(doctor, legacy))
       else liveChecks.push({ doctor, plan, key })
     }
   }
 
-  const liveSettled = await settleWithConcurrency(
-    liveChecks,
-    LIVE_CHECK_CONCURRENCY,
-    async ({ doctor, plan, key }) => {
-      const result = await verifyDoctorForPlan(doctor, plan)
-      if (result.status === 'in_network' || result.status === 'out_of_network') {
-        await persistLiveResult(doctor, plan, result)
-      }
-      return { key, doctor, plan, result }
-    }
-  )
+  const liveSettled = await settleWithConcurrency(liveChecks, LIVE_CHECK_CONCURRENCY, async ({ doctor, plan, key }) => {
+    const result = await verifyDoctorForPlan(doctor, plan)
+    await Promise.all([
+      persistExactResult(profile.agency_id!, doctor, plan, result),
+      persistLegacyResult(doctor, plan, result)
+    ])
+    return { key, doctor, plan, result }
+  })
 
   for (let index = 0; index < liveSettled.length; index += 1) {
     const settled = liveSettled[index]
     const source = liveChecks[index]
-    if (settled.status === 'fulfilled') {
-      resultMatrix.set(settled.value.key, liveMatch(settled.value.doctor, settled.value.result))
-    } else if (source) {
-      resultMatrix.set(source.key, emptyMatch(source.doctor, 'not_verified', `${source.plan.carrier} live verification failed for this request.`))
-    }
+    if (settled.status === 'fulfilled') resultMatrix.set(settled.value.key, liveMatch(settled.value.doctor, settled.value.result))
+    else if (source) resultMatrix.set(source.key, emptyMatch(source.doctor, 'not_verified', `${source.plan.carrier} live verification failed for this request.`))
   }
 
   let verifiedMatches = 0
   let unavailableMatches = 0
+  let exactCacheHits = 0
   const responsePlans = Object.fromEntries(planIds.map((planId) => {
     const plan = planById.get(planId)
     const doctorMatches = doctors.map((doctor) => {
       const match = resultMatrix.get(`${planId}|${doctor.slot_id}`) || emptyMatch(doctor)
       if (match.status === 'in_network' || match.status === 'out_of_network') verifiedMatches += 1
       if (match.status === 'source_unavailable') unavailableMatches += 1
+      if (plan && exactCache.has(exactCacheKey(doctor, plan))) exactCacheHits += 1
       return match
     })
-
     return [planId, {
       plan_id: planId,
       carrier: plan?.carrier || null,
@@ -345,22 +411,18 @@ export async function POST(request: NextRequest) {
     }]
   }))
 
-  const carriers = [...new Set(plans.map((plan) => plan.carrier))]
   const carrierSupport = Object.fromEntries(carriers.map((carrier) => [carrier, carrierLiveSupport(carrier)]))
-
   return NextResponse.json({
     available: true,
     plans: responsePlans,
     verified_matches: verifiedMatches,
     unavailable_matches: unavailableMatches,
+    exact_cache_hits: exactCacheHits,
     carrier_support: carrierSupport,
-    cache_max_age_days: 7,
+    exact_cache_hours: 6,
+    legacy_cache_max_age_days: 7,
     message: verifiedMatches
-      ? 'Doctor network results include live carrier checks and recent verified cache records.'
+      ? 'Doctor network results include exact office/plan cache records, historical verified cache records, and live carrier checks.'
       : 'No plan/doctor match could be verified from a connected carrier directory yet.'
-  }, {
-    headers: {
-      'Cache-Control': 'private, no-store'
-    }
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
