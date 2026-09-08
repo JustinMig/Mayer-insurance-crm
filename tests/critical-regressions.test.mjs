@@ -26,8 +26,8 @@ test('Deceased status is always submitted while Medicare credential helpers wait
   assert.doesNotMatch(enhancer, /sections\.client \? <DeceasedStatusBridge/)
   assert.equal((deceased.match(/fetch\(/g) || []).length, 1, 'Deceased helper should load the saved status exactly once')
   assert.match(deceased, /\/api\/clients\/\$\{encodeURIComponent\(clientId\)\}\/status/)
-  assert.equal((medicareGov.match(/fetch\(/g) || []).length, 1, 'Medicare.gov helper should only fetch for an explicit secure reveal')
-  assert.match(medicareGov, /method:\s*'POST'/)
+  assert.equal((medicareGov.match(/fetch\(/g) || []).length, 2, 'Medicare.gov helper should use one intake-transfer save and one explicit secure reveal request')
+  assert.equal((medicareGov.match(/method:\s*'POST'/g) || []).length, 2, 'Medicare.gov helper requests must remain POST-only')
 })
 
 test('global CSS is partitioned so public pages do not receive the full CRM stylesheet', async () => {
