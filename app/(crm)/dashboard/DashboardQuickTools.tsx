@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import DashboardNotes from './DashboardNotes'
 
 const CompanyDirectory = dynamic(() => import('./CompanyDirectory'), {
@@ -72,8 +72,22 @@ const tools: Tool[] = [
   }
 ]
 
+function NotesOverlay() {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const button = hostRef.current?.querySelector<HTMLButtonElement>('.dashboard-notes-tab')
+      if (button && button.getAttribute('aria-expanded') !== 'true') button.click()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  return <div ref={hostRef} className="dashboard-quick-notes-host"><DashboardNotes /></div>
+}
+
 function ToolBody({ active }: { active: ToolKey }) {
-  if (active === 'notes') return <DashboardNotes initiallyOpen embedded />
+  if (active === 'notes') return <NotesOverlay />
   if (active === 'directory') return <CompanyDirectory />
   if (active === 'build') return <BuildChartLookup />
   return (
@@ -169,9 +183,9 @@ export default function DashboardQuickTools() {
         .dashboard-quick-close{width:38px;height:38px;border-radius:50%;border:1px solid #d4dde5;background:#fff;color:#475569;font-size:1.65rem;line-height:1;display:grid;place-items:center;cursor:pointer}
         .dashboard-quick-close:hover{background:#eef2f5}
         .dashboard-quick-modal-body{overflow:auto;padding:16px;min-height:0}
-        .dashboard-quick-modal-body .dashboard-notes-shell{margin-top:0}
-        .dashboard-quick-modal-body .dashboard-notes-tab{display:none!important}
-        .dashboard-quick-modal-body .dashboard-notes-panel{display:block!important;border-radius:14px!important;border-top:1px solid #cbd5e1!important}
+        .dashboard-quick-notes-host .dashboard-notes-shell{margin-top:0}
+        .dashboard-quick-notes-host .dashboard-notes-tab{display:none!important}
+        .dashboard-quick-notes-host .dashboard-notes-panel{display:block!important;border-radius:14px!important;border-top:1px solid #cbd5e1!important}
         .dashboard-quick-modal-body .company-directory-card,.dashboard-quick-modal-body .build-lookup-card{margin-top:0!important;box-shadow:none!important}
         .dashboard-quick-loading{padding:28px;text-align:center;color:#64748b;font-weight:800}
         .dashboard-quick-fex{height:100%;min-height:680px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #d8e1e8}
