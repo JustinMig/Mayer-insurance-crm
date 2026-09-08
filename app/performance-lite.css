@@ -23,6 +23,16 @@ body {
   filter: none !important;
 }
 
+/* Let modern browsers skip layout/paint work for long intake sections that are
+   outside the viewport. The fallback on older browsers is the normal layout. */
+.crm-shell .client-profile-form > .section-details,
+.crm-shell .add-client-form > .section-details,
+.crm-shell .dashboard-deferred-tool,
+.crm-shell .document-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
 /* Remove expensive compositing only. Preserve each component's own background. */
 .crm-shell .sidebar,
 .crm-shell .topbar,
