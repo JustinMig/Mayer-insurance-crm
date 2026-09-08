@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import DashboardCalendar from './DashboardCalendar'
-import DashboardNotes from './DashboardNotes'
+import DashboardQuickTools from './DashboardQuickTools'
 import DeferredDashboardTools from './DeferredDashboardTools'
 
 export const dynamic = 'force-dynamic'
@@ -166,6 +166,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <p className="subtle">Your client database at a glance.</p>
       </div>
 
+      {isJustinPortal ? <DashboardQuickTools /> : null}
+
       {isCalendarCoordinator && calendarAvailableAgents.length > 1 ? (
         <div className="dashboard-calendar-agent-switcher" aria-label="Choose agent calendar">
           {calendarAvailableAgents.map((agent) => {
@@ -188,15 +190,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       <div className={isCalendarCoordinator ? 'dashboard-calendar-coordinator-view' : undefined}>
         <DashboardCalendar agents={calendarAgents} viewerName={currentProfile.full_name || ''} />
       </div>
-
-      <DashboardNotes />
-
-      {isJustinPortal ? (
-        <Link prefetch={false} href="/fex-quotes" className="dashboard-home-nav-tab dashboard-fex-home-tab">
-          <span>FEX QUOTES</span>
-          <span className="dashboard-home-nav-meta">Open final expense quoter <b>→</b></span>
-        </Link>
-      ) : null}
 
       {isManager ? (
         <section className="dashboard-agent-split" style={{ marginTop: 22 }}>
@@ -261,7 +254,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         </section>
       ) : null}
 
-      <DeferredDashboardTools />
+      {!isJustinPortal ? <DeferredDashboardTools /> : null}
 
       {canBackupCrm ? (
         <>
@@ -291,8 +284,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         .dashboard-home-nav-tab:hover{filter:brightness(.97);color:#fff}
         .dashboard-home-nav-meta{display:flex;align-items:center;gap:10px;font-size:.76rem;letter-spacing:0;color:#dbe7f1;font-weight:800}
         .dashboard-home-nav-meta b{display:grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:rgba(255,255,255,.16);font-size:.9rem;color:#fff}
-        .dashboard-fex-home-tab{margin-top:10px;background:#b4232f;border-color:#991f28;box-shadow:0 3px 10px rgba(180,35,47,.18)}
-        .dashboard-fex-home-tab .dashboard-home-nav-meta{color:#ffe4e6}
         .dashboard-health-home-tab{margin-top:22px;background:#294b43;border-color:#355e54;color:#eef8f4}
         .dashboard-backup-home-tab{margin-top:10px;background:#05070a;border-color:#101827;color:#5aa9ff;box-shadow:0 3px 12px rgba(2,6,23,.22)}
         .dashboard-backup-home-tab:hover{background:#000;color:#76b9ff}
