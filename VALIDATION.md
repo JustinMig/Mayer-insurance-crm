@@ -1,1 +1,0 @@
-Validation is performed through Vercel preview and GitHub CI before production merge.
