@@ -8,12 +8,40 @@ export const dynamic = 'force-dynamic'
 type Params = Promise<{ id: string }>
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+function phone10(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits.length >= 10 ? digits.slice(-10) : ''
+}
+
+function ringCentralPhone(row: {
+  direction?: string | null
+  contact_phone?: string | null
+  from_phone?: string | null
+  to_phone?: string | null
+}) {
+  const contact = phone10(row.contact_phone)
+  if (contact) return contact
+  return phone10(row.direction === 'Inbound' ? row.from_phone : row.to_phone)
+}
+
 export async function GET(_request: Request, { params }: { params: Params }) {
   const { id } = await params
   if (!UUID_PATTERN.test(id)) return NextResponse.json({ attempts: [] }, { status: 400 })
 
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ attempts: [] }, { status: 403 })
+
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('id,phone')
+    .eq('agency_id', profile.agency_id)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (clientError) return NextResponse.json({ error: clientError.message, attempts: [] }, { status: 400 })
+  if (!client) return NextResponse.json({ attempts: [] }, { status: 404 })
+
+  const clientPhone = phone10(client.phone)
   const admin = createAdminClient()
 
   const [manualResult, ringCentralResult] = await Promise.all([
@@ -39,7 +67,11 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   }
 
   const manualRows = manualResult.data || []
-  const ringCentralRows = ringCentralResult.data || []
+  const ringCentralRows = (ringCentralResult.data || []).filter((row) => {
+    if (!clientPhone) return false
+    return ringCentralPhone(row) === clientPhone
+  })
+
   const userIds = Array.from(new Set(manualRows.map((row) => row.user_id)))
   const names: Record<string, string> = {}
   if (userIds.length) {
