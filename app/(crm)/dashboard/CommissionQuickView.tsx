@@ -82,7 +82,7 @@ export default function CommissionQuickView() {
 
   return (
     <section className="commission-quick-view">
-      {data?.agents?.length > 1 ? (
+      {data && data.agents.length > 1 ? (
         <div className="commission-agent-picker">
           <span>Agent</span>
           <select
