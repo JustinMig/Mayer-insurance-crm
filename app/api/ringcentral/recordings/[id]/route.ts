@@ -24,6 +24,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
     .eq('agency_id', profile.agency_id)
     .eq('user_id', userId)
     .eq('recording_id', recordingId)
+    .is('hidden_at', null)
     .maybeSingle()
 
   if (error || !call) return NextResponse.json({ error: 'Recording was not found for this account.' }, { status: 404 })
