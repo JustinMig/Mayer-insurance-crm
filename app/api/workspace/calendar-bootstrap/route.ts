@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { resolveCalendarOwner } from '@/lib/calendar-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,46 +17,6 @@ function validDate(value: string) {
   const [y, m, d] = value.split('-').map(Number)
   const date = new Date(Date.UTC(y, m - 1, d))
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
-}
-
-function normalizedName(value: unknown) {
-  return String(value || '').trim().toLowerCase()
-}
-
-async function resolveReadableOwner(
-  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
-  profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
-  userId: string,
-  requestedOwner: string
-) {
-  const viewer = normalizedName(profile.full_name)
-  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
-
-  let target = null as { id: string; full_name: string | null } | null
-  if (requestedOwner) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id,full_name')
-      .eq('id', requestedOwner)
-      .eq('agency_id', profile.agency_id)
-      .eq('active', true)
-      .in('role', ['admin', 'agent'])
-      .maybeSingle()
-    target = data as { id: string; full_name: string | null } | null
-  } else {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id,full_name')
-      .eq('agency_id', profile.agency_id)
-      .eq('active', true)
-      .in('role', ['admin', 'agent'])
-      .ilike('full_name', 'Isaiah Hernandez')
-      .maybeSingle()
-    target = data as { id: string; full_name: string | null } | null
-  }
-
-  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') throw new Error('Calendar access denied.')
-  return target.id
 }
 
 export async function GET(request: NextRequest) {
@@ -79,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   let ownerId = ''
   try {
-    ownerId = await resolveReadableOwner(supabase, profile, userId, requestedOwner)
+    ownerId = resolveCalendarOwner(userId, profile, requestedOwner)
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Calendar access denied.' }, { status: 403 })
   }
@@ -148,6 +109,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     {
+      owner_id: ownerId,
       events,
       today,
       rescheduled,
