@@ -64,6 +64,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           backdrop-filter:blur(10px);
           -webkit-backdrop-filter:blur(10px);
         }
+        .topbar-brand{width:100%!important;min-width:0!important}
 
         .nav>a[href="/dashboard"]{background:#dfe8ef!important;color:#31485b!important;box-shadow:inset 4px 0 0 #7890a3}
         .nav>a[href="/leads"]{background:#e1e9df!important;color:#3f5842!important;box-shadow:inset 4px 0 0 #849b81}
@@ -117,6 +118,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           font-weight:800;
         }
         @media(max-width:720px){
+          .topbar-brand>strong{display:none!important}
+          .topbar-brand{gap:5px!important}
+          .topbar-bear-link{flex:0 0 auto!important}
           .add-client-form>.add-client-save-row,
           .client-profile-form>.sticky-save-bar{
             top:76px!important;
@@ -152,9 +156,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
             <strong>{portalBrand}</strong>
             {hasQuickTools ? <DashboardQuickTools compact /> : null}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
-            <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
           </div>
         </header>
         <main className="content"><PreviousPageButton />{children}</main>
