@@ -16,6 +16,11 @@ export const dynamic = 'force-dynamic'
 // without creating duplicates when more than one person presses Sync.
 const OFFICE_RINGCENTRAL_OWNER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
 
+// Prevent duplicate sync work inside the same warm server instance. This is a
+// fast first line of defense against repeated taps or multiple office users
+// syncing at the same time; database upsert remains the final de-duplication.
+let officeSyncPromise: Promise<NextResponse> | null = null
+
 export async function GET() {
   const { profile } = await getCrmSession()
   const available = Boolean(profile?.agency_id)
@@ -26,18 +31,7 @@ export async function GET() {
   }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
-export async function POST() {
-  const { profile } = await getCrmSession()
-  if (!profile?.agency_id) {
-    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
-  }
-  if (!isRingCentralConfigured()) {
-    return NextResponse.json({
-      configured: false,
-      error: 'RingCentral credentials have not been added to Vercel yet.'
-    }, { status: 409 })
-  }
-
+async function runOfficeSync(agencyId: string) {
   try {
     const accessToken = await getRingCentralAccessToken()
     const records = await listRecentRingCentralCalls(accessToken, 7)
@@ -46,25 +40,24 @@ export async function POST() {
     const { data: clients, error: clientError } = await admin
       .from('clients')
       .select('id,phone,created_at')
-      .eq('agency_id', profile.agency_id)
+      .eq('agency_id', agencyId)
+      .not('phone', 'is', null)
       .order('created_at', { ascending: false })
 
     if (clientError) throw new Error(`Unable to load client phone numbers: ${clientError.message}`)
 
-    // Use the newest agency client with the matching phone number. The office
-    // call log itself is shared; the matched client record determines which
-    // agent/client file the call is preserved under.
     const clientByPhone = new Map<string, string>()
     for (const client of clients || []) {
       const phone = normalizePhone(client.phone)
       if (phone && !clientByPhone.has(phone)) clientByPhone.set(phone, client.id)
     }
 
+    const nowIso = new Date().toISOString()
     const rows = records.map((record) => {
       const externalNumber = record.direction === 'Inbound' ? record.from?.phoneNumber : record.to?.phoneNumber
       const normalizedExternal = normalizePhone(externalNumber)
       return {
-        agency_id: profile.agency_id,
+        agency_id: agencyId,
         user_id: OFFICE_RINGCENTRAL_OWNER_ID,
         client_id: normalizedExternal ? clientByPhone.get(normalizedExternal) || null : null,
         ringcentral_call_id: record.id,
@@ -78,7 +71,7 @@ export async function POST() {
         from_phone: record.from?.phoneNumber || null,
         to_phone: record.to?.phoneNumber || null,
         recording_id: record.recording?.id || null,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso
       }
     })
 
@@ -105,8 +98,37 @@ export async function POST() {
       recordings
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'RingCentral sync failed.'
+    const externalFailure = /ringcentral|token|call log|fetch|network|timeout/i.test(message)
+    return NextResponse.json({ error: message }, { status: externalFailure ? 502 : 500 })
+  }
+}
+
+export async function POST() {
+  const { profile } = await getCrmSession()
+  if (!profile?.agency_id) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+  if (!isRingCentralConfigured()) {
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'RingCentral sync failed.'
-    }, { status: 500 })
+      configured: false,
+      error: 'RingCentral credentials have not been added to Vercel yet.'
+    }, { status: 409 })
+  }
+
+  if (officeSyncPromise) {
+    return NextResponse.json({
+      configured: true,
+      office: true,
+      already_syncing: true,
+      message: 'RingCentral sync is already running. Please wait a moment.'
+    }, { status: 202, headers: { 'Cache-Control': 'private, no-store' } })
+  }
+
+  officeSyncPromise = runOfficeSync(profile.agency_id)
+  try {
+    return await officeSyncPromise
+  } finally {
+    officeSyncPromise = null
   }
 }
