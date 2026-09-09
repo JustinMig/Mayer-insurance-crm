@@ -167,7 +167,7 @@ export default function AppointmentQuickSetter() {
 
     let cancelled = false
     setChecking(true)
-    setStatus('Checking Justin’s main calendar for booked times…')
+    setStatus('Checking the main calendar for booked times…')
     const params = new URLSearchParams({ date: eventDate })
     if (calendarOwnerId) params.set('owner', calendarOwnerId)
     void fetch(`/api/workspace/calendar-availability?${params.toString()}`, { cache: 'no-store' })
