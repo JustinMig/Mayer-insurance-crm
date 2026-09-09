@@ -21,15 +21,14 @@ export async function GET(_request: Request, { params }: { params: Params }) {
       .eq('agency_id', profile.agency_id)
       .eq('client_id', id)
       .order('called_at', { ascending: false })
-      .limit(50),
+      .limit(75),
     supabase
       .from('ringcentral_calls')
       .select('id,user_id,direction,result,started_at,duration_seconds,contact_phone,from_phone,to_phone,recording_id')
       .eq('agency_id', profile.agency_id)
       .eq('client_id', id)
-      .is('hidden_at', null)
       .order('started_at', { ascending: false })
-      .limit(50)
+      .limit(75)
   ])
 
   if (manualResult.error) return NextResponse.json({ error: manualResult.error.message, attempts: [] }, { status: 400 })
@@ -76,7 +75,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
 
   const attempts = [...manualAttempts, ...ringCentralAttempts]
     .sort((a, b) => new Date(b.called_at).getTime() - new Date(a.called_at).getTime())
-    .slice(0, 75)
+    .slice(0, 125)
 
   return NextResponse.json({ attempts }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
