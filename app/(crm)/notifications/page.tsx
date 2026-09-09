@@ -5,13 +5,24 @@ import { CRM_GMAIL_LABEL, gmailConfigured } from '@/lib/gmail-mail'
 import MailCenterRefresh from '../mail-center/MailCenterRefresh'
 import MessagesCenter from '../messages/MessagesCenter'
 import NotificationsMailList from './NotificationsMailList'
+import NotificationsCallsPanel from './NotificationsCallsPanel'
 import PushNotificationManager from '../components/PushNotificationManager'
 import styles from './Notifications.module.css'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type SearchParams = Promise<{ tab?: string; connected?: string; gmail_error?: string; agent?: string; deleted?: string }>
+const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
+
+type SearchParams = Promise<{
+  tab?: string
+  connected?: string
+  gmail_error?: string
+  agent?: string
+  deleted?: string
+  filter?: string
+  q?: string
+}>
 
 type MailRow = {
   id: string
@@ -27,12 +38,27 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
 
+function isJustin(userId: string, fullName?: string | null) {
+  return userId === JUSTIN_USER_ID && String(fullName || '').trim().toLowerCase() === 'justin mayer'
+}
+
 export default async function NotificationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const { supabase, userId, profile } = await getCrmSession()
   const canUseMailAndForms = isJustinWebsiteLeadUser(userId)
-  const requestedTab = params.tab === 'text' ? 'text' : params.tab === 'forms' ? 'forms' : 'mail'
-  const activeTab = !canUseMailAndForms && requestedTab !== 'text' ? 'text' : requestedTab
+  const canUseCalls = isJustin(userId, profile?.full_name)
+  const requestedTab = params.tab === 'text'
+    ? 'text'
+    : params.tab === 'forms'
+      ? 'forms'
+      : params.tab === 'calls'
+        ? 'calls'
+        : 'mail'
+  const activeTab = requestedTab === 'calls' && !canUseCalls
+    ? (canUseMailAndForms ? 'mail' : 'text')
+    : !canUseMailAndForms && requestedTab !== 'text' && requestedTab !== 'calls'
+      ? 'text'
+      : requestedTab
   const rawAgent = params.agent
   const initialAgent = rawAgent === 'isaiah' ? 'isaiah' : rawAgent === 'justin' ? 'justin' : 'all'
 
@@ -93,7 +119,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <div>
           <span className={styles.eyebrow}>Activity Center</span>
           <h1>Notifications</h1>
-          <p>Mail, client text messages, and website form submissions in one streamlined workspace.</p>
+          <p>Mail, client text messages, RingCentral calls, and website form submissions in one streamlined workspace.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
           <PushNotificationManager />
@@ -115,6 +141,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <Link prefetch={false} href="/notifications?tab=text" className={`${styles.tab}${activeTab === 'text' ? ` ${styles.tabActive}` : ''}`}>
           Text Messages
         </Link>
+        {canUseCalls ? (
+          <Link prefetch={false} href="/notifications?tab=calls" className={`${styles.tab}${activeTab === 'calls' ? ` ${styles.tabActive}` : ''}`}>
+            Calls
+          </Link>
+        ) : null}
         {canUseMailAndForms ? (
           <Link prefetch={false} href="/notifications?tab=forms" className={`${styles.tab}${activeTab === 'forms' ? ` ${styles.tabActive}` : ''}`}>
             Forms{unreadFormsCount > 0 ? <span className={styles.count}>{unreadFormsCount}</span> : null}
@@ -178,6 +209,8 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             ) : <div className={styles.empty}>No website form submissions yet.</div>}
           </section>
         </>
+      ) : activeTab === 'calls' && canUseCalls ? (
+        <NotificationsCallsPanel filter={params.filter || 'all'} q={params.q || ''} />
       ) : (
         <div className={styles.textWrap}>
           <MessagesCenter viewerName={profile?.full_name || ''} initialAgent={initialAgent} />
