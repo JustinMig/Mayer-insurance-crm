@@ -90,6 +90,41 @@ function normalizedName(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+function ensureFollowUpAgentSelect(dialog: HTMLElement, context: AppointmentContext, activeOwnerName: string) {
+  if (!context.coordinator) return null
+  let select = dialog.querySelector<HTMLSelectElement>('[data-followup-agent-select="1"]')
+  if (select) return select
+
+  const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
+  if (!form) return null
+
+  const label = document.createElement('label')
+  label.className = 'label outreach-followup-agent-label'
+  label.append('Agent')
+
+  select = document.createElement('select')
+  select.className = 'select outreach-followup-agent-select'
+  select.dataset.followupAgentSelect = '1'
+
+  const blank = document.createElement('option')
+  blank.value = ''
+  blank.textContent = 'Select Justin or Isaiah'
+  select.appendChild(blank)
+
+  const wanted = normalizedName(activeOwnerName)
+  for (const agent of context.agents) {
+    const option = document.createElement('option')
+    option.value = agent.id
+    option.textContent = agent.full_name
+    select.appendChild(option)
+    if (wanted && normalizedName(agent.full_name) === wanted) select.value = agent.id
+  }
+
+  label.appendChild(select)
+  form.insertBefore(label, form.firstChild)
+  return select
+}
+
 export default function OutreachFollowUpAvailability() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('.content')
@@ -107,14 +142,6 @@ export default function OutreachFollowUpAvailability() {
       activeOwnerName = row?.querySelector<HTMLElement>('.campaign-owner-line')?.textContent?.trim() || ''
     }
 
-    const ownerIdForDialog = () => {
-      if (!context) return ''
-      if (!context.coordinator) return context.owner_id
-      const wanted = normalizedName(activeOwnerName)
-      if (!wanted) return ''
-      return context.agents.find((agent) => normalizedName(agent.full_name) === wanted)?.id || ''
-    }
-
     const enhanceDialog = (dialog: HTMLElement) => {
       if (!context) return
       const resultSelect = findLabel(dialog, 'Conversation result')?.querySelector<HTMLSelectElement>('select') || null
@@ -127,7 +154,9 @@ export default function OutreachFollowUpAvailability() {
       const followUpDateInput: HTMLInputElement = dateInput
       const followUpTimeInput: HTMLInputElement = timeInput
       followUpDateInput.dataset.followupAvailability = '1'
-      const ownerId = ownerIdForDialog()
+
+      const agentSelect = ensureFollowUpAgentSelect(dialog, context, activeOwnerName)
+      const selectedOwner = () => context?.coordinator ? String(agentSelect?.value || '') : String(context?.owner_id || '')
 
       const datePicker = document.createElement('input')
       datePicker.type = 'date'
@@ -158,8 +187,9 @@ export default function OutreachFollowUpAvailability() {
         timeSelect.replaceChildren()
         const empty = document.createElement('option')
         empty.value = ''
-        empty.textContent = enabled ? 'Select follow-up time' : (ownerId ? 'Choose a date first' : 'Assigned agent calendar unavailable')
+        empty.textContent = enabled ? 'Select appointment time' : (selectedOwner() ? 'Choose a date first' : 'Choose an agent first')
         timeSelect.appendChild(empty)
+
         for (let minutes = WORKDAY_START_MINUTES; minutes <= WORKDAY_END_MINUTES; minutes += SLOT_MINUTES) {
           const value = minutesToTime(minutes)
           const booked = isSlotBlocked(value, blocks)
@@ -169,29 +199,29 @@ export default function OutreachFollowUpAvailability() {
           option.textContent = `${formatTime(value)}${booked ? ' — BOOKED' : ''}`
           timeSelect.appendChild(option)
         }
+
         timeSelect.value = selected
         timeSelect.disabled = !enabled
       }
 
       async function loadAvailability() {
         const requestId = ++requestNumber
+        const ownerId = selectedOwner()
         blocks = []
         setControlledInputValue(followUpTimeInput, '')
 
         if (!ownerId) {
-          help.textContent = context?.coordinator
-            ? 'Unable to identify this campaign client’s assigned agent calendar.'
-            : 'Unable to load the assigned agent calendar.'
+          help.textContent = context?.coordinator ? 'Choose Justin or Isaiah first.' : 'Unable to load the assigned agent calendar.'
           renderOptions(false)
           return
         }
         if (!datePicker.value) {
-          help.textContent = 'Choose a follow-up date to see available appointment times.'
+          help.textContent = 'Choose a follow-up date to see available times.'
           renderOptions(false)
           return
         }
 
-        help.textContent = 'Checking the assigned agent calendar…'
+        help.textContent = 'Checking the selected agent calendar…'
         renderOptions(false)
         try {
           const params = new URLSearchParams({ date: datePicker.value, owner: ownerId })
@@ -216,6 +246,8 @@ export default function OutreachFollowUpAvailability() {
         setControlledInputValue(followUpDateInput, isoDateToManual(datePicker.value))
         void loadAvailability()
       })
+      agentSelect?.addEventListener('change', () => void loadAvailability())
+
       renderOptions(false)
       void loadAvailability()
     }
@@ -261,7 +293,8 @@ export default function OutreachFollowUpAvailability() {
 
   return (
     <style>{`
-      .outreach-followup-date-picker,.outreach-followup-time-select{width:100%}
+      .outreach-followup-agent-label{padding:10px;border:1px solid #d8d0ef;border-radius:10px;background:#f6f3ff}
+      .outreach-followup-agent-select,.outreach-followup-date-picker,.outreach-followup-time-select{width:100%}
       .outreach-followup-date-picker{cursor:pointer;color-scheme:light}
       .outreach-followup-time-select:disabled{background:#eef1f3!important;color:#7b8790!important;cursor:not-allowed}
       .outreach-followup-time-select option:disabled{color:#9b4f4f;background:#f7eded}
