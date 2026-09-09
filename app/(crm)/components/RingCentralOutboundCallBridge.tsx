@@ -12,25 +12,12 @@ function toRingCentralNumber(value: string) {
 }
 
 function isAppleDevice() {
+  if (typeof navigator === 'undefined') return false
   const userAgent = navigator.userAgent || ''
   const platform = navigator.platform || ''
   const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   const isMac = /Macintosh|Mac OS X/i.test(userAgent) || /^Mac/i.test(platform)
   return isiOS || isMac
-}
-
-function launchRingCentralCall(dialNumber: string) {
-  if (isAppleDevice()) {
-    // RingCentral's native URI scheme hands the call directly to the installed
-    // RingCentral app on macOS/iOS instead of opening the RingCentral web app.
-    window.location.assign(`rcmobile://call?number=${encodeURIComponent(dialNumber)}`)
-    return 'native' as const
-  }
-
-  const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
-  const launched = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!launched) window.location.assign(url)
-  return 'web' as const
 }
 
 export default function RingCentralOutboundCallBridge() {
@@ -39,7 +26,6 @@ export default function RingCentralOutboundCallBridge() {
   const [pilot, setPilot] = useState(false)
   const [phone, setPhone] = useState('')
   const [host, setHost] = useState<HTMLElement | null>(null)
-  const [launchMessage, setLaunchMessage] = useState('')
 
   useEffect(() => {
     if (!isClientRecord) {
@@ -102,34 +88,25 @@ export default function RingCentralOutboundCallBridge() {
 
   if (!isClientRecord || !pilot || !host || dialNumber.length < 10) return null
 
-  const startCall = () => {
-    setLaunchMessage('Opening RingCentral…')
-    const launchType = launchRingCentralCall(dialNumber)
-    if (launchType === 'native') {
-      window.setTimeout(() => {
-        setLaunchMessage('RingCentral app requested. If nothing opened, make sure the RingCentral app is installed on this Apple device.')
-      }, 1800)
-      return
-    }
-    window.setTimeout(() => {
-      setLaunchMessage('If RingCentral did not open, make sure RingCentral is your default click-to-dial app in RingCentral Settings → Phone.')
-    }, 1800)
-  }
+  const apple = isAppleDevice()
+  const href = apple
+    ? `rcmobile://call?number=${encodeURIComponent(dialNumber)}`
+    : `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
 
   return createPortal(
     <div className="ringcentral-outbound-call-wrap">
-      <button
-        type="button"
+      <a
         className="btn btn-primary ringcentral-outbound-call-button"
-        onClick={startCall}
-        title="Open RingCentral and call this client"
+        href={href}
+        target={apple ? undefined : '_blank'}
+        rel={apple ? undefined : 'noopener noreferrer'}
+        title={apple ? 'Call this client in the RingCentral app' : 'Open RingCentral and call this client'}
       >
         ☎ Call with RingCentral
-      </button>
-      {launchMessage ? <span className="ringcentral-outbound-call-message">{launchMessage}</span> : null}
+      </a>
       <style jsx global>{`
         .ringcentral-outbound-call-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .ringcentral-outbound-call-message{max-width:360px;color:#64748b;font-size:.72rem;font-weight:700}
+        .ringcentral-outbound-call-button{text-decoration:none}
       `}</style>
     </div>,
     host
