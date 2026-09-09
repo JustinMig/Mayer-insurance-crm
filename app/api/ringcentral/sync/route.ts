@@ -45,15 +45,23 @@ export async function POST() {
 
     const { data: clients, error: clientError } = await admin
       .from('clients')
-      .select('id,phone')
+      .select('id,phone,assigned_agent_id,created_at')
       .eq('agency_id', profile.agency_id)
+      .order('created_at', { ascending: false })
 
     if (clientError) throw new Error(`Unable to load client phone numbers: ${clientError.message}`)
 
+    // Phone numbers can exist on more than one CRM record. For Justin's pilot,
+    // always prefer the client record assigned to Justin. If none is assigned
+    // to Justin, fall back to the newest matching agency client.
     const clientByPhone = new Map<string, string>()
     for (const client of clients || []) {
       const phone = normalizePhone(client.phone)
       if (phone && !clientByPhone.has(phone)) clientByPhone.set(phone, client.id)
+    }
+    for (const client of clients || []) {
+      const phone = normalizePhone(client.phone)
+      if (phone && client.assigned_agent_id === userId) clientByPhone.set(phone, client.id)
     }
 
     const rows = records.map((record) => {
