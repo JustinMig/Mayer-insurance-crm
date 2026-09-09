@@ -98,9 +98,9 @@ export default function RouteScopedEnhancers() {
       ) : null}
 
       {isClientRecord ? <RingCentralOutboundCallBridge key={`ringcentral-call-${pathname}`} /> : null}
+      {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
       {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
-      {isClientRecord && deferredReady ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
     </>
   )
 }
