@@ -31,12 +31,13 @@ function toInsertRow(metric: RawMetric, agencyId: string, userId: string) {
 export async function POST(request: NextRequest) {
   try {
     const { supabase, userId, profile } = await getCrmSession()
-    if (!profile?.agency_id) return new NextResponse(null, { status: 204 })
+    const agencyId = profile?.agency_id
+    if (!agencyId) return new NextResponse(null, { status: 204 })
     const body = await request.json().catch(() => ({})) as Record<string, unknown>
     const rawEvents = Array.isArray(body.events) ? body.events.slice(0, 30) : [body]
     const rows = rawEvents
       .filter((event): event is RawMetric => Boolean(event) && typeof event === 'object' && !Array.isArray(event))
-      .map((event) => toInsertRow(event, profile.agency_id, userId))
+      .map((event) => toInsertRow(event, agencyId, userId))
       .filter((row): row is NonNullable<typeof row> => Boolean(row))
 
     if (rows.length) await supabase.from('crm_performance_events').insert(rows)
