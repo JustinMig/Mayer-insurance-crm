@@ -11,50 +11,26 @@ function toRingCentralNumber(value: string) {
   return digits
 }
 
-function launchRingCentralCall(dialNumber: string) {
-  const nativeUrl = `rcmobile://call?number=${encodeURIComponent(dialNumber)}`
-  const webUrl = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
-  let handedOff = false
-  let timer = 0
+function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false
+  const userAgent = navigator.userAgent || ''
+  const platform = navigator.platform || ''
+  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isAndroid = /Android/i.test(userAgent)
+  return isiOS || isAndroid
+}
 
-  const cleanup = () => {
-    window.removeEventListener('blur', onBlur)
-    document.removeEventListener('visibilitychange', onVisibilityChange)
-    if (timer) window.clearTimeout(timer)
-  }
-  const onBlur = () => {
-    handedOff = true
-    cleanup()
-  }
-  const onVisibilityChange = () => {
-    if (document.hidden) {
-      handedOff = true
-      cleanup()
-    }
-  }
+function isChromeBrowser() {
+  if (typeof navigator === 'undefined') return false
+  const userAgent = navigator.userAgent || ''
+  return /Chrome|CriOS/i.test(userAgent) && !/Edg|OPR/i.test(userAgent)
+}
 
-  window.addEventListener('blur', onBlur, { once: true })
-  document.addEventListener('visibilitychange', onVisibilityChange)
-
-  // RingCentral documents rcmobile://call for handing a call to its installed
-  // app. Use a direct user-gesture navigation because Chrome requires the
-  // JavaScript assignment path and it also works in other modern browsers.
-  try {
-    const targetWindow = window.parent || window
-    targetWindow.location.assign(nativeUrl)
-  } catch {
-    window.location.assign(nativeUrl)
-  }
-
-  // Some browsers/device installs fail silently when the RingCentral URI
-  // handler is not registered. Never leave the CRM button inert: if the app
-  // did not take focus, fall back to RingCentral's working call route.
-  timer = window.setTimeout(() => {
-    cleanup()
-    if (!handedOff && document.visibilityState === 'visible') {
-      window.location.assign(webUrl)
-    }
-  }, 1400)
+function nativeRingCentralUrl(dialNumber: string) {
+  const encoded = encodeURIComponent(dialNumber)
+  return isMobileDevice()
+    ? `rcmobile://call?number=${encoded}`
+    : `rcapp://r/call?number=${encoded}`
 }
 
 export default function RingCentralOutboundCallBridge() {
@@ -126,30 +102,46 @@ export default function RingCentralOutboundCallBridge() {
 
   if (!isClientRecord || !pilot || !host || dialNumber.length < 10) return null
 
-  const startCall = () => {
-    setLaunchMessage('Opening RingCentral…')
-    launchRingCentralCall(dialNumber)
+  const nativeUrl = nativeRingCentralUrl(dialNumber)
+
+  const startCall = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    setLaunchMessage('Opening the RingCentral app…')
+
+    // RingCentral documents direct native URI links for Safari and other
+    // browsers, while Chrome requires a JavaScript location assignment.
+    // There is deliberately NO https/web fallback here: these CRM call
+    // buttons are native-app-only.
+    if (isChromeBrowser()) {
+      event.preventDefault()
+      try {
+        const targetWindow = window.parent || window
+        targetWindow.location.assign(nativeUrl)
+      } catch {
+        window.location.assign(nativeUrl)
+      }
+    }
+
     window.setTimeout(() => {
       if (document.visibilityState === 'visible') {
-        setLaunchMessage('Opening RingCentral. If the installed app cannot accept the call link, the RingCentral call page will open automatically.')
+        setLaunchMessage('RingCentral app requested. If it does not open, verify RingCentral is installed and enabled for click-to-dial on this device.')
       }
-    }, 1700)
+    }, 1800)
   }
 
   return createPortal(
     <div className="ringcentral-outbound-call-wrap">
-      <button
-        type="button"
+      <a
         className="btn btn-primary ringcentral-outbound-call-button"
+        href={nativeUrl}
         onClick={startCall}
-        title="Open RingCentral and call this client"
+        title="Open the installed RingCentral app and call this client"
       >
         ☎ Call with RingCentral
-      </button>
+      </a>
       {launchMessage ? <span className="ringcentral-outbound-call-message">{launchMessage}</span> : null}
       <style jsx global>{`
         .ringcentral-outbound-call-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .ringcentral-outbound-call-button{cursor:pointer}
+        .ringcentral-outbound-call-button{cursor:pointer;text-decoration:none}
         .ringcentral-outbound-call-message{max-width:390px;color:#64748b;font-size:.72rem;font-weight:700}
       `}</style>
     </div>,
