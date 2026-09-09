@@ -1,0 +1,69 @@
+name: Apply Justin global quick tools relocation
+
+on:
+  push:
+    branches: [ui/justin-global-quick-tools]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[global-tools-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/justin-global-quick-tools
+      - name: Relocate Justin tools and page controls
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def edit(path, replacements):
+              p = Path(path)
+              text = p.read_text()
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f'Missing expected text in {path}: {old[:120]!r}')
+                  text = text.replace(old, new, 1)
+              p.write_text(text)
+
+          edit('app/(crm)/dashboard/DashboardQuickTools.tsx', [
+              ('export default function DashboardQuickTools() {', 'export default function DashboardQuickTools({ compact = false }: { compact?: boolean }) {'),
+              ('<nav className="dashboard-quick-tools" aria-label="Justin dashboard quick tools">', '<nav className={`dashboard-quick-tools${compact ? \' compact\' : \'\'}`} aria-label="Justin CRM quick tools">'),
+              ('            title={tool.hint}\n          >', '            title={tool.hint}\n            aria-label={tool.label}\n          >'),
+              ('.dashboard-quick-tools{display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;margin:12px 0 2px;padding:2px 2px 8px}\n', '.dashboard-quick-tools{display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;margin:12px 0 2px;padding:2px 2px 8px}\n        .dashboard-quick-tools.compact{margin:0 0 0 10px;padding:0;gap:5px;flex-wrap:nowrap;align-items:center}\n        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:0;padding:0;display:block}\n        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:none}\n        .dashboard-quick-tools.compact .dashboard-quick-icon{width:34px;height:34px;border-radius:10px}\n        .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:18px;height:18px}\n'),
+              ('          .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}\n', '          .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}\n          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 5px;padding:0}\n          .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto}\n          .dashboard-quick-tools.compact .dashboard-quick-icon{width:31px;height:31px;border-radius:9px}\n          .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:17px;height:17px}\n')
+          ])
+
+          edit('app/(crm)/layout.tsx', [
+              ("import PushNotificationManager from './components/PushNotificationManager'\n", "import DashboardQuickTools from './dashboard/DashboardQuickTools'\n"),
+              ('            <strong>{portalBrand}</strong>\n          </div>', '            <strong>{portalBrand}</strong>\n            {isJustinAdmin ? <DashboardQuickTools compact /> : null}\n          </div>'),
+              ('            {isJustinAdmin ? <Link prefetch={false} href="/clients/duplicates" className="duplicate-compare-nav">COMPARE CLIENTS</Link> : null}\n            <PushNotificationManager />\n', '')
+          ])
+
+          edit('app/(crm)/dashboard/page.tsx', [
+              ("import DashboardQuickTools from './DashboardQuickTools'\n", ''),
+              ('      {isJustinPortal ? <DashboardQuickTools /> : null}\n\n', '')
+          ])
+
+          edit('app/(crm)/clients/page.tsx', [
+              ('  const canBulkDelete = canDeleteClients(currentProfile.role)\n', "  const canBulkDelete = canDeleteClients(currentProfile.role)\n  const isJustinAdmin = currentProfile.role === 'admin' && currentProfile.full_name?.trim().toLowerCase() === 'justin mayer'\n"),
+              ('        <div style={{ display: \'flex\', gap: 10, flexWrap: \'wrap\' }}><Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link></div>', '        <div style={{ display: \'flex\', gap: 10, flexWrap: \'wrap\' }}>{isJustinAdmin ? <Link prefetch={false} href="/clients/duplicates" className="btn btn-secondary">COMPARE CLIENTS</Link> : null}<Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link></div>')
+          ])
+
+          edit('app/(crm)/notifications/page.tsx', [
+              ("import NotificationsMailList from './NotificationsMailList'\n", "import NotificationsMailList from './NotificationsMailList'\nimport PushNotificationManager from '../components/PushNotificationManager'\n"),
+              ('''        {canUseMailAndForms ? (\n          <div className={styles.summaryMeta}>\n            <span>{unreadMailCount} unread mail</span>\n            <span>{unreadFormsCount} new forms</span>\n          </div>\n        ) : null}''', '''        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>\n          <PushNotificationManager />\n          {canUseMailAndForms ? (\n            <div className={styles.summaryMeta}>\n              <span>{unreadMailCount} unread mail</span>\n              <span>{unreadFormsCount} new forms</span>\n            </div>\n          ) : null}\n        </div>''')
+          ])
+
+          Path('tests/dashboard-quick-tools.test.mjs').write_text('''import test from 'node:test'\nimport assert from 'node:assert/strict'\nimport { readFile } from 'node:fs/promises'\nimport path from 'node:path'\nimport { fileURLToPath } from 'node:url'\n\nconst here = path.dirname(fileURLToPath(import.meta.url))\nconst root = path.resolve(here, '..')\nconst source = (relativePath) => readFile(path.join(root, relativePath), 'utf8')\n\ntest('Justin quick tools stay in the global CRM header and page-specific controls live on their pages', async () => {\n  const layout = await source('app/(crm)/layout.tsx')\n  const dashboard = await source('app/(crm)/dashboard/page.tsx')\n  const quick = await source('app/(crm)/dashboard/DashboardQuickTools.tsx')\n  const clients = await source('app/(crm)/clients/page.tsx')\n  const notifications = await source('app/(crm)/notifications/page.tsx')\n\n  assert.match(layout, /isJustinAdmin \\? <DashboardQuickTools compact \\/>/)\n  assert.doesNotMatch(layout, /COMPARE CLIENTS/)\n  assert.doesNotMatch(layout, /<PushNotificationManager \\/>/)\n  assert.doesNotMatch(dashboard, /<DashboardQuickTools/)\n  assert.match(quick, /compact = false/)\n  assert.match(quick, /dashboard-quick-tools\\$\\{compact/)\n\n  for (const label of ['Notes', 'FEX Quotes', 'Company Directory', 'Height & Weight']) {\n    assert.match(quick, new RegExp(label.replace(/[&]/g, '&')))\n  }\n  assert.match(quick, /dashboard-quick-backdrop/)\n  assert.match(quick, /event\\.target === event\\.currentTarget/)\n  assert.match(quick, /event\\.key === 'Escape'/)\n  assert.match(clients, /COMPARE CLIENTS/)\n  assert.match(clients, /href="\\/clients\\/duplicates"/)\n  assert.match(notifications, /PushNotificationManager/)\n  assert.match(notifications, /<PushNotificationManager \\/>/)\n})\n''')
+      - name: Commit relocation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app tests
+          git commit -m "[global-tools-applied] Keep Justin quick tools in global header"
+          git push origin HEAD:ui/justin-global-quick-tools
