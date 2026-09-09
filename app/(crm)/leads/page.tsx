@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import LeadsClient from './LeadsClient'
+import LeadCollapseBridge from './LeadCollapseBridge'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -49,5 +50,10 @@ export default async function LeadsPage() {
     agents = [{ id: userId, full_name: profile.full_name || 'Agent' }]
   }
 
-  return <LeadsClient viewerId={userId} isManager={isManager} agents={agents} />
+  return (
+    <>
+      <LeadsClient viewerId={userId} isManager={isManager} agents={agents} />
+      <LeadCollapseBridge />
+    </>
+  )
 }
