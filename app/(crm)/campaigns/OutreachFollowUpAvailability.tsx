@@ -124,34 +124,36 @@ export default function OutreachFollowUpAvailability() {
       const timeInput = findLabel(dialog, 'Time (optional)')?.querySelector<HTMLInputElement>('input[type="time"]') || null
       if (!dateInput || !timeInput || dateInput.dataset.followupAvailability === '1') return
 
-      dateInput.dataset.followupAvailability = '1'
+      const followUpDateInput: HTMLInputElement = dateInput
+      const followUpTimeInput: HTMLInputElement = timeInput
+      followUpDateInput.dataset.followupAvailability = '1'
       const ownerId = ownerIdForDialog()
 
       const datePicker = document.createElement('input')
       datePicker.type = 'date'
-      datePicker.className = `${dateInput.className} outreach-followup-date-picker`
-      datePicker.value = manualDateToIso(dateInput.value)
-      dateInput.style.display = 'none'
-      dateInput.setAttribute('aria-hidden', 'true')
-      dateInput.insertAdjacentElement('afterend', datePicker)
+      datePicker.className = `${followUpDateInput.className} outreach-followup-date-picker`
+      datePicker.value = manualDateToIso(followUpDateInput.value)
+      followUpDateInput.style.display = 'none'
+      followUpDateInput.setAttribute('aria-hidden', 'true')
+      followUpDateInput.insertAdjacentElement('afterend', datePicker)
 
       const timeSelect = document.createElement('select')
-      timeSelect.className = `${timeInput.className} outreach-followup-time-select`
+      timeSelect.className = `${followUpTimeInput.className} outreach-followup-time-select`
       const help = document.createElement('small')
       help.className = 'outreach-followup-time-help'
-      timeInput.style.display = 'none'
-      timeInput.setAttribute('aria-hidden', 'true')
-      timeInput.insertAdjacentElement('afterend', timeSelect)
+      followUpTimeInput.style.display = 'none'
+      followUpTimeInput.setAttribute('aria-hidden', 'true')
+      followUpTimeInput.insertAdjacentElement('afterend', timeSelect)
       timeSelect.insertAdjacentElement('afterend', help)
 
       let blocks: CalendarBlock[] = []
       let requestNumber = 0
 
       function renderOptions(enabled: boolean) {
-        let selected = timeInput.value.slice(0, 5)
+        let selected = followUpTimeInput.value.slice(0, 5)
         if (selected && isSlotBlocked(selected, blocks)) {
           selected = ''
-          setControlledInputValue(timeInput, '')
+          setControlledInputValue(followUpTimeInput, '')
         }
         timeSelect.replaceChildren()
         const empty = document.createElement('option')
@@ -174,7 +176,7 @@ export default function OutreachFollowUpAvailability() {
       async function loadAvailability() {
         const requestId = ++requestNumber
         blocks = []
-        setControlledInputValue(timeInput, '')
+        setControlledInputValue(followUpTimeInput, '')
 
         if (!ownerId) {
           help.textContent = context?.coordinator
@@ -209,9 +211,9 @@ export default function OutreachFollowUpAvailability() {
         }
       }
 
-      timeSelect.addEventListener('change', () => setControlledInputValue(timeInput, timeSelect.value))
+      timeSelect.addEventListener('change', () => setControlledInputValue(followUpTimeInput, timeSelect.value))
       datePicker.addEventListener('change', () => {
-        setControlledInputValue(dateInput, isoDateToManual(datePicker.value))
+        setControlledInputValue(followUpDateInput, isoDateToManual(datePicker.value))
         void loadAvailability()
       })
       renderOptions(false)
@@ -225,7 +227,8 @@ export default function OutreachFollowUpAvailability() {
 
     const onChange = (event: Event) => {
       const target = event.target instanceof HTMLSelectElement ? event.target : null
-      if (!target || directLabelText(target.closest('label') as HTMLLabelElement) !== 'Conversation result') return
+      const label = target?.closest<HTMLLabelElement>('label') || null
+      if (!target || !label || directLabelText(label) !== 'Conversation result') return
       window.requestAnimationFrame(enhance)
     }
 
