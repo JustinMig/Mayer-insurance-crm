@@ -52,6 +52,11 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
 
   return (
     <>
+      {isJustin ? (
+        <style jsx global>{`
+          .dashboard-justin-financial-stats{display:none!important}
+        `}</style>
+      ) : null}
       {host ? createPortal(
         <div className="dashboard-crm-identity" aria-label={`Signed in as ${name}, ${displayRole(role)}`}>
           <strong>{name || 'CRM User'}</strong>
