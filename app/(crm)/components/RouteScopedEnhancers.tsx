@@ -13,6 +13,7 @@ const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), {
 const ClientTextingDock = dynamic(() => import('./ClientTextingDock'), { ssr: false })
 const ClientSoaTextAction = dynamic(() => import('./ClientSoaTextAction'), { ssr: false })
 const RingCentralOutboundCallBridge = dynamic(() => import('./RingCentralOutboundCallBridge'), { ssr: false })
+const NewClientRingCentralPrefill = dynamic(() => import('./NewClientRingCentralPrefill'), { ssr: false })
 const ManualWorkspaceDates = dynamic(() => import('./ManualWorkspaceDates'), { ssr: false })
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
@@ -88,6 +89,7 @@ export default function RouteScopedEnhancers() {
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
 
+      {isNewClient ? <NewClientRingCentralPrefill key={`ringcentral-prefill-${pathname}`} /> : null}
       {isNewClient ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
       {isClientRecord && sections.medicare ? (
         <ClientRecordBootstrapProvider clientId={clientId}>
