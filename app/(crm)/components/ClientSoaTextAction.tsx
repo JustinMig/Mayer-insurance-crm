@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
 const PRODUCT_OPTIONS = [
@@ -21,11 +22,37 @@ function clientIdFromPath(pathname: string) {
 export default function ClientSoaTextAction() {
   const pathname = usePathname()
   const clientId = useMemo(() => clientIdFromPath(pathname), [pathname])
+  const [host, setHost] = useState<HTMLElement | null>(null)
   const [open, setOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [message, setMessage] = useState('')
   const [products, setProducts] = useState<string[]>([...PRODUCT_OPTIONS])
   const [otherProduct, setOtherProduct] = useState('')
+
+  useEffect(() => {
+    if (!clientId) {
+      setHost(null)
+      return
+    }
+
+    let attempts = 0
+    let timer: number | null = null
+    const findHost = () => {
+      attempts += 1
+      const nextHost = document.querySelector<HTMLElement>('.section-medicare .medicare-documents-heading .document-action-row')
+      if (nextHost) {
+        setHost(nextHost)
+        return
+      }
+      if (attempts < 30) timer = window.setTimeout(findHost, 150)
+    }
+
+    findHost()
+    return () => {
+      if (timer !== null) window.clearTimeout(timer)
+      setHost(null)
+    }
+  }, [clientId])
 
   if (!clientId) return null
 
@@ -60,9 +87,12 @@ export default function ClientSoaTextAction() {
 
   return (
     <>
-      <button type="button" className="client-soa-direct-button" onClick={() => { setMessage(''); setOpen(true) }}>
-        TEXT SOA
-      </button>
+      {host ? createPortal(
+        <button type="button" className="btn btn-primary client-soa-inline-button" onClick={() => { setMessage(''); setOpen(true) }}>
+          TEXT SOA
+        </button>,
+        host
+      ) : null}
 
       {open ? (
         <div className="client-soa-direct-backdrop" role="dialog" aria-modal="true" aria-label="Text Scope of Appointment" onMouseDown={(event) => { if (event.currentTarget === event.target && !sending) setOpen(false) }}>
@@ -92,13 +122,13 @@ export default function ClientSoaTextAction() {
       ) : null}
 
       <style jsx global>{`
-        .client-soa-direct-button{position:fixed;right:18px;bottom:18px;z-index:900;border:1px solid #315b4c;border-radius:999px;background:#315b4c;color:#fff;padding:10px 15px;font:inherit;font-size:.78rem;font-weight:900;cursor:pointer;box-shadow:0 4px 14px rgba(20,46,37,.18)}
+        .client-soa-inline-button{white-space:nowrap}
         .client-soa-direct-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,23,42,.55);display:grid;place-items:center;padding:14px}
         .client-soa-direct-modal{width:min(720px,100%);max-height:calc(100dvh - 28px);overflow:auto;padding:17px;display:grid;gap:14px}
         .client-soa-direct-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.client-soa-direct-head h2{margin:0}.client-soa-direct-head p{margin:5px 0 0}
         .client-soa-direct-products{display:grid;gap:11px}.client-soa-direct-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.client-soa-direct-grid label{display:flex;align-items:flex-start;gap:7px;padding:9px;border:1px solid #dbe3e7;border-radius:9px;background:#f8faf9;font-size:.8rem;font-weight:750}
         .client-soa-direct-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
-        @media(max-width:720px){.client-soa-direct-button{right:12px;bottom:calc(68px + env(safe-area-inset-bottom));padding:9px 12px}.client-soa-direct-grid{grid-template-columns:1fr}.client-soa-direct-modal{padding:12px}.client-soa-direct-actions .btn{flex:1}}
+        @media(max-width:720px){.client-soa-direct-grid{grid-template-columns:1fr}.client-soa-direct-modal{padding:12px}.client-soa-direct-actions .btn{flex:1}.client-soa-inline-button{width:100%}}
       `}</style>
     </>
   )
