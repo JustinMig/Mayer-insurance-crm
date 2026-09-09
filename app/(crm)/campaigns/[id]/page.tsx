@@ -7,8 +7,6 @@ import spacing from '../OutreachSpacing.module.css'
 
 type Params = Promise<{ id: string }>
 
-const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
-
 type Member = {
   id: string
   campaign_id: string
@@ -104,12 +102,10 @@ export default async function CampaignDetailPage({ params }: { params: Params })
     .map((member) => ({ ...member, owner_name: agentById.get(member.assigned_agent_id) || 'Agent', client: clientById.get(member.client_id) || null }))
     .filter((row) => row.client)
 
-  const isJustinRingCentral = userId === JUSTIN_USER_ID && String(profile.full_name || '').trim().toLowerCase() === 'justin mayer'
-
   return (
     <div className={spacing.scope}>
       <style>{`.campaign-record-actions>button:nth-last-child(2){display:none!important}`}</style>
-      {isJustinRingCentral ? <CampaignRingCentralCallBridge /> : null}
+      <CampaignRingCentralCallBridge />
       <CampaignDetailClient
         campaign={{ id: campaign.id, name: campaign.name, topic: campaign.topic, status: campaign.status }}
         initialRows={rows}
