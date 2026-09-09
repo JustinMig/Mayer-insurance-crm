@@ -19,6 +19,7 @@ const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridg
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
 const DeceasedStatusBridge = dynamic(() => import('../clients/components/DeceasedStatusBridge'), { ssr: false })
+const ClientCallHistoryBridge = dynamic(() => import('../clients/components/ClientCallHistoryBridge'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 const OutreachAppointmentTimeBlocker = dynamic(() => import('../campaigns/OutreachAppointmentTimeBlocker'), { ssr: false })
 
@@ -97,10 +98,11 @@ export default function RouteScopedEnhancers() {
         </ClientRecordBootstrapProvider>
       ) : null}
 
-      {/* Keep core client communication actions available immediately on mobile. */}
+      {/* Keep core client communication actions and the permanent communication section available immediately. */}
       {isClientRecord ? <RingCentralOutboundCallBridge key={`ringcentral-call-${pathname}`} /> : null}
       {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
       {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
+      {isClientRecord ? <ClientCallHistoryBridge key={`communications-history-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
     </>
   )
