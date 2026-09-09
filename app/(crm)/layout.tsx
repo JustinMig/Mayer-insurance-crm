@@ -8,6 +8,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NotificationsNavLink from './components/NotificationsNavLink'
 import DashboardQuickTools from './dashboard/DashboardQuickTools'
+import DashboardIdentityBadge from './dashboard/DashboardIdentityBadge'
 import PreviousPageButton from './components/PreviousPageButton'
 import RouteScopedEnhancers from './components/RouteScopedEnhancers'
 import WebVitalsReporter from './components/WebVitalsReporter'
@@ -158,7 +159,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             {hasQuickTools ? <DashboardQuickTools compact /> : null}
           </div>
         </header>
-        <main className="content"><PreviousPageButton />{children}</main>
+        <main className="content"><PreviousPageButton /><DashboardIdentityBadge name={profile?.full_name || 'CRM User'} role={profile?.role || ''} />{children}</main>
       </div>
 
       <nav className="mobile-nav">
