@@ -1,0 +1,95 @@
+name: Apply all-user quick tools
+
+on:
+  push:
+    branches: [feature/all-user-quick-tools]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[all-user-tools-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/all-user-quick-tools
+      - name: Apply user-aware quick tools
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def edit(path, replacements):
+              p = Path(path)
+              text = p.read_text()
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f'Missing expected text in {path}: {old[:140]!r}')
+                  text = text.replace(old, new, 1)
+              p.write_text(text)
+
+          edit('app/(crm)/layout.tsx', [
+              ("  const isJustinAdmin = profile?.role === 'admin' && profile?.full_name?.trim().toLowerCase() === 'justin mayer'\n", "  const viewerName = profile?.full_name?.trim().toLowerCase() || ''\n  const hasQuickTools = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)\n"),
+              ("            {isJustinAdmin ? <DashboardQuickTools compact /> : null}\n", "            {hasQuickTools ? <DashboardQuickTools compact /> : null}\n")
+          ])
+
+          edit('app/(crm)/dashboard/DashboardQuickTools.tsx', [
+              ("    hint: 'Set a client appointment',", "    hint: 'Set an appointment',"),
+              ('aria-label="Justin CRM quick tools"', 'aria-label="CRM quick tools"')
+          ])
+
+          p = Path('app/(crm)/dashboard/AppointmentQuickSetter.tsx')
+          text = p.read_text()
+          old_status = "  const [status, setStatus] = useState('Choose an existing client or enter a new client, then pick a date and available time.')\n"
+          new_status = "  const [calendarOwnerId, setCalendarOwnerId] = useState('')\n  const [contextLoading, setContextLoading] = useState(true)\n  const [status, setStatus] = useState('Loading your appointment calendar…')\n"
+          if old_status not in text: raise SystemExit('Missing appointment status state')
+          text = text.replace(old_status, new_status, 1)
+
+          marker = "  const subjectReady = mode === 'existing'\n    ? Boolean(selectedClient)\n    : Boolean(newName.trim() && newPhone.trim())\n\n"
+          insert = marker + "  useEffect(() => {\n    let cancelled = false\n    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())\n    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))\n    const today = `${values.year}-${values.month}-${values.day}`\n    setContextLoading(true)\n    void fetch(`/api/workspace/calendar-availability?date=${encodeURIComponent(today)}`, { cache: 'no-store' })\n      .then(async (response) => {\n        const result = await response.json().catch(() => ({}))\n        if (!response.ok) throw new Error(result.error || 'Unable to load your appointment calendar.')\n        if (cancelled) return\n        setCalendarOwnerId(String(result.owner_id || ''))\n        setStatus('Choose an existing client or enter a new/non-client, then pick a date and available time.')\n      })\n      .catch((error) => { if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to load your appointment calendar.') })\n      .finally(() => { if (!cancelled) setContextLoading(false) })\n    return () => { cancelled = true }\n  }, [])\n\n"
+          if marker not in text: raise SystemExit('Missing subjectReady marker')
+          text = text.replace(marker, insert, 1)
+
+          old = "      void fetch(`/api/workspace/clients?q=${encodeURIComponent(value)}`, { cache: 'no-store' })"
+          new = "      const params = new URLSearchParams({ q: value })\n      if (calendarOwnerId) params.set('agent', calendarOwnerId)\n      void fetch(`/api/clients/search?${params.toString()}`, { cache: 'no-store' })"
+          if old not in text: raise SystemExit('Missing client search call')
+          text = text.replace(old, new, 1)
+          text = text.replace("  }, [mode, query, selectedClient])", "  }, [mode, query, selectedClient, calendarOwnerId])", 1)
+
+          old = "    const params = new URLSearchParams({ date: eventDate })"
+          new = "    const params = new URLSearchParams({ date: eventDate })\n    if (calendarOwnerId) params.set('owner', calendarOwnerId)"
+          if old not in text: raise SystemExit('Missing availability params')
+          text = text.replace(old, new, 1)
+          text = text.replace("  }, [eventDate])", "  }, [eventDate, calendarOwnerId])", 1)
+
+          old = "          assigned_agent_id: mode === 'existing' ? selectedClient?.assigned_agent_id || '' : '',"
+          if old not in text: raise SystemExit('Missing assigned_agent_id line')
+          text = text.replace(old, "          assigned_agent_id: calendarOwnerId || selectedClient?.assigned_agent_id || '',", 1)
+
+          text = text.replace("        <span>Schedule an existing client or a new/non-client directly onto Justin’s main calendar.</span>", "        <span>Schedule an existing client or a new/non-client directly onto the main calendar.</span>", 1)
+          text = text.replace("disabled={saving || checking || !subjectReady || !eventDate || !startTime}", "disabled={saving || checking || contextLoading || !calendarOwnerId || !subjectReady || !eventDate || !startTime}", 1)
+          p.write_text(text)
+
+          p = Path('tests/dashboard-quick-tools.test.mjs')
+          text = p.read_text()
+          text = text.replace("test('Justin quick tools stay in the global CRM header and page-specific controls live on their pages'", "test('quick tools stay in every supported user global CRM header and page-specific controls live on their pages'", 1)
+          old = "  assert.match(layout, /isJustinAdmin \\? <DashboardQuickTools compact \\/>/)\n"
+          new = "  assert.match(layout, /hasQuickTools \\? <DashboardQuickTools compact \\/>/)\n  assert.match(layout, /'justin mayer', 'isaiah hernandez', 'sheena hester'/)\n"
+          if old not in text: raise SystemExit('Missing layout quick-tools test')
+          text = text.replace(old, new, 1)
+          old = "  assert.match(appointment, /\\/api\\/workspace\\/clients\\?q=/)\n"
+          new = "  assert.match(appointment, /\\/api\\/clients\\/search\\?/)\n  assert.match(appointment, /calendarOwnerId/)\n"
+          if old not in text: raise SystemExit('Missing appointment search test')
+          text = text.replace(old, new, 1)
+          text = text.replace("  assert.match(appointment, /event_type: 'appointment'/)\n", "  assert.match(appointment, /event_type: 'appointment'/)\n  assert.doesNotMatch(appointment, /Justin’s main calendar/)\n", 1)
+          p.write_text(text)
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app tests
+          git commit -m "[all-user-tools-applied] Add quick tools to all CRM users"
+          git push origin HEAD:feature/all-user-quick-tools
