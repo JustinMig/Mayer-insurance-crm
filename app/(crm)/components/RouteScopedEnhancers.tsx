@@ -97,6 +97,7 @@ export default function RouteScopedEnhancers() {
         </ClientRecordBootstrapProvider>
       ) : null}
 
+      {/* Keep core client communication actions available immediately on mobile. */}
       {isClientRecord ? <RingCentralOutboundCallBridge key={`ringcentral-call-${pathname}`} /> : null}
       {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
       {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
