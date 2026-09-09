@@ -63,7 +63,7 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
   const loadThread = useCallback(async (clientId: string) => {
     setThreadLoading((current) => new Set(current).add(clientId))
     try {
-      const response = await fetch(`/api/clients/${clientId}/sms`, { cache: 'no-store' })
+      const response = await fetch(`/api/clients/${clientId}/sms?scope=notifications`, { cache: 'no-store' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to load this conversation.')
       setThreadMessages((current) => ({ ...current, [clientId]: Array.isArray(result.messages) ? result.messages : [] }))
@@ -158,7 +158,7 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
   async function deleteSelected() {
     const ids = Array.from(selectedMessages)
     if (!ids.length || busy) return
-    if (!window.confirm(`Delete ${ids.length} selected ${ids.length === 1 ? 'text' : 'texts'}? This removes them from the CRM conversation history.`)) return
+    if (!window.confirm(`Remove ${ids.length} selected ${ids.length === 1 ? 'text' : 'texts'} from Notifications?\n\nThey will remain permanently saved in the client record.`)) return
 
     setBusy(true)
     try {
@@ -168,12 +168,12 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
         body: JSON.stringify({ message_ids: ids })
       })
       const result = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result.error || 'Unable to delete selected texts.')
+      if (!response.ok) throw new Error(result.error || 'Unable to remove selected texts from Notifications.')
       setSelectedMessages(new Set())
       const openId = Array.from(openIds)[0]
       await Promise.all([load(), openId ? loadThread(openId) : Promise.resolve()])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete selected texts.')
+      setError(err instanceof Error ? err.message : 'Unable to remove selected texts from Notifications.')
     } finally {
       setBusy(false)
     }
@@ -184,14 +184,14 @@ export default function MessagesCenter({ viewerName = '', initialAgent = 'all' }
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div className="clients-page-heading">
           <h1>Messages</h1>
-          <p className="subtle">Conversation summaries stay lightweight. The full text history loads only when you open a client.</p>
+          <p className="subtle">Conversation summaries stay lightweight. Removing a text here only clears it from Notifications; the client record keeps the permanent history.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center' }}>
             <strong style={{ fontSize: 22 }}>{isSheena ? boardUnread : totalUnread}</strong><span className="subtle">new</span>
           </div>
           <button type="button" className="btn btn-secondary" disabled={!selectedMessages.size || busy} onClick={() => void deleteSelected()}>
-            {busy ? 'Working…' : `DELETE SELECTED${selectedMessages.size ? ` (${selectedMessages.size})` : ''}`}
+            {busy ? 'Working…' : `REMOVE SELECTED${selectedMessages.size ? ` (${selectedMessages.size})` : ''}`}
           </button>
         </div>
       </div>
