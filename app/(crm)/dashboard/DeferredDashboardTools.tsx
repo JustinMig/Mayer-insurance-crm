@@ -2,20 +2,6 @@
 
 import { useEffect } from 'react'
 
-function currencyValue(text: string | null | undefined) {
-  const value = Number(String(text || '').replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(value) ? value : null
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value)
-}
-
 export default function DeferredDashboardTools() {
   useEffect(() => {
     // This helper is mounted for non-Justin dashboards. Only apply the cleanup
@@ -33,20 +19,6 @@ export default function DeferredDashboardTools() {
     const historyCard = content.querySelector<HTMLElement>('.isaiah-premium-history-card')
     const historyIntro = historyCard?.querySelector<HTMLElement>(':scope > div:first-child .subtle')
     if (historyIntro) historyIntro.textContent = 'Choose a month and year to review premium sales.'
-
-    const historyResults = historyCard?.querySelectorAll<HTMLElement>('.isaiah-premium-inline-results > div') || []
-    const yearlyResult = historyResults.length > 1 ? historyResults[1] : null
-    const yearlyLabel = yearlyResult?.querySelector<HTMLElement>('.premium-card-label') || null
-    const yearlyValue = yearlyResult?.querySelector<HTMLElement>('.premium-total-value') || null
-
-    if (yearlyLabel) yearlyLabel.textContent = yearlyLabel.textContent.replace('Annualized Premium', 'Yearly Premium Total')
-
-    // The old UI multiplied the selected year's premium total by 12 before
-    // displaying it. Undo that presentation-only calculation so the history
-    // card shows the real selected-year total returned by the dashboard query.
-    const displayedAnnualized = currencyValue(yearlyValue?.textContent)
-    if (yearlyValue && displayedAnnualized !== null) yearlyValue.textContent = money(displayedAnnualized / 12)
-    yearlyResult?.querySelector('.subtle')?.remove()
 
     return () => content.classList.remove('isaiah-dashboard-clean')
   }, [])
@@ -117,7 +89,7 @@ export default function DeferredDashboardTools() {
       }
       .isaiah-dashboard-clean .isaiah-premium-inline-results{
         display:grid!important;
-        grid-template-columns:1fr 1fr!important;
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
         gap:10px!important;
       }
       .isaiah-dashboard-clean .isaiah-premium-inline-results>div{
@@ -127,6 +99,7 @@ export default function DeferredDashboardTools() {
         border-radius:12px!important;
         background:#f8fafc!important;
         display:grid!important;
+        align-content:start!important;
         gap:6px!important;
       }
       .isaiah-dashboard-clean .isaiah-premium-inline-results>div:first-child{
@@ -149,21 +122,31 @@ export default function DeferredDashboardTools() {
         font-size:1.45rem!important;
         line-height:1.1!important;
       }
+      .isaiah-dashboard-clean .isaiah-premium-inline-results .subtle{
+        margin:3px 0 0!important;
+        font-size:.68rem!important;
+        line-height:1.25!important;
+      }
 
       @media(max-width:640px){
         .isaiah-dashboard-clean .dashboard-personal-stats,
         .isaiah-dashboard-clean .isaiah-premium-tools{max-width:none!important}
         .isaiah-dashboard-clean .dashboard-monthly-premium-stat{padding:15px!important}
         .isaiah-dashboard-clean .dashboard-monthly-premium-stat strong{font-size:1.35rem!important}
-        .isaiah-dashboard-clean .isaiah-premium-history-card{padding:13px!important;gap:12px!important}
+        .isaiah-dashboard-clean .isaiah-premium-history-card{padding:12px!important;gap:11px!important}
         .isaiah-dashboard-clean .isaiah-premium-history-card>.premium-period-controls{
           grid-template-columns:1fr 1fr!important;
           padding:9px!important;
         }
         .isaiah-dashboard-clean .premium-period-controls .btn{grid-column:1 / -1!important;width:100%!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results{grid-template-columns:1fr!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results>div{padding:12px!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-total-value{font-size:1.3rem!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results{
+          grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+          gap:7px!important;
+        }
+        .isaiah-dashboard-clean .isaiah-premium-inline-results>div{padding:10px!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-card-label{font-size:.6rem!important;letter-spacing:.02em!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-total-value{font-size:1.05rem!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .subtle{font-size:.58rem!important}
       }
     `}</style>
   )
