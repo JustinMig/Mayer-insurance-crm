@@ -4,6 +4,11 @@ import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import DashboardNotes from './DashboardNotes'
 
+const AppointmentQuickSetter = dynamic(() => import('./AppointmentQuickSetter'), {
+  ssr: false,
+  loading: () => <div className="dashboard-quick-loading">Loading appointment setter…</div>
+})
+
 const CompanyDirectory = dynamic(() => import('./CompanyDirectory'), {
   ssr: false,
   loading: () => <div className="dashboard-quick-loading">Loading company directory…</div>
@@ -14,7 +19,7 @@ const BuildChartLookup = dynamic(() => import('./BuildChartLookup'), {
   loading: () => <div className="dashboard-quick-loading">Loading height &amp; weight chart…</div>
 })
 
-type ToolKey = 'notes' | 'fex' | 'directory' | 'build'
+type ToolKey = 'appointments' | 'notes' | 'fex' | 'directory' | 'build'
 
 type Tool = {
   key: ToolKey
@@ -24,6 +29,17 @@ type Tool = {
 }
 
 const tools: Tool[] = [
+  {
+    key: 'appointments',
+    label: 'Appointments',
+    hint: 'Set a client appointment',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="5.5" width="16" height="14.5" rx="2" />
+        <path d="M8 3.5v4M16 3.5v4M4 9.5h16M8 13h3M13 13h3M8 16.5h3M13 16.5h3" />
+      </svg>
+    )
+  },
   {
     key: 'notes',
     label: 'Notes',
@@ -87,6 +103,7 @@ function NotesOverlay() {
 }
 
 function ToolBody({ active }: { active: ToolKey }) {
+  if (active === 'appointments') return <AppointmentQuickSetter />
   if (active === 'notes') return <NotesOverlay />
   if (active === 'directory') return <CompanyDirectory />
   if (active === 'build') return <BuildChartLookup />
@@ -175,6 +192,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
         .dashboard-quick-icon{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:#e7edf2;color:#365268;border:1px solid #ccd8e1;transition:transform .12s ease,background .12s ease}
         .dashboard-quick-icon svg{width:29px;height:29px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
         .dashboard-quick-tool:hover .dashboard-quick-icon,.dashboard-quick-tool:focus-visible .dashboard-quick-icon{transform:translateY(-2px);background:#dce6ed}
+        .dashboard-quick-tool-appointments .dashboard-quick-icon{background:#e5edf7;color:#355b86;border-color:#c7d7e9}
         .dashboard-quick-tool-notes .dashboard-quick-icon{background:#e6edf3;color:#3b5870;border-color:#cbd8e2}
         .dashboard-quick-tool-fex .dashboard-quick-icon{background:#f3e6e7;color:#8b3940;border-color:#e2c9cc}
         .dashboard-quick-tool-directory .dashboard-quick-icon{background:#e7efe8;color:#46624b;border-color:#cfddcf}
@@ -182,6 +200,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
         .dashboard-quick-backdrop{position:fixed;inset:0;z-index:4200;background:rgba(17,28,39,.54);display:grid;place-items:center;padding:18px}
         .dashboard-quick-modal{width:min(980px,96vw);height:min(820px,92dvh);background:#f8fafb;border:1px solid #cbd5df;border-radius:18px;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}
         .dashboard-quick-modal-fex{width:min(1120px,97vw);height:min(900px,94dvh)}
+        .dashboard-quick-modal-appointments{width:min(820px,96vw);height:auto;max-height:92dvh}
         .dashboard-quick-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #d7e0e7;background:#fff}
         .dashboard-quick-modal-title{display:flex;align-items:center;gap:10px;min-width:0}
         .dashboard-quick-modal-title h2{margin:0;font-size:1.08rem;color:#172033}.dashboard-quick-modal-title p{margin:2px 0 0;color:#64748b;font-size:.75rem}
@@ -197,11 +216,11 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
         .dashboard-quick-fex{height:100%;min-height:680px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #d8e1e8}
         .dashboard-quick-fex iframe{display:block;width:100%;height:100%;min-height:680px;border:0;background:#fff}
         @media(max-width:720px){
-          .dashboard-quick-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px;padding-bottom:4px}
+          .dashboard-quick-tools{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px;padding-bottom:4px}
           .dashboard-quick-tool{min-width:0;width:100%;padding:2px 0;gap:5px}.dashboard-quick-tool strong{font-size:.64rem;max-width:76px}
           .dashboard-quick-icon{width:48px;height:48px;border-radius:15px}.dashboard-quick-icon svg{width:25px;height:25px}
           .dashboard-quick-backdrop{padding:0;align-items:end}
-          .dashboard-quick-modal,.dashboard-quick-modal-fex{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
+          .dashboard-quick-modal,.dashboard-quick-modal-fex,.dashboard-quick-modal-appointments{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
           .dashboard-quick-modal-head{padding:10px 12px}.dashboard-quick-modal-title p{display:none}.dashboard-quick-modal-body{padding:10px}
           .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}
           .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 5px;padding:0}
