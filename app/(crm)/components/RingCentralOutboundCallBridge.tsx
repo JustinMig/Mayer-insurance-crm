@@ -17,6 +17,7 @@ export default function RingCentralOutboundCallBridge() {
   const [pilot, setPilot] = useState(false)
   const [phone, setPhone] = useState('')
   const [host, setHost] = useState<HTMLElement | null>(null)
+  const [launchMessage, setLaunchMessage] = useState('')
 
   useEffect(() => {
     if (!isClientRecord) {
@@ -80,18 +81,34 @@ export default function RingCentralOutboundCallBridge() {
   if (!isClientRecord || !pilot || !host || dialNumber.length < 10) return null
 
   const startCall = () => {
-    window.location.assign(`rcmobile://call?number=${encodeURIComponent(dialNumber)}`)
+    setLaunchMessage('Opening RingCentral…')
+    const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
+    const launched = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!launched) {
+      window.location.assign(url)
+      return
+    }
+    window.setTimeout(() => {
+      setLaunchMessage('If RingCentral did not open, make sure RingCentral is your default click-to-dial app in RingCentral Settings → Phone.')
+    }, 1800)
   }
 
   return createPortal(
-    <button
-      type="button"
-      className="btn btn-primary ringcentral-outbound-call-button"
-      onClick={startCall}
-      title="Open RingCentral and call this client"
-    >
-      ☎ Call with RingCentral
-    </button>,
+    <div className="ringcentral-outbound-call-wrap">
+      <button
+        type="button"
+        className="btn btn-primary ringcentral-outbound-call-button"
+        onClick={startCall}
+        title="Open RingCentral and call this client"
+      >
+        ☎ Call with RingCentral
+      </button>
+      {launchMessage ? <span className="ringcentral-outbound-call-message">{launchMessage}</span> : null}
+      <style jsx global>{`
+        .ringcentral-outbound-call-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .ringcentral-outbound-call-message{max-width:360px;color:#64748b;font-size:.72rem;font-weight:700}
+      `}</style>
+    </div>,
     host
   )
 }
