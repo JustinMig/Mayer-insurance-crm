@@ -37,9 +37,10 @@ test('Calendar client source no longer has a 1000-client hard limit', async () =
 
 test('Dashboard statistics are aggregated in the database', async () => {
   const page = await source('app/(crm)/dashboard/page.tsx')
+  const layout = await source('app/(crm)/layout.tsx')
   assert.match(page, /crm_dashboard_agent_stats/)
   assert.doesNotMatch(page, /from\('clients'\).*is_medicare.*date_of_birth/s)
-  assert.match(page, /<DashboardQuickTools \/>/)
+  assert.match(layout, /<DashboardQuickTools compact \/>/)
   assert.doesNotMatch(page, /<DashboardNotes \/>/)
 })
 
