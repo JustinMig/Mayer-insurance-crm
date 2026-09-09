@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import RingCentralCallLink from '../../components/RingCentralCallLink'
+import { toRingCentralNumber } from '@/lib/ringcentral-call-target'
 
 type CallTarget = {
   key: string
@@ -9,100 +11,61 @@ type CallTarget = {
   phone: string
 }
 
-function toRingCentralNumber(value: string) {
-  const digits = String(value || '').replace(/\D/g, '')
-  if (digits.length === 10) return `1${digits}`
-  if (digits.length === 11 && digits.startsWith('1')) return digits
-  return digits
-}
-
-function isMobileDevice() {
-  if (typeof navigator === 'undefined') return false
-  const userAgent = navigator.userAgent || ''
-  const platform = navigator.platform || ''
-  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  const isAndroid = /Android/i.test(userAgent)
-  return isiOS || isAndroid
-}
-
-function isChromeBrowser() {
-  if (typeof navigator === 'undefined') return false
-  const userAgent = navigator.userAgent || ''
-  return /Chrome|CriOS/i.test(userAgent) && !/Edg|OPR/i.test(userAgent)
-}
-
-function nativeRingCentralUrl(phone: string) {
-  const encoded = encodeURIComponent(phone)
-  return isMobileDevice()
-    ? `rcmobile://call?number=${encoded}`
-    : `rcapp://r/call?number=${encoded}`
-}
-
 export default function CampaignRingCentralCallBridge() {
   const [targets, setTargets] = useState<CallTarget[]>([])
 
   useEffect(() => {
-    let scheduled = false
+    let frameId: number | null = null
+    let disposed = false
+    const root = document.querySelector<HTMLElement>('.campaign-detail-shell') || document.querySelector<HTMLElement>('.content') || document.body
 
     const scan = () => {
-      scheduled = false
-      const rows = Array.from(document.querySelectorAll<HTMLElement>('.campaign-client-row'))
+      frameId = null
+      if (disposed) return
+      const rows = Array.from(root.querySelectorAll<HTMLElement>('.campaign-client-row'))
       const next: CallTarget[] = []
 
       rows.forEach((row, index) => {
         const host = row.querySelector<HTMLElement>('.campaign-person-title-line')
         const phoneText = row.querySelector<HTMLElement>('.campaign-client-phone')?.textContent || ''
         const phone = toRingCentralNumber(phoneText)
-        if (!host || phone.length < 10) return
+        if (!host || !phone) return
 
         const clientLink = row.querySelector<HTMLAnchorElement>('.campaign-client-name')
         const key = `${clientLink?.getAttribute('href') || 'client'}:${phone}:${index}`
         next.push({ key, host, phone })
       })
 
-      setTargets(next)
+      // Opening calling setup must not cause a campaign rendering loop.
+      setTargets((current) => current.length === next.length && current.every((target, index) =>
+        target.key === next[index].key && target.host === next[index].host && target.phone === next[index].phone
+      ) ? current : next)
     }
 
     const scheduleScan = () => {
-      if (scheduled) return
-      scheduled = true
-      window.requestAnimationFrame(scan)
+      if (disposed || frameId !== null) return
+      frameId = window.requestAnimationFrame(scan)
     }
 
     scan()
     const observer = new MutationObserver(scheduleScan)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
+    observer.observe(root, { childList: true, subtree: true })
+    return () => {
+      disposed = true
+      observer.disconnect()
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+    }
   }, [])
 
   return (
     <>
-      {targets.map((target) => {
-        const nativeUrl = nativeRingCentralUrl(target.phone)
-        return createPortal(
-          <a
-            key={target.key}
-            className="campaign-ringcentral-call"
-            href={nativeUrl}
-            onClick={(event) => {
-              if (isChromeBrowser()) {
-                event.preventDefault()
-                try {
-                  const targetWindow = window.parent || window
-                  targetWindow.location.assign(nativeUrl)
-                } catch {
-                  window.location.assign(nativeUrl)
-                }
-              }
-            }}
-            title="Open the installed RingCentral app and call this client"
-            aria-label="Call client with RingCentral"
-          >
-            ☎ Call
-          </a>,
-          target.host
-        )
-      })}
+      {targets.map((target) => createPortal(
+        <RingCentralCallLink phone={target.phone} className="campaign-ringcentral-call">
+          ☎ Call
+        </RingCentralCallLink>,
+        target.host,
+        target.key
+      ))}
       <style jsx global>{`
         .campaign-ringcentral-call{
           appearance:none;
