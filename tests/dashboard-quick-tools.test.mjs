@@ -45,6 +45,9 @@ test('Justin quick tools stay in the global CRM header and page-specific control
   assert.match(appointment, /Phone number/)
   assert.match(appointment, /Phone: \$\{phone\}/)
   assert.match(appointment, /client_id: mode === 'existing'/)
+  assert.match(appointment, /\.add-client-form>\.add-client-save-row/)
+  assert.match(appointment, /\.client-profile-form>\.sticky-save-bar/)
+  assert.match(appointment, /visibility:hidden!important/)
 
   assert.match(campaignPage, /campaign-record-actions>button:nth-last-child\(2\)/)
   assert.match(clients, /COMPARE CLIENTS/)
