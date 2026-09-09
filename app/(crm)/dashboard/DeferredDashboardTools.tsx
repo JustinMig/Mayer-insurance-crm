@@ -20,6 +20,25 @@ export default function DeferredDashboardTools() {
     const historyIntro = historyCard?.querySelector<HTMLElement>(':scope > div:first-child .subtle')
     if (historyIntro) historyIntro.textContent = 'Choose a month and year to review premium sales.'
 
+    // Force the main Monthly Premium / Yearly Total pair into one row. These are
+    // the two primary premium boxes the Isaiah dashboard should show.
+    const premiumCard = content.querySelector<HTMLElement>('.dashboard-monthly-premium-stat')
+    if (premiumCard) {
+      premiumCard.style.setProperty('display', 'grid', 'important')
+      premiumCard.style.setProperty('grid-template-columns', 'minmax(0,1fr) minmax(0,1fr)', 'important')
+      premiumCard.style.setProperty('gap', '0', 'important')
+      premiumCard.querySelectorAll<HTMLElement>(':scope > div').forEach((item) => {
+        item.style.setProperty('min-width', '0', 'important')
+        item.style.setProperty('padding', '2px 16px', 'important')
+      })
+      const yearly = premiumCard.querySelector<HTMLElement>('.dashboard-premium-divider')
+      if (yearly) {
+        yearly.style.setProperty('border-top', '0', 'important')
+        yearly.style.setProperty('border-left', '1px solid rgba(255,255,255,.28)', 'important')
+        yearly.style.setProperty('padding-top', '2px', 'important')
+      }
+    }
+
     return () => content.classList.remove('isaiah-dashboard-clean')
   }, [])
 
@@ -27,18 +46,35 @@ export default function DeferredDashboardTools() {
     <style>{`
       .isaiah-dashboard-clean .dashboard-personal-stats{
         display:block!important;
-        max-width:680px;
+        max-width:820px;
         margin-left:auto!important;
         margin-right:auto!important;
       }
       .isaiah-dashboard-clean .dashboard-personal-stats>.stat:not(.dashboard-monthly-premium-stat){display:none!important}
       .isaiah-dashboard-clean .dashboard-monthly-premium-stat{
         width:100%!important;
-        padding:18px 20px!important;
+        max-width:820px!important;
+        margin:0 auto!important;
+        padding:18px 8px!important;
         border-radius:15px!important;
         box-shadow:0 6px 18px rgba(15,23,42,.12)!important;
+        display:grid!important;
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+        gap:0!important;
+        align-items:stretch!important;
       }
-      .isaiah-dashboard-clean .dashboard-monthly-premium-stat>div{gap:6px!important}
+      .isaiah-dashboard-clean .dashboard-monthly-premium-stat>div{
+        min-width:0!important;
+        gap:6px!important;
+        padding:2px 16px!important;
+        display:grid!important;
+        align-content:center!important;
+      }
+      .isaiah-dashboard-clean .dashboard-monthly-premium-stat>.dashboard-premium-divider{
+        border-top:0!important;
+        border-left:1px solid rgba(255,255,255,.28)!important;
+        padding-top:2px!important;
+      }
       .isaiah-dashboard-clean .dashboard-monthly-premium-stat span{
         font-size:.76rem!important;
         font-weight:900!important;
@@ -135,8 +171,13 @@ export default function DeferredDashboardTools() {
       @media(max-width:640px){
         .isaiah-dashboard-clean .dashboard-personal-stats,
         .isaiah-dashboard-clean .isaiah-premium-tools{max-width:none!important}
-        .isaiah-dashboard-clean .dashboard-monthly-premium-stat{padding:15px!important}
-        .isaiah-dashboard-clean .dashboard-monthly-premium-stat strong{font-size:1.35rem!important}
+        .isaiah-dashboard-clean .dashboard-monthly-premium-stat{
+          padding:14px 5px!important;
+          grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+        }
+        .isaiah-dashboard-clean .dashboard-monthly-premium-stat>div{padding:2px 9px!important}
+        .isaiah-dashboard-clean .dashboard-monthly-premium-stat span{font-size:.62rem!important;letter-spacing:.02em!important}
+        .isaiah-dashboard-clean .dashboard-monthly-premium-stat strong{font-size:1.2rem!important}
         .isaiah-dashboard-clean .isaiah-premium-history-card{padding:12px!important;gap:11px!important}
         .isaiah-dashboard-clean .isaiah-premium-history-card>.premium-period-controls{
           grid-template-columns:1fr 1fr!important;
