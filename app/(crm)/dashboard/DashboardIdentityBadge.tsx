@@ -15,7 +15,11 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
   const pathname = usePathname()
   const [host, setHost] = useState<HTMLElement | null>(null)
   const [topbarHost, setTopbarHost] = useState<HTMLElement | null>(null)
-  const isJustin = String(name || '').trim().toLowerCase() === 'justin mayer'
+  const viewerName = String(name || '').trim().toLowerCase()
+  const isJustin = viewerName === 'justin mayer'
+  const isIsaiah = viewerName === 'isaiah hernandez'
+  const isManager = String(role || '').trim().toLowerCase() === 'manager'
+  const hasCommissions = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)
 
   useEffect(() => {
     if (pathname !== '/dashboard') {
@@ -52,11 +56,11 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
 
   return (
     <>
-      {isJustin ? (
-        <style jsx global>{`
-          .dashboard-justin-financial-stats{display:none!important}
-        `}</style>
-      ) : null}
+      <style jsx global>{`
+        ${isJustin ? '.dashboard-justin-financial-stats{display:none!important}' : ''}
+        ${isIsaiah ? '.dashboard-personal-stats,.isaiah-premium-tools{display:none!important}' : ''}
+        ${isManager ? '.dashboard-agent-stat.premium{display:none!important}' : ''}
+      `}</style>
       {host ? createPortal(
         <div className="dashboard-crm-identity" aria-label={`Signed in as ${name}, ${displayRole(role)}`}>
           <strong>{name || 'CRM User'}</strong>
@@ -70,7 +74,7 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
         </div>,
         host
       ) : null}
-      {isJustin && topbarHost ? createPortal(<CommissionTopbarButton />, topbarHost) : null}
+      {hasCommissions && topbarHost ? createPortal(<CommissionTopbarButton />, topbarHost) : null}
     </>
   )
 }
