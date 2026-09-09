@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
 const source = (relativePath) => readFile(path.join(root, relativePath), 'utf8')
 
-test('Justin quick tools stay in the global CRM header and page-specific controls live on their pages', async () => {
+test('quick tools stay in every supported user global CRM header and page-specific controls live on their pages', async () => {
   const layout = await source('app/(crm)/layout.tsx')
   const dashboard = await source('app/(crm)/dashboard/page.tsx')
   const quick = await source('app/(crm)/dashboard/DashboardQuickTools.tsx')
@@ -17,7 +17,8 @@ test('Justin quick tools stay in the global CRM header and page-specific control
   const notifications = await source('app/(crm)/notifications/page.tsx')
   const campaignPage = await source('app/(crm)/campaigns/[id]/page.tsx')
 
-  assert.match(layout, /isJustinAdmin \? <DashboardQuickTools compact \/>/)
+  assert.match(layout, /hasQuickTools \? <DashboardQuickTools compact \/>/)
+  assert.match(layout, /'justin mayer', 'isaiah hernandez', 'sheena hester'/)
   assert.doesNotMatch(layout, /COMPARE CLIENTS/)
   assert.doesNotMatch(layout, /<PushNotificationManager \/>/)
   assert.doesNotMatch(dashboard, /<DashboardQuickTools/)
@@ -33,13 +34,15 @@ test('Justin quick tools stay in the global CRM header and page-specific control
   assert.match(quick, /event\.target === event\.currentTarget/)
   assert.match(quick, /event\.key === 'Escape'/)
 
-  assert.match(appointment, /\/api\/workspace\/clients\?q=/)
+  assert.match(appointment, /\/api\/clients\/search\?/)
+  assert.match(appointment, /calendarOwnerId/)
   assert.match(appointment, /\/api\/workspace\/calendar-availability/)
   assert.match(appointment, /\/api\/workspace\/events/)
   assert.match(appointment, /WORKDAY_START = 8 \* 60/)
   assert.match(appointment, /WORKDAY_END = 20 \* 60/)
   assert.match(appointment, /BOOKED/)
   assert.match(appointment, /event_type: 'appointment'/)
+  assert.doesNotMatch(appointment, /Justin’s main calendar/)
   assert.match(appointment, /NEW \/ NON-CLIENT/)
   assert.match(appointment, /New client name/)
   assert.match(appointment, /Phone number/)

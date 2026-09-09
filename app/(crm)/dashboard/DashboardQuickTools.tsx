@@ -32,7 +32,7 @@ const tools: Tool[] = [
   {
     key: 'appointments',
     label: 'Appointments',
-    hint: 'Set a client appointment',
+    hint: 'Set an appointment',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="4" y="5.5" width="16" height="14.5" rx="2" />
@@ -141,7 +141,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
 
   return (
     <>
-      <nav className={`dashboard-quick-tools${compact ? ' compact' : ''}`} aria-label="Justin CRM quick tools">
+      <nav className={`dashboard-quick-tools${compact ? ' compact' : ''}`} aria-label="CRM quick tools">
         {tools.map((tool) => (
           <button
             key={tool.key}
