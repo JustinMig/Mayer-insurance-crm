@@ -8,6 +8,7 @@ import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NotificationsNavLink from './components/NotificationsNavLink'
 import DashboardQuickTools from './dashboard/DashboardQuickTools'
+import CommissionTopbarButton from './dashboard/CommissionTopbarButton'
 import DashboardIdentityBadge from './dashboard/DashboardIdentityBadge'
 import PreviousPageButton from './components/PreviousPageButton'
 import RouteScopedEnhancers from './components/RouteScopedEnhancers'
@@ -157,6 +158,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
             <strong>{portalBrand}</strong>
             {hasQuickTools ? <DashboardQuickTools compact /> : null}
+            {hasQuickTools ? <CommissionTopbarButton /> : null}
           </div>
         </header>
         <main className="content"><PreviousPageButton /><DashboardIdentityBadge name={profile?.full_name || 'CRM User'} role={profile?.role || ''} />{children}</main>
