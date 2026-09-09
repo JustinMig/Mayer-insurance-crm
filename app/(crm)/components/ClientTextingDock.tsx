@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname, useSearchParams } from 'next/navigation'
 
 type SmsMessage = {
@@ -14,11 +15,6 @@ type SmsMessage = {
 }
 
 const styles: Record<string, CSSProperties> = {
-  dock: {
-    position: 'fixed', right: 18, bottom: 'calc(72px + env(safe-area-inset-bottom))', zIndex: 45,
-    border: 0, borderRadius: 999, padding: '12px 16px', background: '#10263f', color: '#fff',
-    fontWeight: 900, boxShadow: '0 10px 28px rgba(16,38,63,.28)', display: 'flex', gap: 7, alignItems: 'center'
-  },
   backdrop: {
     position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(15,23,42,.58)', display: 'grid',
     placeItems: 'center', padding: 14
@@ -48,6 +44,7 @@ export default function ClientTextingDock() {
     return match?.[1] || ''
   }, [pathname])
   const openFromDashboard = searchParams.get('text') === '1'
+  const [host, setHost] = useState<HTMLElement | null>(null)
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<SmsMessage[]>([])
   const [phone, setPhone] = useState('')
@@ -84,6 +81,33 @@ export default function ClientTextingDock() {
     await markRead()
     await load()
   }
+
+  useEffect(() => {
+    if (!clientId) {
+      setHost(null)
+      return
+    }
+
+    let attempts = 0
+    let timer: number | null = null
+    const findHost = () => {
+      attempts += 1
+      const heading = document.querySelector<HTMLElement>('.content h1')
+      const headingRow = heading?.parentElement?.parentElement || null
+      const actionHost = headingRow?.lastElementChild instanceof HTMLElement ? headingRow.lastElementChild : null
+      if (actionHost) {
+        setHost(actionHost)
+        return
+      }
+      if (attempts < 30) timer = window.setTimeout(findHost, 150)
+    }
+
+    findHost()
+    return () => {
+      if (timer !== null) window.clearTimeout(timer)
+      setHost(null)
+    }
+  }, [clientId])
 
   useEffect(() => {
     setOpen(openFromDashboard)
@@ -148,9 +172,13 @@ export default function ClientTextingDock() {
 
   return (
     <>
-      <button type="button" style={styles.dock} onClick={() => { void openThread() }} aria-label={`Text ${clientName}`}>
-        ✉ <span>TEXT</span>
-      </button>
+      {host ? createPortal(
+        <button type="button" className="btn btn-secondary client-text-top-button" onClick={() => { void openThread() }} aria-label={`Text ${clientName}`}>
+          ✉ Text Client
+        </button>,
+        host
+      ) : null}
+
       {open ? (
         <div style={styles.backdrop} role="dialog" aria-modal="true" aria-label={`Text ${clientName}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
           <section style={styles.panel}>
@@ -174,6 +202,11 @@ export default function ClientTextingDock() {
           </section>
         </div>
       ) : null}
+
+      <style jsx global>{`
+        .client-text-top-button{white-space:nowrap}
+        @media(max-width:720px){.client-text-top-button{flex:1 1 auto;min-width:120px}}
+      `}</style>
     </>
   )
 }
