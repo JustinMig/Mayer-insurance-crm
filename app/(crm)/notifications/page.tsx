@@ -12,8 +12,6 @@ import styles from './Notifications.module.css'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
-
 type SearchParams = Promise<{
   tab?: string
   connected?: string
@@ -38,15 +36,11 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
 
-function isJustin(userId: string, fullName?: string | null) {
-  return userId === JUSTIN_USER_ID && String(fullName || '').trim().toLowerCase() === 'justin mayer'
-}
-
 export default async function NotificationsPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const { supabase, userId, profile } = await getCrmSession()
   const canUseMailAndForms = isJustinWebsiteLeadUser(userId)
-  const canUseCalls = isJustin(userId, profile?.full_name)
+  const canUseCalls = Boolean(profile?.agency_id)
   const requestedTab = params.tab === 'text'
     ? 'text'
     : params.tab === 'forms'
@@ -119,7 +113,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <div>
           <span className={styles.eyebrow}>Activity Center</span>
           <h1>Notifications</h1>
-          <p>Mail, client text messages, RingCentral calls, and website form submissions in one streamlined workspace.</p>
+          <p>Mail, client text messages, office RingCentral calls, and website form submissions in one streamlined workspace.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
           <PushNotificationManager />
