@@ -16,6 +16,25 @@ function toRingCentralNumber(value: string) {
   return digits
 }
 
+function isAppleDevice() {
+  const userAgent = navigator.userAgent || ''
+  const platform = navigator.platform || ''
+  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isMac = /Macintosh|Mac OS X/i.test(userAgent) || /^Mac/i.test(platform)
+  return isiOS || isMac
+}
+
+function launchRingCentralCall(phone: string) {
+  if (isAppleDevice()) {
+    window.location.assign(`rcmobile://call?number=${encodeURIComponent(phone)}`)
+    return
+  }
+
+  const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(phone)}`
+  const launched = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!launched) window.location.assign(url)
+}
+
 export default function CampaignRingCentralCallBridge() {
   const [targets, setTargets] = useState<CallTarget[]>([])
 
@@ -54,9 +73,7 @@ export default function CampaignRingCentralCallBridge() {
   }, [])
 
   function startCall(phone: string) {
-    const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(phone)}`
-    const launched = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!launched) window.location.assign(url)
+    launchRingCentralCall(phone)
   }
 
   return (
