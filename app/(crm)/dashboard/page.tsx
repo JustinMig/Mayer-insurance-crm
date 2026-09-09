@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
+import { isSheenaCalendarCoordinator } from '@/lib/calendar-access'
 import DashboardCalendar from './DashboardCalendar'
 import DeferredDashboardTools from './DeferredDashboardTools'
 import JustinMedicareCommissionCard from './JustinMedicareCommissionCard'
@@ -64,7 +65,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const viewerName = currentProfile.full_name?.trim().toLowerCase() || ''
   const isJustinPortal = viewerName === 'justin mayer'
   const isIsaiahPortal = viewerName === 'isaiah hernandez'
-  const isCalendarCoordinator = isManager && !['justin mayer', 'isaiah hernandez'].includes(viewerName)
+  const isCalendarCoordinator = isSheenaCalendarCoordinator(userId, currentProfile)
   const params = searchParams ? await searchParams : {}
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -100,9 +101,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     }]
   }
 
-  const calendarAvailableAgents = isJustinPortal
-    ? targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() === 'justin mayer')
-    : targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() !== 'justin mayer')
+  const calendarAvailableAgents = isCalendarCoordinator
+    ? targetAgents
+    : isJustinPortal
+      ? targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() === 'justin mayer')
+      : targetAgents.filter((agent) => agent.id === userId)
 
   let calendarAgents = calendarAvailableAgents
   let activeCalendarAgentId = calendarAvailableAgents[0]?.id || ''
