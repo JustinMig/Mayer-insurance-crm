@@ -1,0 +1,28 @@
+name: Fix all-user quick tools wording
+on:
+  push:
+    branches: [feature/all-user-quick-tools]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[all-user-wording-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/all-user-quick-tools
+      - shell: python
+        run: |
+          from pathlib import Path
+          p=Path('app/(crm)/dashboard/AppointmentQuickSetter.tsx')
+          t=p.read_text()
+          old="setStatus('Checking Justin’s main calendar for booked times…')"
+          if old not in t: raise SystemExit('missing Justin-specific wording')
+          p.write_text(t.replace(old,"setStatus('Checking the main calendar for booked times…')",1))
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          git commit -m "[all-user-wording-fixed] Make appointment status user-neutral"
+          git push origin HEAD:feature/all-user-quick-tools
