@@ -18,7 +18,7 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
   const viewerName = String(name || '').trim().toLowerCase()
   const isJustin = viewerName === 'justin mayer'
   const isIsaiah = viewerName === 'isaiah hernandez'
-  const isManager = String(role || '').trim().toLowerCase() === 'manager'
+  const isSheena = viewerName === 'sheena hester'
   const hasCommissions = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
       <style jsx global>{`
         ${isJustin ? '.dashboard-justin-financial-stats{display:none!important}' : ''}
         ${isIsaiah ? '.dashboard-personal-stats,.isaiah-premium-tools{display:none!important}' : ''}
-        ${isManager ? '.dashboard-agent-stat.premium{display:none!important}' : ''}
+        ${isSheena ? '.dashboard-agent-split{display:none!important}' : ''}
         .content .clients-page-heading{position:relative}
         .dashboard-crm-identity{display:inline-flex;align-items:center;gap:7px;margin-top:7px;padding:5px 9px;border:1px solid #d2dce5;border-radius:999px;background:#f5f8fa;color:#33485a;font-size:.7rem;line-height:1;font-weight:800;box-shadow:0 1px 3px rgba(15,23,42,.04)}
         .dashboard-crm-identity strong{font-size:.73rem;color:#20384d}
