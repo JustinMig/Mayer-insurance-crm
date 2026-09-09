@@ -54,14 +54,14 @@ export async function getRingCentralAccessToken() {
     },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      jwt
+      assertion: jwt
     }),
     cache: 'no-store'
   })
 
-  const payload = await response.json().catch(() => ({})) as { access_token?: string; error_description?: string; message?: string }
+  const payload = await response.json().catch(() => ({})) as { access_token?: string; error?: string; error_description?: string; message?: string }
   if (!response.ok || !payload.access_token) {
-    throw new Error(payload.error_description || payload.message || `RingCentral authentication failed (${response.status}).`)
+    throw new Error(payload.error_description || payload.message || payload.error || `RingCentral authentication failed (${response.status}).`)
   }
 
   return payload.access_token
