@@ -82,6 +82,7 @@ export async function PATCH(request: NextRequest) {
       .in('client_id', clientIds)
       .eq('direction', 'inbound')
       .is('read_at', null)
+      .is('notification_hidden_at', null)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
@@ -94,7 +95,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const payload = await request.json().catch(() => ({})) as { message_ids?: string[] }
     const requestedIds = Array.isArray(payload.message_ids) ? Array.from(new Set(payload.message_ids.filter(Boolean))).slice(0, 200) : []
-    if (!requestedIds.length) return NextResponse.json({ error: 'Choose at least one text to delete.' }, { status: 400 })
+    if (!requestedIds.length) return NextResponse.json({ error: 'Choose at least one text to remove.' }, { status: 400 })
 
     const { admin, profile, userId, canSeeAgency } = await getContext()
     if (!admin || !profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
@@ -103,6 +104,7 @@ export async function DELETE(request: NextRequest) {
       .from('client_sms_messages')
       .select('id,client_id')
       .in('id', requestedIds)
+      .is('notification_hidden_at', null)
     if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
 
     const candidateClientIds = Array.from(new Set((candidateMessages || []).map((row) => row.client_id)))
@@ -110,10 +112,15 @@ export async function DELETE(request: NextRequest) {
     const messageIds = (candidateMessages || []).filter((row) => allowedClientIds.has(row.client_id)).map((row) => row.id)
     if (!messageIds.length) return NextResponse.json({ error: 'No accessible texts selected.' }, { status: 403 })
 
-    const { error } = await admin.from('client_sms_messages').delete().in('id', messageIds)
+    const now = new Date().toISOString()
+    const { error } = await admin
+      .from('client_sms_messages')
+      .update({ notification_hidden_at: now, updated_at: now })
+      .in('id', messageIds)
+      .is('notification_hidden_at', null)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, deleted: messageIds.length })
+    return NextResponse.json({ ok: true, hidden: messageIds.length })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to delete messages.' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to remove messages from Notifications.' }, { status: 500 })
   }
 }
