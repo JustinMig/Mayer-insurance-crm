@@ -7,20 +7,13 @@ export const dynamic = 'force-dynamic'
 
 type Params = Promise<{ id: string }>
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
-
-function isJustin(userId: string, fullName?: string | null) {
-  return userId === JUSTIN_USER_ID && String(fullName || '').trim().toLowerCase() === 'justin mayer'
-}
 
 export async function DELETE(_request: Request, { params }: { params: Params }) {
   const { id } = await params
   if (!UUID_PATTERN.test(id)) return NextResponse.json({ error: 'Invalid call ID.' }, { status: 400 })
 
-  const { userId, profile } = await getCrmSession()
-  if (!profile?.agency_id || !isJustin(userId, profile.full_name)) {
-    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
-  }
+  const { profile } = await getCrmSession()
+  if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -28,7 +21,6 @@ export async function DELETE(_request: Request, { params }: { params: Params }) 
     .update({ hidden_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('agency_id', profile.agency_id)
-    .eq('user_id', userId)
     .is('hidden_at', null)
     .select('id')
     .maybeSingle()
