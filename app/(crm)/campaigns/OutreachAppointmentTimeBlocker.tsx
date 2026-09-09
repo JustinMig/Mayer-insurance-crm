@@ -102,6 +102,12 @@ function findLabel(dialog: HTMLElement, name: string) {
   return Array.from(dialog.querySelectorAll<HTMLLabelElement>('label')).find((label) => directLabelText(label) === name) || null
 }
 
+function findSiblingLabel(dateLabel: HTMLLabelElement, name: string) {
+  const row = dateLabel.parentElement
+  if (!row) return null
+  return Array.from(row.querySelectorAll<HTMLLabelElement>(':scope > label')).find((label) => directLabelText(label) === name) || null
+}
+
 function normalizedName(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
@@ -176,12 +182,17 @@ function mountExactAppointmentScheduler(
   preferredOwnerName = ''
 ): SchedulerControls | null {
   const dateLabel = findLabel(dialog, dateLabelName)
-  const timeLabel = findLabel(dialog, timeLabelName)
-  const dateInput = dateLabel?.querySelector<HTMLInputElement>('input:not(.outreach-appointment-date-picker)') || null
+  if (!dateLabel) return null
+
+  // Appointment and Follow-Up both contain a label named "Time (optional)".
+  // Always pair the time field with the date field in the SAME row. This keeps
+  // Follow-Up from accidentally binding to Appointment's hidden time control.
+  const timeLabel = findSiblingLabel(dateLabel, timeLabelName)
+  const dateInput = dateLabel.querySelector<HTMLInputElement>('input:not(.outreach-appointment-date-picker)') || null
   const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]') || null
   if (!dateInput || !timeInput) return null
 
-  const existingDate = dateLabel?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
+  const existingDate = dateLabel.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
   const existingTime = timeLabel?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
   const agentSelect = ensureAgentSelect(dialog, context, preferredOwnerName)
   const selectedOwner = () => context.coordinator ? String(agentSelect?.value || '') : context.owner_id
@@ -402,8 +413,6 @@ function ensureConversationScheduler(
     if (isAppointment) {
       mountExactAppointmentScheduler(dialog, context, 'Appointment date', 'Time (optional)', preferredOwnerName)
     } else if (isFollowUp) {
-      // Follow-Up uses the exact same scheduler function and exact same time
-      // dropdown as Appointment — schedule on calendar. Only the saved result differs.
       mountExactAppointmentScheduler(dialog, context, 'Follow-up date', 'Time (optional)', preferredOwnerName)
     }
   }
