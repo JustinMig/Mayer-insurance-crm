@@ -1,0 +1,80 @@
+name: Apply quick tool short labels
+
+on:
+  push:
+    branches: [ui/quick-tool-short-labels]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[quick-labels-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/quick-tool-short-labels
+      - name: Add short labels under header icons
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('app/(crm)/dashboard/DashboardQuickTools.tsx')
+          text = p.read_text()
+
+          text = text.replace(
+              "  label: string\n  hint: string\n",
+              "  label: string\n  shortLabel: string\n  hint: string\n",
+              1
+          )
+
+          replacements = [
+              ("    label: 'Appointments',\n    hint:", "    label: 'Appointments',\n    shortLabel: 'Appt',\n    hint:"),
+              ("    label: 'Notes',\n    hint:", "    label: 'Notes',\n    shortLabel: 'Notes',\n    hint:"),
+              ("    label: 'FEX Quotes',\n    hint:", "    label: 'FEX Quotes',\n    shortLabel: 'FEX',\n    hint:"),
+              ("    label: 'Company Directory',\n    hint:", "    label: 'Company Directory',\n    shortLabel: 'Dir',\n    hint:"),
+              ("    label: 'Height & Weight',\n    hint:", "    label: 'Height & Weight',\n    shortLabel: 'H&W',\n    hint:")
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Missing expected tool label: {old!r}')
+              text = text.replace(old, new, 1)
+
+          old = "            <strong>{tool.label}</strong>"
+          new = "            <strong>{compact ? tool.shortLabel : tool.label}</strong>"
+          if old not in text:
+              raise SystemExit('Missing quick tool label render')
+          text = text.replace(old, new, 1)
+
+          old = ".dashboard-quick-tools.compact .dashboard-quick-tool{min-width:0;padding:0;display:block}\n        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:none}\n"
+          new = ".dashboard-quick-tools.compact .dashboard-quick-tool{min-width:34px;padding:0;display:grid;justify-items:center;gap:2px}\n        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:block;font-size:.56rem;line-height:1;font-weight:900;white-space:nowrap;max-width:none;color:#536576}\n"
+          if old not in text:
+              raise SystemExit('Missing compact quick-tool CSS')
+          text = text.replace(old, new, 1)
+
+          old = ".dashboard-quick-tools.compact .dashboard-quick-tool{width:auto}\n"
+          new = ".dashboard-quick-tools.compact .dashboard-quick-tool{width:auto;min-width:31px}\n"
+          if old not in text:
+              raise SystemExit('Missing mobile compact tool rule')
+          text = text.replace(old, new, 1)
+
+          p.write_text(text)
+
+          p = Path('tests/dashboard-quick-tools.test.mjs')
+          text = p.read_text()
+          marker = "  assert.match(quick, /dashboard-quick-tool-appointments/)\n"
+          addition = marker + "  for (const shortLabel of ['Appt', 'Notes', 'FEX', 'Dir', 'H&W']) assert.match(quick, new RegExp(`shortLabel: '${shortLabel.replace('&', '\\\\&')}'`))\n  assert.match(quick, /compact \\? tool\\.shortLabel : tool\\.label/)\n"
+          if marker not in text:
+              raise SystemExit('Missing dashboard quick tools test marker')
+          text = text.replace(marker, addition, 1)
+          p.write_text(text)
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app tests
+          git commit -m "[quick-labels-applied] Add labels under quick tool icons"
+          git push origin HEAD:ui/quick-tool-short-labels
