@@ -40,6 +40,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const isAgentPortal = profile?.role === 'agent'
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
   const viewerName = profile?.full_name?.trim().toLowerCase() || ''
+  const isJustinPortal = viewerName === 'justin mayer'
   const hasQuickTools = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
@@ -59,6 +60,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .nav>a[href="/leads"]{background:#e1e9df!important;color:#3f5842!important;box-shadow:inset 4px 0 0 #849b81}
         .nav>a[href="/clients/new"]{background:#eee6da!important;color:#675542!important;box-shadow:inset 4px 0 0 #aa9277}
         .nav>a[href="/clients"]{background:#dfe9e7!important;color:#3f5b57!important;box-shadow:inset 4px 0 0 #7f9c96}
+        .nav>a[href="/calls"]{background:#e1edf5!important;color:#315b76!important;box-shadow:inset 4px 0 0 #6d9ab7}
         .nav>a[href="/campaigns"]{background:#e5e8ef!important;color:#48546a!important;box-shadow:inset 4px 0 0 #8894aa}
         .nav>a[href="/notifications"]{background:#eee9d8!important;color:#665f42!important;box-shadow:inset 4px 0 0 #aaa078}
         .nav .nav-signout{background:#eee1e1!important;color:#6a4949!important;box-shadow:inset 4px 0 0 #a68181}
@@ -66,6 +68,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .nav>a[href="/leads"]:hover{background:#d5e1d2!important;color:#344b37!important}
         .nav>a[href="/clients/new"]:hover{background:#e3d8c9!important;color:#594837!important}
         .nav>a[href="/clients"]:hover{background:#d2e0dd!important;color:#344d49!important}
+        .nav>a[href="/calls"]:hover{background:#d4e5ef!important;color:#264a61!important}
         .nav>a[href="/campaigns"]:hover{background:#d9dee8!important;color:#3d485c!important}
         .nav>a[href="/notifications"]:hover{background:#e2dcc7!important;color:#585238!important}
         .nav .nav-signout:hover{background:#e2d3d3!important;color:#5c3d3d!important}
@@ -74,6 +77,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .mobile-nav>a[href="/leads"]{background:#eef3ec!important;color:#3f5842!important;border-top:3px solid #849b81}
         .mobile-nav>a[href="/clients/new"]{background:#f5f0e8!important;color:#675542!important;border-top:3px solid #aa9277}
         .mobile-nav>a[href="/clients"]{background:#edf3f2!important;color:#3f5b57!important;border-top:3px solid #7f9c96}
+        .mobile-nav>a[href="/calls"]{background:#eef5f8!important;color:#315b76!important;border-top:3px solid #6d9ab7}
         .mobile-nav>a[href="/campaigns"]{background:#f0f1f6!important;color:#48546a!important;border-top:3px solid #8894aa}
         .mobile-nav>a[href="/notifications"]{background:#f5f2e8!important;color:#665f42!important;border-top:3px solid #aaa078}
         .mobile-nav .mobile-signout{background:#f5eded!important;color:#6a4949!important;border-top:3px solid #a68181}
@@ -130,6 +134,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <Link prefetch={false} className="nav-link nav-leads" href="/leads">LEADS</Link>
           <Link prefetch={false} className="nav-link nav-add-client" href="/clients/new">NEW CLIENT</Link>
           <Link prefetch={false} className="nav-link nav-clients" href="/clients">CLIENT RECORDS</Link>
+          {isJustinPortal ? <Link prefetch={false} className="nav-link nav-calls" href="/calls">CALLS</Link> : null}
           <Link prefetch={false} className="nav-link nav-outreach" href="/campaigns">OUTREACH</Link>
           <NotificationsNavLink />
           <form action="/auth/signout" method="post"><button className="nav-signout" type="submit">Sign out</button></form>
@@ -155,6 +160,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <Link prefetch={false} href="/leads"><b>●</b><span>LEADS</span></Link>
         <Link prefetch={false} href="/clients/new"><b>＋</b><span>NEW</span></Link>
         <Link prefetch={false} href="/clients"><b>⌕</b><span>RECORDS</span></Link>
+        {isJustinPortal ? <Link prefetch={false} href="/calls"><b>☎</b><span>CALLS</span></Link> : null}
         <Link prefetch={false} className="mobile-outreach-link" href="/campaigns"><b>◎</b><span>OUTREACH</span></Link>
         <NotificationsNavLink mobile />
         <form action="/auth/signout" method="post" style={{ display: 'contents' }}><button type="submit" className="mobile-signout"><b>⇥</b>Sign out</button></form>
