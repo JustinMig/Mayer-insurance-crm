@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
 
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ attempts: [] }, { status: 403 })
+  const admin = createAdminClient()
 
   const [manualResult, ringCentralResult] = await Promise.all([
     supabase
@@ -22,7 +24,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
       .eq('client_id', id)
       .order('called_at', { ascending: false })
       .limit(75),
-    supabase
+    admin
       .from('ringcentral_calls')
       .select('id,user_id,direction,result,started_at,duration_seconds,contact_phone,from_phone,to_phone,recording_id')
       .eq('agency_id', profile.agency_id)
@@ -38,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
 
   const manualRows = manualResult.data || []
   const ringCentralRows = ringCentralResult.data || []
-  const userIds = Array.from(new Set([...manualRows, ...ringCentralRows].map((row) => row.user_id)))
+  const userIds = Array.from(new Set(manualRows.map((row) => row.user_id)))
   const names: Record<string, string> = {}
   if (userIds.length) {
     const { data: profiles } = await supabase
@@ -58,7 +60,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   const ringCentralAttempts = ringCentralRows.map((row) => ({
     id: row.id,
     user_id: row.user_id,
-    agent_name: names[row.user_id] || 'Agent',
+    agent_name: 'Office RingCentral',
     source: 'ringcentral' as const,
     outcome: row.result || (row.direction === 'Inbound' ? 'Inbound' : 'Outbound'),
     note: null,
