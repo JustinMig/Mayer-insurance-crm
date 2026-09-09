@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { runInNewContext } from 'node:vm'
+import ts from 'typescript'
 import { getCallPlatform, requiresAppleCallingSetup, ringCentralCallHref, toRingCentralNumber } from '../lib/ringcentral-call-target.ts'
 
 const devices = [
@@ -14,23 +16,16 @@ const devices = [
 ]
 
 for (const [expected, device] of devices) {
-  test(`detect ${expected}: ${device.platform} / touch ${device.maxTouchPoints || 0}`, () => {
-    assert.equal(getCallPlatform(device), expected)
+  test(`restored one-click target: ${expected} / ${device.platform} / touch ${device.maxTouchPoints || 0}`, () => {
+    const platform = getCallPlatform(device)
+    assert.equal(platform, expected)
+    assert.equal(ringCentralCallHref('(662) 555-0100', platform), 'https://app.ringcentral.com/r/call?number=16625550100')
+    assert.equal(requiresAppleCallingSetup(platform), false)
   })
 }
 
-test('every Apple device uses standard tel without private app protocols or web URLs', () => {
-  for (const [platform] of devices.filter(([p]) => p === 'mac' || p === 'ios')) {
-    assert.equal(ringCentralCallHref('(662) 555-0100', platform), 'tel:+16625550100')
-    assert.equal(requiresAppleCallingSetup(platform), true)
-  }
-})
-
-test('non-Apple native call targets remain unchanged', () => {
-  assert.equal(ringCentralCallHref('16625550100', 'desktop'), 'rcapp://r/call?number=16625550100')
-  assert.equal(ringCentralCallHref('16625550100', 'android'), 'rcmobile://call?number=16625550100')
-  assert.equal(requiresAppleCallingSetup('desktop'), false)
-  assert.equal(requiresAppleCallingSetup('android'), false)
+test('the original call target is available without device detection or browser settings', () => {
+  assert.equal(ringCentralCallHref('16625550100'), 'https://app.ringcentral.com/r/call?number=16625550100')
 })
 
 test('normalization retains the client number and adds the US country code only once', () => {
@@ -40,14 +35,77 @@ test('normalization retains the client number and adds the US country code only 
 })
 
 test('invalid/empty numbers cannot create a dial link', () => {
-  for (const phone of ['', 'No phone number', '123', '1234567890123456']) {
+  for (const phone of ['', 'No phone number', '123', '1234567890123456', '012345678901']) {
     for (const platform of ['mac', 'ios', 'desktop', 'android']) assert.equal(ringCentralCallHref(phone, platform), '')
   }
 })
 
-const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
+test('call targets stay on RingCentral and never use the personal dialer or app-only schemes', () => {
+  for (const phone of ['(662) 555-0100', '+1 662 555 0101', '+44 20 7946 0100']) {
+    const url = new URL(ringCentralCallHref(phone))
+    assert.equal(url.protocol, 'https:')
+    assert.equal(url.hostname, 'app.ringcentral.com')
+    assert.equal(url.pathname, '/r/call')
+    assert.equal(url.searchParams.get('number'), toRingCentralNumber(phone))
+    assert.equal([...url.searchParams.keys()].length, 1)
+  }
+})
 
-test('client and campaign buttons use the same shared action without duplicating schemes', () => {
+const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
+const componentSource = source('app/(crm)/components/RingCentralCallLink.tsx')
+
+// Evaluate the actual stateless component with a minimal JSX element factory.
+// This checks the rendered link contract, not native app launch on a device.
+const { outputText, diagnostics } = ts.transpileModule(componentSource, {
+  fileName: 'RingCentralCallLink.tsx',
+  reportDiagnostics: true,
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX }
+})
+assert.equal((diagnostics || []).filter((d) => d.category === ts.DiagnosticCategory.Error).length, 0)
+const componentModule = { exports: {} }
+const jsx = (type, props) => ({ type, props })
+runInNewContext(outputText, {
+  module: componentModule,
+  exports: componentModule.exports,
+  require(id) {
+    if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx }
+    if (id === '@/lib/ringcentral-call-target') return { ringCentralCallHref }
+    throw new Error(`Unexpected dependency in one-click control: ${id}`)
+  }
+})
+const CallLink = componentModule.exports.default
+
+function elements(node) {
+  if (!node || typeof node !== 'object' || !node.type) return []
+  const children = node.props?.children
+  return [node, ...(Array.isArray(children) ? children : [children]).flatMap(elements)]
+}
+
+test('a valid client renders exactly one immediately usable call link and no setup controls', () => {
+  const tree = elements(CallLink({ phone: '(662) 555-0100', className: 'client-call', children: 'Call with RingCentral' }))
+  const links = tree.filter((node) => node.type === 'a')
+  assert.equal(links.length, 1)
+  assert.equal(links[0].props.href, 'https://app.ringcentral.com/r/call?number=16625550100')
+  assert.equal(links[0].props.target, '_blank')
+  assert.equal(links[0].props.rel, 'noopener noreferrer')
+  assert.equal(links[0].props.onClick, undefined)
+  assert.equal(links[0].props.children, 'Call with RingCentral')
+  assert.equal(tree.filter((node) => ['button', 'input', 'dialog'].includes(node.type) || node.props?.role === 'dialog').length, 0)
+})
+
+test('changing clients changes the number immediately, with no cached previous number', () => {
+  for (const phone of ['16625550100', '16625550101']) {
+    const link = elements(CallLink({ phone, className: 'campaign-call', children: 'Call' })).find((node) => node.type === 'a')
+    assert.equal(new URL(link.props.href).searchParams.get('number'), phone)
+    assert.equal(link.props.className, 'campaign-call')
+  }
+})
+
+test('invalid numbers render no call action', () => {
+  assert.equal(CallLink({ phone: '', className: 'client-call', children: 'Call' }), null)
+})
+
+test('client and campaign buttons use the same shared action without separate device routing', () => {
   for (const path of ['app/(crm)/components/RingCentralOutboundCallBridge.tsx', 'app/(crm)/campaigns/[id]/CampaignRingCentralCallBridge.tsx']) {
     const code = source(path)
     assert.match(code, /<RingCentralCallLink/)
@@ -55,10 +113,6 @@ test('client and campaign buttons use the same shared action without duplicating
   }
 })
 
-test('shared action blocks unconfirmed Apple calls and does not assert launch success', () => {
-  const code = source('app/(crm)/components/RingCentralCallLink.tsx')
-  assert.match(code, /apple && !hasConfirmedSetup\(\)/)
-  assert.match(code, /event\.preventDefault\(\)\s*\n\s*openSetup\(\)/)
-  assert.doesNotMatch(code, /window\.open\(|setTimeout\(|RingCentral app requested|app\.ringcentral\.com/)
-  assert.match(code, /navigator\.clipboard\.writeText/)
+test('the shared control adds no setup, launch timer, redirect, or extra click handler', () => {
+  assert.doesNotMatch(componentSource, /localStorage|sessionStorage|navigator|setTimeout\(|onClick=|createPortal|ringcentral-call-setup|RingCentral app requested/)
 })
