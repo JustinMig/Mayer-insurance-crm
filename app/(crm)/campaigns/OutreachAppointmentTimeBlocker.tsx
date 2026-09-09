@@ -11,6 +11,12 @@ type CalendarBlock = {
 
 type AppointmentAgent = { id: string; full_name: string }
 type AppointmentContext = { coordinator: boolean; owner_id: string; agents: AppointmentAgent[] }
+type SchedulerControls = {
+  datePicker: HTMLInputElement
+  timeSelect: HTMLSelectElement
+  agentSelect: HTMLSelectElement | null
+  selectedOwner: () => string
+}
 
 const SLOT_MINUTES = 15
 const WORKDAY_START_MINUTES = 8 * 60
@@ -96,6 +102,10 @@ function findLabel(dialog: HTMLElement, name: string) {
   return Array.from(dialog.querySelectorAll<HTMLLabelElement>('label')).find((label) => directLabelText(label) === name) || null
 }
 
+function normalizedName(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 function clientIdFromRow(row: Element | null) {
   const link = row?.querySelector<HTMLAnchorElement>('a.campaign-client-name[href^="/clients/"]')
   const match = link?.getAttribute('href')?.match(/^\/clients\/([^/?#]+)/)
@@ -109,47 +119,79 @@ function campaignIdFromPath() {
   return UUID_PATTERN.test(id) ? id : ''
 }
 
-function ensureAgentSelect(dialog: HTMLElement, context: AppointmentContext) {
+function cleanupAgentSelectors(dialog: HTMLElement) {
+  dialog.querySelectorAll('[data-followup-agent-select="1"]').forEach((element) => element.closest('label')?.remove())
+  const shared = Array.from(dialog.querySelectorAll<HTMLSelectElement>('[data-outreach-agent-select="1"]'))
+  shared.slice(1).forEach((element) => element.closest('label')?.remove())
+}
+
+function ensureAgentSelect(dialog: HTMLElement, context: AppointmentContext, preferredOwnerName = '') {
   if (!context.coordinator) return null
+  cleanupAgentSelectors(dialog)
+
   let select = dialog.querySelector<HTMLSelectElement>('[data-outreach-agent-select="1"]')
   if (select) return select
 
   const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
   if (!form) return null
+
   const label = document.createElement('label')
   label.className = 'label outreach-appointment-agent-label'
+  label.dataset.outreachAgentLabel = '1'
   label.append('Agent')
+
   select = document.createElement('select')
   select.className = 'select outreach-appointment-agent-select'
   select.dataset.outreachAgentSelect = '1'
+
   const blank = document.createElement('option')
   blank.value = ''
   blank.textContent = 'Select Justin or Isaiah'
   select.appendChild(blank)
+
+  const preferred = normalizedName(preferredOwnerName)
   for (const agent of context.agents) {
     const option = document.createElement('option')
     option.value = agent.id
     option.textContent = agent.full_name
     select.appendChild(option)
+    if (preferred && normalizedName(agent.full_name) === preferred) select.value = agent.id
   }
+
   label.appendChild(select)
   form.insertBefore(label, form.firstChild)
   return select
 }
 
-function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context: AppointmentContext) {
-  if (dialog.dataset.outreachAvailability === '1' || !clientId) return
+function setAgentVisibility(dialog: HTMLElement, visible: boolean) {
+  const label = dialog.querySelector<HTMLElement>('[data-outreach-agent-label="1"]')
+  if (label) label.style.display = visible ? '' : 'none'
+}
 
-  const dateLabel = findLabel(dialog, 'Appointment date')
-  const timeLabel = findLabel(dialog, 'Time (optional)')
-  const dateInput = dateLabel?.querySelector<HTMLInputElement>('input') || null
+function mountExactAppointmentScheduler(
+  dialog: HTMLElement,
+  context: AppointmentContext,
+  dateLabelName: string,
+  timeLabelName: string,
+  preferredOwnerName = ''
+): SchedulerControls | null {
+  const dateLabel = findLabel(dialog, dateLabelName)
+  const timeLabel = findLabel(dialog, timeLabelName)
+  const dateInput = dateLabel?.querySelector<HTMLInputElement>('input:not(.outreach-appointment-date-picker)') || null
   const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]') || null
-  if (!dateInput || !timeInput) return
+  if (!dateInput || !timeInput) return null
+
+  const existingDate = dateLabel?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
+  const existingTime = timeLabel?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
+  const agentSelect = ensureAgentSelect(dialog, context, preferredOwnerName)
+  const selectedOwner = () => context.coordinator ? String(agentSelect?.value || '') : context.owner_id
+
+  if (existingDate && existingTime) {
+    return { datePicker: existingDate, timeSelect: existingTime, agentSelect, selectedOwner }
+  }
+
   const appointmentDateInput: HTMLInputElement = dateInput
   const appointmentTimeInput: HTMLInputElement = timeInput
-
-  dialog.dataset.outreachAvailability = '1'
-  const agentSelect = ensureAgentSelect(dialog, context)
 
   const datePicker = document.createElement('input')
   datePicker.type = 'date'
@@ -171,19 +213,19 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
   let blocks: CalendarBlock[] = []
   let requestNumber = 0
 
-  const selectedOwner = () => context.coordinator ? String(agentSelect?.value || '') : context.owner_id
-
   function renderOptions(enabled: boolean) {
     let selected = appointmentTimeInput.value.slice(0, 5)
     if (selected && isSlotBlocked(selected, blocks)) {
       selected = ''
       setControlledInputValue(appointmentTimeInput, '')
     }
+
     timeSelect.replaceChildren()
     const empty = document.createElement('option')
     empty.value = ''
     empty.textContent = enabled ? 'Select appointment time' : (selectedOwner() ? 'Choose a date first' : 'Choose an agent first')
     timeSelect.appendChild(empty)
+
     for (let minutes = WORKDAY_START_MINUTES; minutes <= WORKDAY_END_MINUTES; minutes += SLOT_MINUTES) {
       const value = minutesToTime(minutes)
       const booked = isSlotBlocked(value, blocks)
@@ -193,6 +235,7 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
       option.textContent = `${formatTime(value)}${booked ? ' — BOOKED' : ''}`
       timeSelect.appendChild(option)
     }
+
     timeSelect.value = selected
     timeSelect.disabled = !enabled
   }
@@ -241,60 +284,90 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
     void loadAvailability()
   })
   agentSelect?.addEventListener('change', () => void loadAvailability())
+
   renderOptions(false)
   void loadAvailability()
 
-  if (context.coordinator && dialog.getAttribute('aria-label') === 'Create client appointment') {
-    const saveButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
-      (button.textContent || '').trim().toLowerCase().includes('add to calendar')
-    ) || null
-    const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
-    if (saveButton && form && saveButton.dataset.coordinatorAppointmentBound !== '1') {
-      saveButton.dataset.coordinatorAppointmentBound = '1'
-      saveButton.addEventListener('click', async (event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        event.stopImmediatePropagation()
-        const campaignId = campaignIdFromPath()
-        const owner = selectedOwner()
-        const notes = dialog.querySelector<HTMLTextAreaElement>('textarea')?.value?.trim() || ''
-        let status = dialog.querySelector<HTMLElement>('[data-coordinator-appointment-status]')
-        if (!status) {
-          status = document.createElement('div')
-          status.className = 'notice outreach-spoke-appointment-status'
-          status.dataset.coordinatorAppointmentStatus = '1'
-          form.insertAdjacentElement('afterend', status)
-        }
-        if (!campaignId || !owner || !datePicker.value || !timeSelect.value) {
-          status.textContent = 'Choose an agent, appointment date, and available appointment time.'
-          return
-        }
-        const previous = saveButton.textContent || 'Add to calendar'
-        saveButton.disabled = true
-        saveButton.textContent = 'Saving…'
-        status.textContent = 'Saving appointment to the selected agent calendar…'
-        try {
-          const response = await fetch('/api/outreach-campaigns/coordinator-appointment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ campaign_id: campaignId, client_id: clientId, assigned_agent_id: owner, event_date: datePicker.value, start_time: timeSelect.value, notes })
-          })
-          const result = await response.json().catch(() => ({}))
-          if (!response.ok) throw new Error(result.error || 'Unable to create appointment.')
-          status.textContent = 'Appointment saved.'
-          window.location.reload()
-        } catch (error) {
-          status.textContent = error instanceof Error ? error.message : 'Unable to create appointment.'
-          saveButton.disabled = false
-          saveButton.textContent = previous
-        }
-      }, true)
-    }
-  }
+  return { datePicker, timeSelect, agentSelect, selectedOwner }
 }
 
-function ensureSpokeAppointment(dialog: HTMLElement, clientId: string, context: AppointmentContext) {
+function enhanceStandaloneAppointmentDialog(
+  dialog: HTMLElement,
+  clientId: string,
+  context: AppointmentContext,
+  preferredOwnerName: string
+) {
   if (!clientId) return
+  const controls = mountExactAppointmentScheduler(dialog, context, 'Appointment date', 'Time (optional)', preferredOwnerName)
+  if (!controls) return
+
+  if (!context.coordinator) return
+  const saveButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+    (button.textContent || '').trim().toLowerCase().includes('add to calendar')
+  ) || null
+  const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
+  if (!saveButton || !form || saveButton.dataset.coordinatorAppointmentBound === '1') return
+
+  saveButton.dataset.coordinatorAppointmentBound = '1'
+  saveButton.addEventListener('click', async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+
+    const campaignId = campaignIdFromPath()
+    const owner = controls.selectedOwner()
+    const notes = dialog.querySelector<HTMLTextAreaElement>('textarea')?.value?.trim() || ''
+    let status = dialog.querySelector<HTMLElement>('[data-coordinator-appointment-status]')
+    if (!status) {
+      status = document.createElement('div')
+      status.className = 'notice outreach-spoke-appointment-status'
+      status.dataset.coordinatorAppointmentStatus = '1'
+      form.insertAdjacentElement('afterend', status)
+    }
+
+    if (!campaignId || !owner || !controls.datePicker.value || !controls.timeSelect.value) {
+      status.textContent = 'Choose an agent, appointment date, and available appointment time.'
+      return
+    }
+
+    const previous = saveButton.textContent || 'Add to calendar'
+    saveButton.disabled = true
+    saveButton.textContent = 'Saving…'
+    status.textContent = 'Saving appointment to the selected agent calendar…'
+    try {
+      const response = await fetch('/api/outreach-campaigns/coordinator-appointment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          client_id: clientId,
+          assigned_agent_id: owner,
+          event_date: controls.datePicker.value,
+          start_time: controls.timeSelect.value,
+          notes
+        })
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Unable to create appointment.')
+      status.textContent = 'Appointment saved.'
+      window.location.reload()
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : 'Unable to create appointment.'
+      saveButton.disabled = false
+      saveButton.textContent = previous
+    }
+  }, true)
+}
+
+function ensureConversationScheduler(
+  dialog: HTMLElement,
+  clientId: string,
+  context: AppointmentContext,
+  preferredOwnerName: string
+) {
+  if (!clientId) return
+  cleanupAgentSelectors(dialog)
+
   const resultLabel = findLabel(dialog, 'Conversation result')
   const resultSelect = resultLabel?.querySelector<HTMLSelectElement>('select') || null
   const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
@@ -307,34 +380,45 @@ function ensureSpokeAppointment(dialog: HTMLElement, clientId: string, context: 
     resultSelect.appendChild(option)
   }
 
-  let fields = form.querySelector<HTMLElement>('[data-spoke-appointment-fields]')
-  if (!fields) {
-    fields = document.createElement('div')
-    fields.className = 'outreach-followup-row outreach-spoke-appointment-fields'
-    fields.dataset.spokeAppointmentFields = '1'
-    fields.innerHTML = `<label class="label">Appointment date<input class="input" inputmode="numeric" value="${centralTodayManual()}" placeholder="MM/DD/YYYY" /></label><label class="label">Time (optional)<input class="input" type="time" /></label>`
+  let appointmentFields = form.querySelector<HTMLElement>('[data-spoke-appointment-fields]')
+  if (!appointmentFields) {
+    appointmentFields = document.createElement('div')
+    appointmentFields.className = 'outreach-followup-row outreach-spoke-appointment-fields'
+    appointmentFields.dataset.spokeAppointmentFields = '1'
+    appointmentFields.innerHTML = `<label class="label">Appointment date<input class="input" inputmode="numeric" value="${centralTodayManual()}" placeholder="MM/DD/YYYY" /></label><label class="label">Time (optional)<input class="input" type="time" /></label>`
     const notesLabel = findLabel(dialog, 'Notes')
-    if (notesLabel?.parentElement === form) form.insertBefore(fields, notesLabel)
-    else form.appendChild(fields)
+    if (notesLabel?.parentElement === form) form.insertBefore(appointmentFields, notesLabel)
+    else form.appendChild(appointmentFields)
   }
 
-  const syncVisibility = () => {
-    if (!fields) return
-    const active = resultSelect.value === SPOKE_APPOINTMENT_VALUE
-    fields.style.display = active ? '' : 'none'
-    if (active) enhanceAppointmentDialog(dialog, clientId, context)
+  const sync = () => {
+    if (!appointmentFields) return
+    const isAppointment = resultSelect.value === SPOKE_APPOINTMENT_VALUE
+    const isFollowUp = resultSelect.value === 'follow_up'
+
+    appointmentFields.style.display = isAppointment ? '' : 'none'
+    setAgentVisibility(dialog, isAppointment || isFollowUp)
+
+    if (isAppointment) {
+      mountExactAppointmentScheduler(dialog, context, 'Appointment date', 'Time (optional)', preferredOwnerName)
+    } else if (isFollowUp) {
+      // Follow-Up uses the exact same scheduler function and exact same time
+      // dropdown as Appointment — schedule on calendar. Only the saved result differs.
+      mountExactAppointmentScheduler(dialog, context, 'Follow-up date', 'Time (optional)', preferredOwnerName)
+    }
   }
+
   if (resultSelect.dataset.spokeAppointmentBound !== '1') {
     resultSelect.dataset.spokeAppointmentBound = '1'
-    resultSelect.addEventListener('change', syncVisibility)
+    resultSelect.addEventListener('change', () => window.requestAnimationFrame(sync))
   }
-  syncVisibility()
+  sync()
 
   const saveButton = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
     (button.textContent || '').trim().toLowerCase().includes('save result')
   ) || null
-  if (!saveButton || saveButton.dataset.spokeAppointmentBound === '1') return
-  saveButton.dataset.spokeAppointmentBound = '1'
+  if (!saveButton || saveButton.dataset.spokeAppointmentSaveBound === '1') return
+  saveButton.dataset.spokeAppointmentSaveBound = '1'
 
   saveButton.addEventListener('click', async (event) => {
     if (resultSelect.value !== SPOKE_APPOINTMENT_VALUE) return
@@ -343,8 +427,8 @@ function ensureSpokeAppointment(dialog: HTMLElement, clientId: string, context: 
     event.stopImmediatePropagation()
 
     const campaignId = campaignIdFromPath()
-    const datePicker = fields?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
-    const timeSelect = fields?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
+    const datePicker = appointmentFields?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
+    const timeSelect = appointmentFields?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
     const agentSelect = dialog.querySelector<HTMLSelectElement>('[data-outreach-agent-select="1"]')
     const owner = context.coordinator ? String(agentSelect?.value || '') : context.owner_id
     const notes = findLabel(dialog, 'Notes')?.querySelector<HTMLTextAreaElement>('textarea')?.value?.trim() || ''
@@ -356,6 +440,7 @@ function ensureSpokeAppointment(dialog: HTMLElement, clientId: string, context: 
       status.dataset.spokeAppointmentStatus = '1'
       form.insertAdjacentElement('afterend', status)
     }
+
     if (!campaignId || !owner || !datePicker?.value || !timeSelect?.value) {
       status.textContent = context.coordinator
         ? 'Choose an agent, appointment date, and available appointment time.'
@@ -371,7 +456,14 @@ function ensureSpokeAppointment(dialog: HTMLElement, clientId: string, context: 
       const response = await fetch('/api/outreach-campaigns/spoke-appointment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaign_id: campaignId, client_id: clientId, assigned_agent_id: owner, event_date: datePicker.value, start_time: timeSelect.value, note: notes })
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          client_id: clientId,
+          assigned_agent_id: owner,
+          event_date: datePicker.value,
+          start_time: timeSelect.value,
+          note: notes
+        })
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to create appointment.')
@@ -391,6 +483,7 @@ export default function OutreachAppointmentTimeBlocker() {
     if (!root) return
 
     let activeClientId = ''
+    let activeOwnerName = ''
     let context: AppointmentContext | null = null
     let disposed = false
 
@@ -399,15 +492,17 @@ export default function OutreachAppointmentTimeBlocker() {
       const button = target?.closest<HTMLButtonElement>('button') || null
       const text = button?.textContent?.trim().toLowerCase() || ''
       if (!button || (text !== 'appointment' && text !== 'spoke / update')) return
-      activeClientId = clientIdFromRow(button.closest('.campaign-client-row'))
+      const row = button.closest('.campaign-client-row')
+      activeClientId = clientIdFromRow(row)
+      activeOwnerName = row?.querySelector<HTMLElement>('.campaign-owner-line')?.textContent?.trim() || ''
     }
 
     const enhance = () => {
       if (!context) return
       root.querySelectorAll<HTMLElement>('.outreach-dialog[aria-label="Create client appointment"]')
-        .forEach((dialog) => enhanceAppointmentDialog(dialog, activeClientId, context!))
+        .forEach((dialog) => enhanceStandaloneAppointmentDialog(dialog, activeClientId, context!, activeOwnerName))
       root.querySelectorAll<HTMLElement>('.outreach-dialog[aria-label="Record client conversation"]')
-        .forEach((dialog) => ensureSpokeAppointment(dialog, activeClientId, context!))
+        .forEach((dialog) => ensureConversationScheduler(dialog, activeClientId, context!, activeOwnerName))
     }
 
     root.addEventListener('click', captureAppointmentClient, true)
