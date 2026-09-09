@@ -61,6 +61,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
 
   const canFilterByAgent = canSeeAllClients(currentProfile.role)
   const canBulkDelete = canDeleteClients(currentProfile.role)
+  const isJustinAdmin = currentProfile.role === 'admin' && currentProfile.full_name?.trim().toLowerCase() === 'justin mayer'
 
   const agentsPromise = canFilterByAgent
     ? supabase.from('profiles').select('id, full_name, role').eq('agency_id', currentProfile.agency_id).eq('active', true).in('role', ['admin', 'agent']).order('full_name', { ascending: true })
@@ -183,7 +184,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Sear
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'end', flexWrap: 'wrap' }}>
         <div className="clients-page-heading"><h1>CLIENT RECORDS</h1><p className="subtle">Search, filter, sort, select, export, or manage clients from one screen.</p></div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link></div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{isJustinAdmin ? <Link prefetch={false} href="/clients/duplicates" className="btn btn-secondary">COMPARE CLIENTS</Link> : null}<Link prefetch={false} href="/clients/new" className="btn btn-primary">+ NEW CLIENT</Link></div>
       </div>
 
       {params.deleted === '1' ? <div className="notice notice-success" style={{ marginTop: 18 }}>Client deleted successfully.</div> : null}

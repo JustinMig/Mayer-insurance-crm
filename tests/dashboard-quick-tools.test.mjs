@@ -8,15 +8,19 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
 const source = (relativePath) => readFile(path.join(root, relativePath), 'utf8')
 
-test('Justin dashboard uses icon quick tools above the calendar instead of dashboard boxes', async () => {
-  const page = await source('app/(crm)/dashboard/page.tsx')
+test('Justin quick tools stay in the global CRM header and page-specific controls live on their pages', async () => {
+  const layout = await source('app/(crm)/layout.tsx')
+  const dashboard = await source('app/(crm)/dashboard/page.tsx')
   const quick = await source('app/(crm)/dashboard/DashboardQuickTools.tsx')
+  const clients = await source('app/(crm)/clients/page.tsx')
+  const notifications = await source('app/(crm)/notifications/page.tsx')
 
-  assert.match(page, /isJustinPortal \? <DashboardQuickTools \/>/)
-  assert.ok(page.indexOf('<DashboardQuickTools />') < page.indexOf('<DashboardCalendar'), 'Quick tool icons should render above the calendar')
-  assert.doesNotMatch(page, /<DashboardNotes \/>/)
-  assert.doesNotMatch(page, /dashboard-fex-home-tab/)
-  assert.match(page, /!isJustinPortal \? <DeferredDashboardTools \/>/)
+  assert.match(layout, /isJustinAdmin \? <DashboardQuickTools compact \/>/)
+  assert.doesNotMatch(layout, /COMPARE CLIENTS/)
+  assert.doesNotMatch(layout, /<PushNotificationManager \/>/)
+  assert.doesNotMatch(dashboard, /<DashboardQuickTools/)
+  assert.match(quick, /compact = false/)
+  assert.match(quick, /dashboard-quick-tools\$\{compact/)
 
   for (const label of ['Notes', 'FEX Quotes', 'Company Directory', 'Height & Weight']) {
     assert.match(quick, new RegExp(label.replace(/[&]/g, '&')))
@@ -24,7 +28,8 @@ test('Justin dashboard uses icon quick tools above the calendar instead of dashb
   assert.match(quick, /dashboard-quick-backdrop/)
   assert.match(quick, /event\.target === event\.currentTarget/)
   assert.match(quick, /event\.key === 'Escape'/)
-  assert.match(quick, /src="\/api\/fex-embed"/)
-  assert.match(quick, /dynamic\(\(\) => import\('\.\/CompanyDirectory'\)/)
-  assert.match(quick, /dynamic\(\(\) => import\('\.\/BuildChartLookup'\)/)
+  assert.match(clients, /COMPARE CLIENTS/)
+  assert.match(clients, /href="\/clients\/duplicates"/)
+  assert.match(notifications, /PushNotificationManager/)
+  assert.match(notifications, /<PushNotificationManager \/>/)
 })

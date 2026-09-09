@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import DashboardCalendar from './DashboardCalendar'
-import DashboardQuickTools from './DashboardQuickTools'
 import DeferredDashboardTools from './DeferredDashboardTools'
 
 export const dynamic = 'force-dynamic'
@@ -165,8 +164,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
         <h1>Dashboard</h1>
         <p className="subtle">Your client database at a glance.</p>
       </div>
-
-      {isJustinPortal ? <DashboardQuickTools /> : null}
 
       {isCalendarCoordinator && calendarAvailableAgents.length > 1 ? (
         <div className="dashboard-calendar-agent-switcher" aria-label="Choose agent calendar">

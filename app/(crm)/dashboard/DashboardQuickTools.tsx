@@ -103,7 +103,7 @@ function ToolBody({ active }: { active: ToolKey }) {
   )
 }
 
-export default function DashboardQuickTools() {
+export default function DashboardQuickTools({ compact = false }: { compact?: boolean }) {
   const [active, setActive] = useState<ToolKey | null>(null)
 
   useEffect(() => {
@@ -124,7 +124,7 @@ export default function DashboardQuickTools() {
 
   return (
     <>
-      <nav className="dashboard-quick-tools" aria-label="Justin dashboard quick tools">
+      <nav className={`dashboard-quick-tools${compact ? ' compact' : ''}`} aria-label="Justin CRM quick tools">
         {tools.map((tool) => (
           <button
             key={tool.key}
@@ -132,6 +132,7 @@ export default function DashboardQuickTools() {
             className={`dashboard-quick-tool dashboard-quick-tool-${tool.key}`}
             onClick={() => setActive(tool.key)}
             title={tool.hint}
+            aria-label={tool.label}
           >
             <span className="dashboard-quick-icon">{tool.icon}</span>
             <strong>{tool.label}</strong>
@@ -164,6 +165,11 @@ export default function DashboardQuickTools() {
 
       <style jsx global>{`
         .dashboard-quick-tools{display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;margin:12px 0 2px;padding:2px 2px 8px}
+        .dashboard-quick-tools.compact{margin:0 0 0 10px;padding:0;gap:5px;flex-wrap:nowrap;align-items:center}
+        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:0;padding:0;display:block}
+        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:none}
+        .dashboard-quick-tools.compact .dashboard-quick-icon{width:34px;height:34px;border-radius:10px}
+        .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:18px;height:18px}
         .dashboard-quick-tool{appearance:none;border:0;background:transparent;padding:3px 2px;display:grid;justify-items:center;gap:7px;min-width:84px;color:#34485a;cursor:pointer;font:inherit}
         .dashboard-quick-tool strong{font-size:.74rem;line-height:1.08;text-align:center;max-width:100px}
         .dashboard-quick-icon{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:#e7edf2;color:#365268;border:1px solid #ccd8e1;transition:transform .12s ease,background .12s ease}
@@ -198,6 +204,10 @@ export default function DashboardQuickTools() {
           .dashboard-quick-modal,.dashboard-quick-modal-fex{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
           .dashboard-quick-modal-head{padding:10px 12px}.dashboard-quick-modal-title p{display:none}.dashboard-quick-modal-body{padding:10px}
           .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}
+          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 5px;padding:0}
+          .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto}
+          .dashboard-quick-tools.compact .dashboard-quick-icon{width:31px;height:31px;border-radius:9px}
+          .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:17px;height:17px}
         }
       `}</style>
     </>
