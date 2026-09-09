@@ -34,12 +34,17 @@ test('Justin quick tools stay in the global CRM header and page-specific control
   assert.match(quick, /event\.key === 'Escape'/)
 
   assert.match(appointment, /\/api\/workspace\/clients\?q=/)
-  assert.match(appointment, /\/api\/outreach-campaigns\/appointment-availability/)
+  assert.match(appointment, /\/api\/workspace\/calendar-availability/)
   assert.match(appointment, /\/api\/workspace\/events/)
   assert.match(appointment, /WORKDAY_START = 8 \* 60/)
   assert.match(appointment, /WORKDAY_END = 20 \* 60/)
   assert.match(appointment, /BOOKED/)
   assert.match(appointment, /event_type: 'appointment'/)
+  assert.match(appointment, /NEW \/ NON-CLIENT/)
+  assert.match(appointment, /New client name/)
+  assert.match(appointment, /Phone number/)
+  assert.match(appointment, /Phone: \$\{phone\}/)
+  assert.match(appointment, /client_id: mode === 'existing'/)
 
   assert.match(campaignPage, /campaign-record-actions>button:nth-last-child\(2\)/)
   assert.match(clients, /COMPARE CLIENTS/)
