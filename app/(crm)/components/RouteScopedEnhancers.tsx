@@ -23,6 +23,7 @@ const DeceasedStatusBridge = dynamic(() => import('../clients/components/Decease
 const ClientCallHistoryBridge = dynamic(() => import('../clients/components/ClientCallHistoryBridge'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 const OutreachAppointmentTimeBlocker = dynamic(() => import('../campaigns/OutreachAppointmentTimeBlocker'), { ssr: false })
+const OutreachFollowUpAvailability = dynamic(() => import('../campaigns/OutreachFollowUpAvailability'), { ssr: false })
 
 type SectionFlags = { client: boolean; medicare: boolean }
 type IdleWindow = Window & { requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number; cancelIdleCallback?: (handle: number) => void }
@@ -147,6 +148,7 @@ export default function RouteScopedEnhancers() {
       {usesCalendarAppointmentStyler ? <AppointmentFormStyler key={`appointment-style-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
+      {usesOutreachAppointmentBlocking ? <OutreachFollowUpAvailability key={`outreach-followup-${pathname}`} /> : null}
 
       {isNewClient ? <NewClientRingCentralPrefill key={`ringcentral-prefill-${pathname}`} /> : null}
       {isNewClient ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
