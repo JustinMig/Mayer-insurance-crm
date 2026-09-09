@@ -17,16 +17,22 @@ export function toRingCentralNumber(value: string): string {
   return digits.length >= 11 && digits.length <= 15 && !digits.startsWith('0') ? digits : ''
 }
 
-/** Kept for compatibility; the CRM no longer requires a calling-setup step. */
+/** Kept for compatibility; there is no setup gate in the CRM. */
 export function requiresAppleCallingSetup(_platform: CallPlatform): boolean {
   return false
 }
 
-export function ringCentralCallHref(phone: string, _platform?: CallPlatform): string {
+export function ringCentralCallHref(phone: string, platform?: CallPlatform): string {
   const number = toRingCentralNumber(phone)
   if (!number) return ''
-  // Restore the RingCentral call URL used before the September 9 Apple changes
-  // (026e9b541493aa487dde44bfbb834e494a37193e). Let RingCentral handle the
-  // handoff instead of guessing app protocols or using the personal dialer.
+
+  // RingCentral documents rcmobile://call as the RingCentral-specific URI
+  // for dialing from the installed desktop softphone. Use it on macOS so a
+  // CRM click launches RingCentral directly instead of opening Safari.
+  if (platform === 'mac') {
+    return `rcmobile://call?number=${encodeURIComponent(number)}`
+  }
+
+  // Preserve the existing behavior on every non-macOS platform.
   return `https://app.ringcentral.com/r/call?number=${encodeURIComponent(number)}`
 }
