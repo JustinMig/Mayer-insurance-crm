@@ -93,14 +93,26 @@ function normalizedName(value: string) {
 function ensureSharedAgentSelect(dialog: HTMLElement, context: AppointmentContext, activeOwnerName: string) {
   if (!context.coordinator) return null
 
-  // Follow-Up and Appointment deliberately share this exact selector so only
-  // one Agent control can exist inside the Spoke / Update dialog.
-  let select = dialog.querySelector<HTMLSelectElement>('[data-outreach-agent-select="1"]')
-  if (select) return select
+  // Always remove any legacy Follow-Up-only selector before looking for the
+  // shared Appointment selector. This prevents an old client-side modal from
+  // keeping two Agent boxes after a deployment or route transition.
+  dialog.querySelectorAll('[data-followup-agent-select="1"]').forEach((legacy) => {
+    legacy.closest('label')?.remove()
+  })
 
-  // Clean up a legacy Follow-Up selector if an older client bundle left one in
-  // the current dialog during a route transition.
-  dialog.querySelector('[data-followup-agent-select="1"]')?.closest('label')?.remove()
+  const shared = Array.from(dialog.querySelectorAll<HTMLSelectElement>('[data-outreach-agent-select="1"]'))
+  if (shared.length) {
+    // Keep exactly one shared selector even if an older bundle managed to add
+    // more than one before the new code loaded.
+    shared.slice(1).forEach((duplicate) => duplicate.closest('label')?.remove())
+    const select = shared[0]
+    if (!select.value) {
+      const wanted = normalizedName(activeOwnerName)
+      const match = context.agents.find((agent) => wanted && normalizedName(agent.full_name) === wanted)
+      if (match) select.value = match.id
+    }
+    return select
+  }
 
   const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
   if (!form) return null
@@ -109,7 +121,7 @@ function ensureSharedAgentSelect(dialog: HTMLElement, context: AppointmentContex
   label.className = 'label outreach-appointment-agent-label'
   label.append('Agent')
 
-  select = document.createElement('select')
+  const select = document.createElement('select')
   select.className = 'select outreach-appointment-agent-select'
   select.dataset.outreachAgentSelect = '1'
 
@@ -154,18 +166,35 @@ export default function OutreachFollowUpAvailability() {
       const resultSelect = findLabel(dialog, 'Conversation result')?.querySelector<HTMLSelectElement>('select') || null
       if (!resultSelect || resultSelect.value !== 'follow_up') return
 
-      const dateInput = findLabel(dialog, 'Follow-up date')?.querySelector<HTMLInputElement>('input') || null
-      const timeInput = findLabel(dialog, 'Time (optional)')?.querySelector<HTMLInputElement>('input[type="time"]') || null
-      if (!dateInput || !timeInput || dateInput.dataset.followupAvailability === '1') return
+      const dateLabel = findLabel(dialog, 'Follow-up date')
+      const timeLabel = findLabel(dialog, 'Time (optional)')
+      const dateInput = dateLabel?.querySelector<HTMLInputElement>('input:not(.outreach-appointment-date-picker):not(.outreach-followup-date-picker)') || null
+      const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]:not(.outreach-followup-time-input)') || null
+      if (!dateInput || !timeInput) return
 
       const followUpDateInput: HTMLInputElement = dateInput
       const followUpTimeInput: HTMLInputElement = timeInput
-      followUpDateInput.dataset.followupAvailability = '1'
-
       const agentSelect = ensureSharedAgentSelect(dialog, context, activeOwnerName)
       const selectedOwner = () => context?.coordinator ? String(agentSelect?.value || '') : String(context?.owner_id || '')
 
-      // Use the exact same visual control classes as Appointment — schedule on calendar.
+      // If the current modal already has the correct Appointment-style controls,
+      // leave them in place after cleaning duplicate Agent selectors above.
+      const existingDatePicker = dateLabel?.querySelector<HTMLInputElement>('.outreach-appointment-date-picker') || null
+      const existingTimeSelect = timeLabel?.querySelector<HTMLSelectElement>('.outreach-appointment-time-select') || null
+      if (existingDatePicker && existingTimeSelect) return
+
+      // Remove controls left by the old Follow-Up implementation, restore the
+      // React-controlled source inputs, then rebuild with the exact same UI
+      // classes and behavior used by Appointment — schedule on calendar.
+      dateLabel?.querySelectorAll('.outreach-followup-date-picker').forEach((node) => node.remove())
+      timeLabel?.querySelectorAll('.outreach-followup-time-select,.outreach-followup-time-help').forEach((node) => node.remove())
+      followUpDateInput.style.display = ''
+      followUpDateInput.removeAttribute('aria-hidden')
+      followUpTimeInput.style.display = ''
+      followUpTimeInput.removeAttribute('aria-hidden')
+      delete followUpDateInput.dataset.followupAvailability
+      followUpDateInput.dataset.followupAvailability = '1'
+
       const datePicker = document.createElement('input')
       datePicker.type = 'date'
       datePicker.className = `${followUpDateInput.className} outreach-appointment-date-picker`
