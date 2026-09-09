@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveCalendarOwner } from '@/lib/calendar-access'
 import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
     const eventDate = clean(body.event_date, 10)
     const startTime = clean(body.start_time, 5)
     const note = clean(body.note, 5000)
+    const requestedOwner = clean(body.assigned_agent_id, 100)
 
     if (!UUID_PATTERN.test(campaignId) || !UUID_PATTERN.test(clientId)) return json({ error: 'Invalid Outreach appointment.' }, 400)
     if (!validDate(eventDate)) return json({ error: 'Choose a valid appointment date.' }, 400)
@@ -67,10 +69,11 @@ export async function POST(request: NextRequest) {
       return json({ error: 'Agent assignment changed. Refresh the campaign.' }, 409)
     }
 
+    const appointmentOwnerId = resolveCalendarOwner(userId, profile, requestedOwner || member.assigned_agent_id)
     await assertAppointmentTimeAvailable(
       admin,
       profile.agency_id,
-      member.assigned_agent_id,
+      appointmentOwnerId,
       eventDate,
       startTime,
       ''
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
       .from('workspace_calendar_events')
       .insert({
         agency_id: profile.agency_id,
-        assigned_agent_id: member.assigned_agent_id,
+        assigned_agent_id: appointmentOwnerId,
         created_by: userId,
         client_id: clientId,
         lead_id: null,
@@ -153,7 +156,8 @@ export async function POST(request: NextRequest) {
         campaign_id: campaignId,
         member_id: member.id,
         event_id: event.id,
-        assigned_agent_id: member.assigned_agent_id,
+        outreach_agent_id: member.assigned_agent_id,
+        assigned_agent_id: appointmentOwnerId,
         event_date: eventDate,
         start_time: startTime
       }
