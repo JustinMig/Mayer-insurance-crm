@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+type AppointmentMode = 'existing' | 'new'
+
 type ClientOption = {
   id: string
   assigned_agent_id: string
@@ -24,6 +26,13 @@ const WORKDAY_END = 20 * 60
 function clientName(client: ClientOption | null) {
   if (!client) return ''
   return [client.first_name, client.last_name].filter(Boolean).join(' ').trim() || 'Client'
+}
+
+function formatPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 10)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
 }
 
 function timeToMinutes(value: string | null | undefined) {
@@ -64,17 +73,20 @@ function isBlocked(value: string, blocks: CalendarBlock[]) {
 }
 
 export default function AppointmentQuickSetter() {
+  const [mode, setMode] = useState<AppointmentMode>('existing')
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [clients, setClients] = useState<ClientOption[]>([])
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newPhone, setNewPhone] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [notes, setNotes] = useState('')
   const [blocks, setBlocks] = useState<CalendarBlock[]>([])
   const [checking, setChecking] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState('Search for a client, then choose a date and available time.')
+  const [status, setStatus] = useState('Choose an existing client or enter a new client, then pick a date and available time.')
 
   const times = useMemo(() => {
     const output: string[] = []
@@ -82,7 +94,16 @@ export default function AppointmentQuickSetter() {
     return output
   }, [])
 
+  const subjectReady = mode === 'existing'
+    ? Boolean(selectedClient)
+    : Boolean(newName.trim() && newPhone.trim())
+
   useEffect(() => {
+    if (mode !== 'existing') {
+      setClients([])
+      setSearching(false)
+      return
+    }
     if (selectedClient && query === clientName(selectedClient)) return
     const value = query.trim()
     setSelectedClient(null)
@@ -114,21 +135,18 @@ export default function AppointmentQuickSetter() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [query, selectedClient])
+  }, [mode, query, selectedClient])
 
   useEffect(() => {
     setBlocks([])
     setStartTime('')
-    if (!selectedClient || !eventDate) {
-      if (selectedClient) setStatus('Choose an appointment date to check the calendar.')
-      return
-    }
+    if (!eventDate) return
 
     let cancelled = false
     setChecking(true)
-    setStatus('Checking the calendar for booked times…')
-    const params = new URLSearchParams({ client_id: selectedClient.id, date: eventDate })
-    void fetch(`/api/outreach-campaigns/appointment-availability?${params.toString()}`, { cache: 'no-store' })
+    setStatus('Checking Justin’s main calendar for booked times…')
+    const params = new URLSearchParams({ date: eventDate })
+    void fetch(`/api/workspace/calendar-availability?${params.toString()}`, { cache: 'no-store' })
       .then(async (response) => {
         const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.error || 'Unable to check appointment availability.')
@@ -145,17 +163,35 @@ export default function AppointmentQuickSetter() {
       .finally(() => { if (!cancelled) setChecking(false) })
 
     return () => { cancelled = true }
-  }, [selectedClient, eventDate])
+  }, [eventDate])
+
+  function switchMode(nextMode: AppointmentMode) {
+    setMode(nextMode)
+    setClients([])
+    setSelectedClient(null)
+    setQuery('')
+    setNewName('')
+    setNewPhone('')
+    setStartTime('')
+    setStatus(nextMode === 'existing'
+      ? 'Search for an existing client, then choose a date and available time.'
+      : 'Enter the new client’s name and phone number, then choose a date and available time.')
+  }
 
   function selectClient(client: ClientOption) {
     setSelectedClient(client)
     setQuery(clientName(client))
     setClients([])
-    setStatus('Choose an appointment date to check the calendar.')
+    setStatus(eventDate ? 'Choose an available appointment time.' : 'Choose an appointment date to check the calendar.')
   }
 
   async function saveAppointment() {
-    if (!selectedClient) return setStatus('Choose a client first.')
+    const name = mode === 'existing' ? clientName(selectedClient) : newName.trim()
+    const phone = mode === 'existing' ? String(selectedClient?.phone || '').trim() : newPhone.trim()
+
+    if (mode === 'existing' && !selectedClient) return setStatus('Choose an existing client first.')
+    if (mode === 'new' && !name) return setStatus('Enter the new client’s name.')
+    if (mode === 'new' && !phone) return setStatus('Enter the new client’s phone number.')
     if (!eventDate) return setStatus('Choose an appointment date.')
     if (!startTime) return setStatus('Choose an available appointment time.')
     if (isBlocked(startTime, blocks)) return setStatus('That time is already booked. Choose another time.')
@@ -163,30 +199,40 @@ export default function AppointmentQuickSetter() {
     setSaving(true)
     setStatus('Saving appointment to the main calendar…')
     try {
+      const calendarNotes = mode === 'new'
+        ? [`Phone: ${phone}`, notes.trim()].filter(Boolean).join('\n')
+        : notes.trim()
+
       const response = await fetch('/api/workspace/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assigned_agent_id: selectedClient.assigned_agent_id,
-          client_id: selectedClient.id,
+          assigned_agent_id: mode === 'existing' ? selectedClient?.assigned_agent_id || '' : '',
+          client_id: mode === 'existing' ? selectedClient?.id || '' : '',
           lead_id: '',
-          title: `Appointment: ${clientName(selectedClient)}`,
+          title: `Appointment: ${name}`,
           event_type: 'appointment',
           event_date: eventDate,
           start_time: startTime,
           end_time: '',
-          notes
+          notes: calendarNotes
         })
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to save appointment.')
-      setStatus(`Appointment saved for ${clientName(selectedClient)} on ${eventDate} at ${formatTime(startTime)}.`)
+
+      setStatus(`Appointment saved for ${name} on ${eventDate} at ${formatTime(startTime)}.`)
+      const savedStart = startTime
       setStartTime('')
       setNotes('')
+      if (mode === 'new') {
+        setNewName('')
+        setNewPhone('')
+      }
       setBlocks((current) => [...current, {
         id: String(result.event?.id || `new-${Date.now()}`),
-        title: String(result.event?.title || `Appointment: ${clientName(selectedClient)}`),
-        start_time: String(result.event?.start_time || startTime),
+        title: String(result.event?.title || `Appointment: ${name}`),
+        start_time: String(result.event?.start_time || savedStart),
         end_time: result.event?.end_time ? String(result.event.end_time) : null
       }])
       if (window.location.pathname === '/dashboard') window.setTimeout(() => window.location.reload(), 650)
@@ -200,35 +246,55 @@ export default function AppointmentQuickSetter() {
   return (
     <div className="quick-appointment-setter">
       <div className="quick-appointment-intro">
-        <strong>Set Client Appointment</strong>
-        <span>Uses the same main calendar and booked-time protection as Outreach.</span>
+        <strong>Set Appointment</strong>
+        <span>Schedule an existing client or a new/non-client directly onto Justin’s main calendar.</span>
       </div>
 
-      <label className="label quick-appointment-client">
-        <span>Client</span>
-        <input
-          className="input"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Type client name or phone"
-          autoComplete="off"
-        />
-        {searching ? <small>Searching…</small> : null}
-        {clients.length ? (
-          <div className="quick-appointment-results">
-            {clients.map((client) => (
-              <button type="button" key={client.id} onClick={() => selectClient(client)}>
-                <strong>{clientName(client)}</strong>
-                <span>{client.phone || 'No phone number'}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </label>
+      <div className="quick-appointment-mode" role="group" aria-label="Appointment person type">
+        <button type="button" className={mode === 'existing' ? 'active' : ''} onClick={() => switchMode('existing')}>EXISTING CLIENT</button>
+        <button type="button" className={mode === 'new' ? 'active' : ''} onClick={() => switchMode('new')}>NEW / NON-CLIENT</button>
+      </div>
 
-      {selectedClient ? (
-        <div className="quick-appointment-selected">Selected: <strong>{clientName(selectedClient)}</strong>{selectedClient.phone ? ` · ${selectedClient.phone}` : ''}</div>
-      ) : null}
+      {mode === 'existing' ? (
+        <>
+          <label className="label quick-appointment-client">
+            <span>Client</span>
+            <input
+              className="input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Type client name or phone"
+              autoComplete="off"
+            />
+            {searching ? <small>Searching…</small> : null}
+            {clients.length ? (
+              <div className="quick-appointment-results">
+                {clients.map((client) => (
+                  <button type="button" key={client.id} onClick={() => selectClient(client)}>
+                    <strong>{clientName(client)}</strong>
+                    <span>{client.phone || 'No phone number'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </label>
+
+          {selectedClient ? (
+            <div className="quick-appointment-selected">Selected: <strong>{clientName(selectedClient)}</strong>{selectedClient.phone ? ` · ${selectedClient.phone}` : ''}</div>
+          ) : null}
+        </>
+      ) : (
+        <div className="quick-appointment-grid quick-appointment-new-person">
+          <label className="label">
+            <span>New client name</span>
+            <input className="input" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="First and last name" autoComplete="off" />
+          </label>
+          <label className="label">
+            <span>Phone number</span>
+            <input className="input" inputMode="tel" value={newPhone} onChange={(event) => setNewPhone(formatPhoneInput(event.target.value))} placeholder="(555) 555-5555" autoComplete="tel" />
+          </label>
+        </div>
+      )}
 
       <div className="quick-appointment-grid">
         <label className="label">
@@ -237,7 +303,7 @@ export default function AppointmentQuickSetter() {
         </label>
         <label className="label">
           <span>Appointment time</span>
-          <select className="select" value={startTime} onChange={(event) => setStartTime(event.target.value)} disabled={!selectedClient || !eventDate || checking}>
+          <select className="select" value={startTime} onChange={(event) => setStartTime(event.target.value)} disabled={!eventDate || checking}>
             <option value="">{checking ? 'Checking calendar…' : 'Select appointment time'}</option>
             {times.map((value) => {
               const booked = isBlocked(value, blocks)
@@ -254,22 +320,24 @@ export default function AppointmentQuickSetter() {
 
       <div className="quick-appointment-status" role="status">{status}</div>
       <div className="quick-appointment-actions">
-        <button type="button" className="btn btn-primary" disabled={saving || checking || !selectedClient || !eventDate || !startTime} onClick={() => void saveAppointment()}>
+        <button type="button" className="btn btn-primary" disabled={saving || checking || !subjectReady || !eventDate || !startTime} onClick={() => void saveAppointment()}>
           {saving ? 'Saving…' : 'ADD TO CALENDAR'}
         </button>
       </div>
 
       <style jsx global>{`
+        .add-client-form>.add-client-save-row,.client-profile-form>.sticky-save-bar{visibility:hidden!important;pointer-events:none!important}
         .quick-appointment-setter{max-width:760px;margin:0 auto;display:grid;gap:14px}
         .quick-appointment-intro{display:grid;gap:3px;padding:13px 14px;border:1px solid #d8e1e8;border-radius:12px;background:#f4f8fb}.quick-appointment-intro strong{color:#263746}.quick-appointment-intro span{font-size:.8rem;color:#657789}
+        .quick-appointment-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:4px;border:1px solid #d6e0e8;border-radius:11px;background:#eef3f6}.quick-appointment-mode button{min-height:40px;border:0;border-radius:8px;background:transparent;color:#627386;font:inherit;font-size:.75rem;font-weight:900;cursor:pointer}.quick-appointment-mode button.active{background:#fff;color:#2f5274;box-shadow:0 1px 4px rgba(15,23,42,.1)}
         .quick-appointment-client{position:relative}.quick-appointment-client small{margin-top:4px;color:#667788}
         .quick-appointment-results{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:280px;overflow:auto;background:#fff;border:1px solid #ccd8e1;border-radius:10px;box-shadow:0 10px 24px rgba(15,23,42,.13)}
         .quick-appointment-results button{width:100%;display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border:0;border-bottom:1px solid #edf1f4;background:#fff;text-align:left;cursor:pointer}.quick-appointment-results button:last-child{border-bottom:0}.quick-appointment-results button:hover{background:#f2f6f8}.quick-appointment-results span{font-size:.76rem;color:#718096}
         .quick-appointment-selected{padding:9px 11px;border-radius:9px;background:#eef6f0;color:#385a42;font-size:.82rem}
-        .quick-appointment-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.quick-appointment-grid .input,.quick-appointment-grid .select{min-height:42px}
+        .quick-appointment-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.quick-appointment-grid .input,.quick-appointment-grid .select{min-height:42px}.quick-appointment-new-person{padding:12px;border:1px solid #dbe4eb;border-radius:11px;background:#fbfcfd}
         .quick-appointment-status{min-height:38px;padding:9px 11px;border-radius:9px;background:#f7f8f9;border:1px solid #e0e5e9;color:#536576;font-size:.8rem;font-weight:700}
         .quick-appointment-actions{display:flex;justify-content:flex-end}.quick-appointment-actions .btn{min-width:190px}
-        @media(max-width:640px){.quick-appointment-grid{grid-template-columns:1fr}.quick-appointment-actions .btn{width:100%}.quick-appointment-results button{display:grid;gap:2px}}
+        @media(max-width:640px){.quick-appointment-grid{grid-template-columns:1fr}.quick-appointment-mode{grid-template-columns:1fr 1fr}.quick-appointment-mode button{font-size:.68rem}.quick-appointment-actions .btn{width:100%}.quick-appointment-results button{display:grid;gap:2px}}
       `}</style>
     </div>
   )
