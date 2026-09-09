@@ -33,6 +33,16 @@ body {
   contain-intrinsic-size: auto 180px;
 }
 
+/* Notifications can contain long call/text lists. Keep every row available,
+   but let the browser avoid laying out and painting rows until they approach
+   the viewport. This specifically reduces long main-thread tasks on iPhone and
+   lower-power desktops without changing pagination or visible data. */
+.crm-shell .notifications-calls-panel .calls-row,
+.crm-shell [data-message-conversation] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 118px;
+}
+
 /* Remove expensive compositing only. Preserve each component's own background. */
 .crm-shell .sidebar,
 .crm-shell .topbar,
