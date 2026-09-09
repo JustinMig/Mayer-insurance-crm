@@ -18,16 +18,21 @@ async function loadAccessibleClient(id: string) {
   return { client, userId }
 }
 
-export async function GET(_request: NextRequest, { params }: { params: Params }) {
+export async function GET(request: NextRequest, { params }: { params: Params }) {
   const { id } = await params
   const { client } = await loadAccessibleClient(id)
   if (!client) return NextResponse.json({ error: 'Client not found.' }, { status: 404 })
 
+  const notificationScope = request.nextUrl.searchParams.get('scope') === 'notifications'
   const admin = createAdminClient()
-  const { data, error } = await admin
+  let query = admin
     .from('client_sms_messages')
     .select('id,direction,body,from_number,to_number,twilio_message_sid,status,error_code,error_message,read_at,created_at,updated_at')
     .eq('client_id', id)
+
+  if (notificationScope) query = query.is('notification_hidden_at', null)
+
+  const { data, error } = await query
     .order('created_at', { ascending: true })
     .limit(200)
 
