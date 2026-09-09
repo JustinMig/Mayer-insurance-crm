@@ -326,6 +326,7 @@ export default function AppointmentQuickSetter() {
       </div>
 
       <style jsx global>{`
+        .add-client-form>.add-client-save-row,.client-profile-form>.sticky-save-bar{visibility:hidden!important;pointer-events:none!important}
         .quick-appointment-setter{max-width:760px;margin:0 auto;display:grid;gap:14px}
         .quick-appointment-intro{display:grid;gap:3px;padding:13px 14px;border:1px solid #d8e1e8;border-radius:12px;background:#f4f8fb}.quick-appointment-intro strong{color:#263746}.quick-appointment-intro span{font-size:.8rem;color:#657789}
         .quick-appointment-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:4px;border:1px solid #d6e0e8;border-radius:11px;background:#eef3f6}.quick-appointment-mode button{min-height:40px;border:0;border-radius:8px;background:transparent;color:#627386;font:inherit;font-size:.75rem;font-weight:900;cursor:pointer}.quick-appointment-mode button.active{background:#fff;color:#2f5274;box-shadow:0 1px 4px rgba(15,23,42,.1)}
