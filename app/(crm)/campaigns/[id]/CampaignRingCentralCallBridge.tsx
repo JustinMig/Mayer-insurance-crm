@@ -16,44 +16,26 @@ function toRingCentralNumber(value: string) {
   return digits
 }
 
-function launchRingCentralCall(phone: string) {
-  const nativeUrl = `rcmobile://call?number=${encodeURIComponent(phone)}`
-  const webUrl = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(phone)}`
-  let handedOff = false
-  let timer = 0
+function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false
+  const userAgent = navigator.userAgent || ''
+  const platform = navigator.platform || ''
+  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isAndroid = /Android/i.test(userAgent)
+  return isiOS || isAndroid
+}
 
-  const cleanup = () => {
-    window.removeEventListener('blur', onBlur)
-    document.removeEventListener('visibilitychange', onVisibilityChange)
-    if (timer) window.clearTimeout(timer)
-  }
-  const onBlur = () => {
-    handedOff = true
-    cleanup()
-  }
-  const onVisibilityChange = () => {
-    if (document.hidden) {
-      handedOff = true
-      cleanup()
-    }
-  }
+function isChromeBrowser() {
+  if (typeof navigator === 'undefined') return false
+  const userAgent = navigator.userAgent || ''
+  return /Chrome|CriOS/i.test(userAgent) && !/Edg|OPR/i.test(userAgent)
+}
 
-  window.addEventListener('blur', onBlur, { once: true })
-  document.addEventListener('visibilitychange', onVisibilityChange)
-
-  try {
-    const targetWindow = window.parent || window
-    targetWindow.location.assign(nativeUrl)
-  } catch {
-    window.location.assign(nativeUrl)
-  }
-
-  timer = window.setTimeout(() => {
-    cleanup()
-    if (!handedOff && document.visibilityState === 'visible') {
-      window.location.assign(webUrl)
-    }
-  }, 1400)
+function nativeRingCentralUrl(phone: string) {
+  const encoded = encodeURIComponent(phone)
+  return isMobileDevice()
+    ? `rcmobile://call?number=${encoded}`
+    : `rcapp://r/call?number=${encoded}`
 }
 
 export default function CampaignRingCentralCallBridge() {
@@ -95,19 +77,32 @@ export default function CampaignRingCentralCallBridge() {
 
   return (
     <>
-      {targets.map((target) => createPortal(
-        <button
-          key={target.key}
-          type="button"
-          className="campaign-ringcentral-call"
-          onClick={() => launchRingCentralCall(target.phone)}
-          title="Call this client with RingCentral"
-          aria-label="Call client with RingCentral"
-        >
-          ☎ Call
-        </button>,
-        target.host
-      ))}
+      {targets.map((target) => {
+        const nativeUrl = nativeRingCentralUrl(target.phone)
+        return createPortal(
+          <a
+            key={target.key}
+            className="campaign-ringcentral-call"
+            href={nativeUrl}
+            onClick={(event) => {
+              if (isChromeBrowser()) {
+                event.preventDefault()
+                try {
+                  const targetWindow = window.parent || window
+                  targetWindow.location.assign(nativeUrl)
+                } catch {
+                  window.location.assign(nativeUrl)
+                }
+              }
+            }}
+            title="Open the installed RingCentral app and call this client"
+            aria-label="Call client with RingCentral"
+          >
+            ☎ Call
+          </a>,
+          target.host
+        )
+      })}
       <style jsx global>{`
         .campaign-ringcentral-call{
           appearance:none;
@@ -123,6 +118,9 @@ export default function CampaignRingCentralCallBridge() {
           line-height:1;
           cursor:pointer;
           white-space:nowrap;
+          text-decoration:none;
+          display:inline-flex;
+          align-items:center;
         }
         .campaign-ringcentral-call:hover{background:#dfeef6;color:#244b64}
         @media(max-width:720px){
