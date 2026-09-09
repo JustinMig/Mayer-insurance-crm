@@ -229,7 +229,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
           .dashboard-quick-modal,.dashboard-quick-modal-fex,.dashboard-quick-modal-appointments{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
           .dashboard-quick-modal-head{padding:10px 12px}.dashboard-quick-modal-title p{display:none}.dashboard-quick-modal-body{padding:10px}
           .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}
-          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 5px;padding:0}
+          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:8px;margin:0 0 0 5px;padding:0}
           .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto;min-width:31px}
           .dashboard-quick-tools.compact .dashboard-quick-icon{width:31px;height:31px;border-radius:9px}
           .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:17px;height:17px}
