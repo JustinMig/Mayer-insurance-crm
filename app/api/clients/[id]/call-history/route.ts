@@ -27,6 +27,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
       .select('id,user_id,direction,result,started_at,duration_seconds,contact_phone,from_phone,to_phone,recording_id')
       .eq('agency_id', profile.agency_id)
       .eq('client_id', id)
+      .is('hidden_at', null)
       .order('started_at', { ascending: false })
       .limit(50)
   ])
