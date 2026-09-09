@@ -23,7 +23,6 @@ const DeceasedStatusBridge = dynamic(() => import('../clients/components/Decease
 const ClientCallHistoryBridge = dynamic(() => import('../clients/components/ClientCallHistoryBridge'), { ssr: false })
 const ClientOutreachHistoryBridge = dynamic(() => import('../clients/components/ClientOutreachHistoryBridge'), { ssr: false })
 const OutreachAppointmentTimeBlocker = dynamic(() => import('../campaigns/OutreachAppointmentTimeBlocker'), { ssr: false })
-const OutreachFollowUpAvailability = dynamic(() => import('../campaigns/OutreachFollowUpAvailability'), { ssr: false })
 
 type SectionFlags = { client: boolean; medicare: boolean }
 type IdleWindow = Window & { requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number; cancelIdleCallback?: (handle: number) => void }
@@ -79,10 +78,6 @@ function useClientRecordActivation(enabled: boolean) {
       return true
     }
 
-    // On client-side navigation (for example Outreach -> Open client), this
-    // layout component can run before the new client form has committed to the
-    // DOM. Observe/retry until the form exists so Medicare.gov helpers attach
-    // just as reliably as they do on a full page load.
     if (!bindSections()) {
       observer = new MutationObserver(() => {
         if (bindSections()) {
@@ -148,7 +143,6 @@ export default function RouteScopedEnhancers() {
       {usesCalendarAppointmentStyler ? <AppointmentFormStyler key={`appointment-style-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
-      {usesOutreachAppointmentBlocking ? <OutreachFollowUpAvailability key={`outreach-followup-${pathname}`} /> : null}
 
       {isNewClient ? <NewClientRingCentralPrefill key={`ringcentral-prefill-${pathname}`} /> : null}
       {isNewClient ? <MedicareGovCredentialsBridge key={`medicare-gov-${pathname}`} /> : null}
@@ -158,7 +152,6 @@ export default function RouteScopedEnhancers() {
         </ClientRecordBootstrapProvider>
       ) : null}
 
-      {/* Keep core client communication actions and the permanent communication section available immediately. */}
       {isClientRecord ? <RingCentralOutboundCallBridge key={`ringcentral-call-${pathname}`} /> : null}
       {isClientRecord ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
       {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
