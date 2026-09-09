@@ -12,6 +12,7 @@ const AddressAutoFill = dynamic(() => import('./AddressAutoFill'), { ssr: false 
 const ClientPhoneAutoFormat = dynamic(() => import('./ClientPhoneAutoFormat'), { ssr: false })
 const ClientTextingDock = dynamic(() => import('./ClientTextingDock'), { ssr: false })
 const ClientSoaTextAction = dynamic(() => import('./ClientSoaTextAction'), { ssr: false })
+const RingCentralOutboundCallBridge = dynamic(() => import('./RingCentralOutboundCallBridge'), { ssr: false })
 const ManualWorkspaceDates = dynamic(() => import('./ManualWorkspaceDates'), { ssr: false })
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
@@ -94,6 +95,7 @@ export default function RouteScopedEnhancers() {
         </ClientRecordBootstrapProvider>
       ) : null}
 
+      {isClientRecord ? <RingCentralOutboundCallBridge key={`ringcentral-call-${pathname}`} /> : null}
       {isClientRecord ? <ClientSoaTextAction key={`soa-direct-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientOutreachHistoryBridge key={`outreach-history-${pathname}`} /> : null}
       {isClientRecord && deferredReady ? <ClientTextingDock key={`texting-${pathname}`} /> : null}
