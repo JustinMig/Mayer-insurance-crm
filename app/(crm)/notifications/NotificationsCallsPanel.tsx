@@ -5,8 +5,6 @@ import { isRingCentralConfigured } from '@/lib/ringcentral'
 import CallsSyncButton from '../calls/CallsSyncButton'
 import DeleteRingCentralCallButton from './DeleteRingCentralCallButton'
 
-const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
-
 type CallRow = {
   id: string
   client_id: string | null
@@ -25,10 +23,6 @@ type ClientRow = {
   first_name: string | null
   last_name: string | null
   phone: string | null
-}
-
-function isJustin(userId: string, fullName?: string | null) {
-  return userId === JUSTIN_USER_ID && String(fullName || '').trim().toLowerCase() === 'justin mayer'
 }
 
 function formatPhone(value?: string | null) {
@@ -75,8 +69,8 @@ function clientName(client?: ClientRow) {
 }
 
 export default async function NotificationsCallsPanel({ filter = 'all', q = '' }: { filter?: string; q?: string }) {
-  const { userId, profile } = await getCrmSession()
-  if (!profile?.agency_id || !isJustin(userId, profile.full_name)) return null
+  const { profile } = await getCrmSession()
+  if (!profile?.agency_id) return null
 
   const activeFilter = ['all', 'missed', 'recordings', 'unknown', 'inbound', 'outbound'].includes(filter.toLowerCase())
     ? filter.toLowerCase()
@@ -88,7 +82,6 @@ export default async function NotificationsCallsPanel({ filter = 'all', q = '' }
     .from('ringcentral_calls')
     .select('id,client_id,direction,result,started_at,duration_seconds,contact_phone,from_phone,to_phone,recording_id')
     .eq('agency_id', profile.agency_id)
-    .eq('user_id', userId)
     .is('hidden_at', null)
     .order('started_at', { ascending: false })
     .limit(250)
@@ -143,8 +136,8 @@ export default async function NotificationsCallsPanel({ filter = 'all', q = '' }
     <div className="notifications-calls-panel">
       <div className="calls-page-heading">
         <div>
-          <h2>RingCentral Calls</h2>
-          <p className="subtle">Call activity is stored in the CRM for matching and notes. Deleting here never deletes the original RingCentral call or recording.</p>
+          <h2>Office RingCentral Calls</h2>
+          <p className="subtle">Shared office call activity for the agency. Removing a call here only clears it from Notifications; matched calls and recordings remain in the client record and in RingCentral.</p>
         </div>
         <CallsSyncButton configured={configured} />
       </div>
