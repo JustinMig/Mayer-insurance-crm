@@ -9,17 +9,17 @@ export default function DeleteRingCentralCallButton({ callId }: { callId: string
 
   async function removeCall() {
     if (deleting) return
-    const confirmed = window.confirm('Delete this call from the CRM call log?\n\nThis will NOT delete the call or recording from RingCentral.')
+    const confirmed = window.confirm('Remove this call from Notifications?\n\nThe call will stay in the client record, and the original call/recording will stay in RingCentral.')
     if (!confirmed) return
 
     setDeleting(true)
     try {
       const response = await fetch(`/api/ringcentral/calls/${encodeURIComponent(callId)}`, { method: 'DELETE' })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'Unable to delete the call from the CRM.')
+      if (!response.ok) throw new Error(payload.error || 'Unable to remove the call from Notifications.')
       router.refresh()
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to delete the call from the CRM.')
+      window.alert(error instanceof Error ? error.message : 'Unable to remove the call from Notifications.')
     } finally {
       setDeleting(false)
     }
@@ -31,9 +31,9 @@ export default function DeleteRingCentralCallButton({ callId }: { callId: string
       className="btn btn-secondary calls-delete-button"
       onClick={removeCall}
       disabled={deleting}
-      title="Remove from CRM only. The call remains in RingCentral."
+      title="Remove from Notifications only. The call stays in the client record and RingCentral."
     >
-      {deleting ? 'Deleting…' : 'Delete from CRM'}
+      {deleting ? 'Removing…' : 'Remove'}
     </button>
   )
 }
