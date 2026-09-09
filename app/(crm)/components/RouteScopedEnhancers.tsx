@@ -39,13 +39,66 @@ function useClientRecordActivation(enabled: boolean) {
       return
     }
 
-    const form = document.querySelector<HTMLElement>('.client-profile-form')
-    const clientSection = form?.querySelector<HTMLDetailsElement>('.section-client') || null
-    const medicareSection = form?.querySelector<HTMLDetailsElement>('.section-medicare') || null
-    const sync = () => setSections({ client: Boolean(clientSection?.open), medicare: Boolean(medicareSection?.open) })
-    clientSection?.addEventListener('toggle', sync)
-    medicareSection?.addEventListener('toggle', sync)
-    sync()
+    let cancelled = false
+    let clientSection: HTMLDetailsElement | null = null
+    let medicareSection: HTMLDetailsElement | null = null
+    let observer: MutationObserver | null = null
+    let retryTimer: number | null = null
+
+    const sync = () => {
+      if (cancelled) return
+      setSections({ client: Boolean(clientSection?.open), medicare: Boolean(medicareSection?.open) })
+    }
+
+    const detach = () => {
+      clientSection?.removeEventListener('toggle', sync)
+      medicareSection?.removeEventListener('toggle', sync)
+      clientSection = null
+      medicareSection = null
+    }
+
+    const bindSections = () => {
+      if (cancelled) return false
+      const form = document.querySelector<HTMLElement>('.client-profile-form')
+      const nextClient = form?.querySelector<HTMLDetailsElement>('.section-client') || null
+      const nextMedicare = form?.querySelector<HTMLDetailsElement>('.section-medicare') || null
+      if (!form || !nextClient || !nextMedicare) return false
+
+      if (clientSection === nextClient && medicareSection === nextMedicare) {
+        sync()
+        return true
+      }
+
+      detach()
+      clientSection = nextClient
+      medicareSection = nextMedicare
+      clientSection.addEventListener('toggle', sync)
+      medicareSection.addEventListener('toggle', sync)
+      sync()
+      return true
+    }
+
+    // On client-side navigation (for example Outreach -> Open client), this
+    // layout component can run before the new client form has committed to the
+    // DOM. Observe/retry until the form exists so Medicare.gov helpers attach
+    // just as reliably as they do on a full page load.
+    if (!bindSections()) {
+      observer = new MutationObserver(() => {
+        if (bindSections()) {
+          observer?.disconnect()
+          observer = null
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+
+      let attempts = 0
+      const retry = () => {
+        if (cancelled || bindSections()) return
+        attempts += 1
+        if (attempts < 30) retryTimer = window.setTimeout(retry, 100)
+      }
+      retryTimer = window.setTimeout(retry, 0)
+    }
 
     const idleWindow = window as IdleWindow
     let idleId: number | null = null
@@ -55,8 +108,10 @@ function useClientRecordActivation(enabled: boolean) {
     else timerId = window.setTimeout(enableDeferred, 1400)
 
     return () => {
-      clientSection?.removeEventListener('toggle', sync)
-      medicareSection?.removeEventListener('toggle', sync)
+      cancelled = true
+      detach()
+      observer?.disconnect()
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
       if (idleId !== null && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(idleId)
       if (timerId !== null) window.clearTimeout(timerId)
     }
