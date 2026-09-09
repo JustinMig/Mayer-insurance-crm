@@ -145,25 +145,27 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
   const dateInput = dateLabel?.querySelector<HTMLInputElement>('input') || null
   const timeInput = timeLabel?.querySelector<HTMLInputElement>('input[type="time"]') || null
   if (!dateInput || !timeInput) return
+  const appointmentDateInput: HTMLInputElement = dateInput
+  const appointmentTimeInput: HTMLInputElement = timeInput
 
   dialog.dataset.outreachAvailability = '1'
   const agentSelect = ensureAgentSelect(dialog, context)
 
   const datePicker = document.createElement('input')
   datePicker.type = 'date'
-  datePicker.className = `${dateInput.className} outreach-appointment-date-picker`
-  datePicker.value = manualDateToIso(dateInput.value)
-  dateInput.style.display = 'none'
-  dateInput.setAttribute('aria-hidden', 'true')
-  dateInput.insertAdjacentElement('afterend', datePicker)
+  datePicker.className = `${appointmentDateInput.className} outreach-appointment-date-picker`
+  datePicker.value = manualDateToIso(appointmentDateInput.value)
+  appointmentDateInput.style.display = 'none'
+  appointmentDateInput.setAttribute('aria-hidden', 'true')
+  appointmentDateInput.insertAdjacentElement('afterend', datePicker)
 
   const timeSelect = document.createElement('select')
-  timeSelect.className = `${timeInput.className} outreach-appointment-time-select`
+  timeSelect.className = `${appointmentTimeInput.className} outreach-appointment-time-select`
   const help = document.createElement('small')
   help.className = 'outreach-appointment-time-help'
-  timeInput.style.display = 'none'
-  timeInput.setAttribute('aria-hidden', 'true')
-  timeInput.insertAdjacentElement('afterend', timeSelect)
+  appointmentTimeInput.style.display = 'none'
+  appointmentTimeInput.setAttribute('aria-hidden', 'true')
+  appointmentTimeInput.insertAdjacentElement('afterend', timeSelect)
   timeSelect.insertAdjacentElement('afterend', help)
 
   let blocks: CalendarBlock[] = []
@@ -172,10 +174,10 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
   const selectedOwner = () => context.coordinator ? String(agentSelect?.value || '') : context.owner_id
 
   function renderOptions(enabled: boolean) {
-    let selected = timeInput.value.slice(0, 5)
+    let selected = appointmentTimeInput.value.slice(0, 5)
     if (selected && isSlotBlocked(selected, blocks)) {
       selected = ''
-      setControlledInputValue(timeInput, '')
+      setControlledInputValue(appointmentTimeInput, '')
     }
     timeSelect.replaceChildren()
     const empty = document.createElement('option')
@@ -200,7 +202,7 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
     const owner = selectedOwner()
     const date = datePicker.value
     blocks = []
-    setControlledInputValue(timeInput, '')
+    setControlledInputValue(appointmentTimeInput, '')
 
     if (!owner) {
       help.textContent = 'Choose Justin or Isaiah first.'
@@ -233,9 +235,9 @@ function enhanceAppointmentDialog(dialog: HTMLElement, clientId: string, context
     }
   }
 
-  timeSelect.addEventListener('change', () => setControlledInputValue(timeInput, timeSelect.value))
+  timeSelect.addEventListener('change', () => setControlledInputValue(appointmentTimeInput, timeSelect.value))
   datePicker.addEventListener('change', () => {
-    setControlledInputValue(dateInput, isoDateToManual(datePicker.value))
+    setControlledInputValue(appointmentDateInput, isoDateToManual(datePicker.value))
     void loadAvailability()
   })
   agentSelect?.addEventListener('change', () => void loadAvailability())
