@@ -17,22 +17,12 @@ function toRingCentralNumber(value: string) {
 }
 
 function isAppleDevice() {
+  if (typeof navigator === 'undefined') return false
   const userAgent = navigator.userAgent || ''
   const platform = navigator.platform || ''
   const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   const isMac = /Macintosh|Mac OS X/i.test(userAgent) || /^Mac/i.test(platform)
   return isiOS || isMac
-}
-
-function launchRingCentralCall(phone: string) {
-  if (isAppleDevice()) {
-    window.location.assign(`rcmobile://call?number=${encodeURIComponent(phone)}`)
-    return
-  }
-
-  const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(phone)}`
-  const launched = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!launched) window.location.assign(url)
 }
 
 export default function CampaignRingCentralCallBridge() {
@@ -72,25 +62,29 @@ export default function CampaignRingCentralCallBridge() {
     return () => observer.disconnect()
   }, [])
 
-  function startCall(phone: string) {
-    launchRingCentralCall(phone)
-  }
+  const apple = isAppleDevice()
 
   return (
     <>
-      {targets.map((target) => createPortal(
-        <button
-          key={target.key}
-          type="button"
-          className="campaign-ringcentral-call"
-          onClick={() => startCall(target.phone)}
-          title="Call this client with RingCentral"
-          aria-label="Call client with RingCentral"
-        >
-          ☎ Call
-        </button>,
-        target.host
-      ))}
+      {targets.map((target) => {
+        const href = apple
+          ? `rcmobile://call?number=${encodeURIComponent(target.phone)}`
+          : `https://app.ringcentral.com/r/call?number=${encodeURIComponent(target.phone)}`
+        return createPortal(
+          <a
+            key={target.key}
+            className="campaign-ringcentral-call"
+            href={href}
+            target={apple ? undefined : '_blank'}
+            rel={apple ? undefined : 'noopener noreferrer'}
+            title={apple ? 'Call this client in the RingCentral app' : 'Call this client with RingCentral'}
+            aria-label="Call client with RingCentral"
+          >
+            ☎ Call
+          </a>,
+          target.host
+        )
+      })}
       <style jsx global>{`
         .campaign-ringcentral-call{
           appearance:none;
@@ -106,6 +100,9 @@ export default function CampaignRingCentralCallBridge() {
           line-height:1;
           cursor:pointer;
           white-space:nowrap;
+          text-decoration:none;
+          display:inline-flex;
+          align-items:center;
         }
         .campaign-ringcentral-call:hover{background:#dfeef6;color:#244b64}
         @media(max-width:720px){
