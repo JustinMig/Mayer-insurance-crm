@@ -103,6 +103,7 @@ export default async function CampaignDetailPage({ params }: { params: Params })
 
   return (
     <div className={spacing.scope}>
+      <style>{`.campaign-record-actions>button:nth-last-child(2){display:none!important}`}</style>
       <CampaignDetailClient
         campaign={{ id: campaign.id, name: campaign.name, topic: campaign.topic, status: campaign.status }}
         initialRows={rows}
