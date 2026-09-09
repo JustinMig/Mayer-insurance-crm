@@ -15,6 +15,7 @@ const ClientSoaTextAction = dynamic(() => import('./ClientSoaTextAction'), { ssr
 const RingCentralOutboundCallBridge = dynamic(() => import('./RingCentralOutboundCallBridge'), { ssr: false })
 const NewClientRingCentralPrefill = dynamic(() => import('./NewClientRingCentralPrefill'), { ssr: false })
 const ManualWorkspaceDates = dynamic(() => import('./ManualWorkspaceDates'), { ssr: false })
+const AppointmentFormStyler = dynamic(() => import('./AppointmentFormStyler'), { ssr: false })
 const LeadInfoBridge = dynamic(() => import('../clients/components/LeadInfoBridge'), { ssr: false })
 const MedicareGovCredentialsBridge = dynamic(() => import('../clients/components/MedicareGovCredentialsBridge'), { ssr: false })
 const MedicareCoveragePlainBridge = dynamic(() => import('../clients/components/MedicareCoveragePlainBridge'), { ssr: false })
@@ -72,6 +73,7 @@ export default function RouteScopedEnhancers() {
   const isClientRecord = Boolean(clientId)
   const isClientForm = isNewClient || isClientRecord
   const usesWorkspaceDates = pathname === '/dashboard' || pathname === '/calendar' || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
+  const usesCalendarAppointmentStyler = pathname === '/dashboard' || pathname === '/calendar'
   const usesLeadBridge = isClientForm || pathname.startsWith('/workspace') || pathname.startsWith('/leads')
   const usesOutreachAppointmentBlocking = pathname.startsWith('/campaigns/')
   const { sections, deferredReady } = useClientRecordActivation(isClientRecord)
@@ -87,6 +89,7 @@ export default function RouteScopedEnhancers() {
       {needsClientHelpers ? <ClientPhoneAutoFormat key={`phone-${pathname}`} /> : null}
       {needsMedicareHelpers ? <MedicareCoveragePlainBridge key={`medicare-plain-${pathname}`} /> : null}
       {usesWorkspaceDates ? <ManualWorkspaceDates key={`dates-${pathname}`} /> : null}
+      {usesCalendarAppointmentStyler ? <AppointmentFormStyler key={`appointment-style-${pathname}`} /> : null}
       {usesLeadBridge && (!isClientRecord || sections.client) ? <LeadInfoBridge key={`lead-${pathname}`} /> : null}
       {usesOutreachAppointmentBlocking ? <OutreachAppointmentTimeBlocker key={`outreach-appointment-${pathname}`} /> : null}
 
