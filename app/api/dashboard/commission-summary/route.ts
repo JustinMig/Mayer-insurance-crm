@@ -17,6 +17,11 @@ type CommissionRates = {
   renewal: number
 }
 
+type AgentOption = {
+  id: string
+  full_name: string
+}
+
 const CMS_MA_RATES: Record<number, CommissionRates> = {
   2026: { initial: 694, renewal: 347 },
   2027: { initial: 725, renewal: 363 }
@@ -61,22 +66,42 @@ function summarize(events: CommissionEvent[], period: CommissionEvent['election_
   return { total: rows.length, initial, switches, t65, payout }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const { supabase, userId, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'CRM profile not available.' }, { status: 403 })
-  if (profile.full_name?.trim().toLowerCase() !== 'justin mayer') {
-    return NextResponse.json({ error: 'Commission summary is not enabled for this CRM.' }, { status: 403 })
-  }
 
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth()
   const contractYear = contractYearForSeason(now)
   const rates = CMS_MA_RATES[contractYear] || CMS_MA_RATES[2027]
+  const requestedAgentId = new URL(request.url).searchParams.get('agent_id') || ''
+
+  let agents: AgentOption[] = []
+  let selectedAgentId = userId
+
+  if (profile.role === 'manager') {
+    const { data: agentRows, error: agentError } = await supabase
+      .from('profiles')
+      .select('id,full_name')
+      .eq('agency_id', profile.agency_id)
+      .eq('active', true)
+      .in('role', ['admin', 'agent'])
+      .order('full_name', { ascending: true })
+
+    if (agentError) return NextResponse.json({ error: agentError.message }, { status: 500 })
+    agents = (agentRows || []).map((row) => ({ id: String(row.id), full_name: String(row.full_name || 'Agent') }))
+    if (!agents.length) return NextResponse.json({ error: 'No commission agents are available.' }, { status: 404 })
+    selectedAgentId = agents.some((agent) => agent.id === requestedAgentId) ? requestedAgentId : agents[0].id
+  } else {
+    agents = [{ id: userId, full_name: profile.full_name || 'Agent' }]
+  }
+
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) || agents[0]
 
   const [lifeStatsResult, medicareClientsResult, eventsResult] = await Promise.all([
     supabase.rpc('crm_dashboard_agent_stats', {
-      p_agent_ids: [userId],
+      p_agent_ids: [selectedAgentId],
       p_year: currentYear,
       p_month: currentMonth + 1,
       p_turn65_year: currentYear - 65
@@ -84,13 +109,13 @@ export async function GET() {
     supabase
       .from('clients')
       .select('id')
-      .eq('assigned_agent_id', userId)
+      .eq('assigned_agent_id', selectedAgentId)
       .eq('is_medicare', true)
       .eq('is_deceased', false),
     supabase
       .from('medicare_commission_events')
       .select('election_period,compensation_type,likely_t65,effective_date,contract_year')
-      .eq('assigned_agent_id', userId)
+      .eq('assigned_agent_id', selectedAgentId)
       .eq('contract_year', contractYear)
   ])
 
@@ -122,6 +147,8 @@ export async function GET() {
   const retainedAnnual = currentBookCount * rates.renewal
 
   return NextResponse.json({
+    agents,
+    selected_agent: selectedAgent,
     life: {
       month_name: MONTH_NAMES[currentMonth],
       year: currentYear,
