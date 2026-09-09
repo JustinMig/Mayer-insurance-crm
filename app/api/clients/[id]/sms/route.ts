@@ -8,6 +8,32 @@ export const dynamic = 'force-dynamic'
 
 type Params = Promise<{ id: string }>
 
+type SmsRow = {
+  id: string
+  direction: string
+  body?: string | null
+  from_number: string | null
+  to_number: string | null
+  twilio_message_sid?: string | null
+  status?: string | null
+  error_code?: string | null
+  error_message?: string | null
+  read_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+function phone10(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits.length >= 10 ? digits.slice(-10) : ''
+}
+
+function messageMatchesClient(row: SmsRow, clientPhone: string) {
+  if (!clientPhone) return false
+  const participant = String(row.direction || '').toLowerCase() === 'inbound' ? row.from_number : row.to_number
+  return phone10(participant) === clientPhone
+}
+
 async function loadAccessibleClient(id: string) {
   const { supabase, userId } = await getCrmSession()
   const { data: client } = await supabase
@@ -37,8 +63,12 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
     .limit(200)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const clientPhone = phone10(client.phone)
+  const messages = ((data || []) as SmsRow[]).filter((row) => messageMatchesClient(row, clientPhone))
+
   return NextResponse.json({
-    messages: data || [],
+    messages,
     phone: client.phone || '',
     client_name: [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Client'
   })
@@ -50,13 +80,30 @@ export async function PATCH(_request: NextRequest, { params }: { params: Params 
   if (!client) return NextResponse.json({ error: 'Client not found.' }, { status: 404 })
 
   const admin = createAdminClient()
+  const clientPhone = phone10(client.phone)
+  if (!clientPhone) return NextResponse.json({ ok: true })
+
+  const { data: unreadRows, error: unreadError } = await admin
+    .from('client_sms_messages')
+    .select('id,direction,from_number,to_number')
+    .eq('client_id', id)
+    .eq('direction', 'inbound')
+    .is('read_at', null)
+    .limit(500)
+
+  if (unreadError) return NextResponse.json({ error: unreadError.message }, { status: 500 })
+
+  const matchingIds = ((unreadRows || []) as SmsRow[])
+    .filter((row) => messageMatchesClient(row, clientPhone))
+    .map((row) => row.id)
+
+  if (!matchingIds.length) return NextResponse.json({ ok: true })
+
   const now = new Date().toISOString()
   const { error } = await admin
     .from('client_sms_messages')
     .update({ read_at: now, updated_at: now })
-    .eq('client_id', id)
-    .eq('direction', 'inbound')
-    .is('read_at', null)
+    .in('id', matchingIds)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
