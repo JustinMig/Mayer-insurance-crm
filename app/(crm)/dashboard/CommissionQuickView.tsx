@@ -10,7 +10,14 @@ type PeriodSummary = {
   payout: number
 }
 
+type AgentOption = {
+  id: string
+  full_name: string
+}
+
 type CommissionSummary = {
+  agents: AgentOption[]
+  selected_agent: AgentOption
   life: {
     month_name: string
     year: number
@@ -53,28 +60,42 @@ export default function CommissionQuickView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      setError('')
-      try {
-        const response = await fetch('/api/dashboard/commission-summary', { cache: 'no-store' })
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(String(payload.error || 'Unable to load commission data.'))
-        if (!cancelled) setData(payload as CommissionSummary)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load commission data.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+  async function load(agentId = '') {
+    setLoading(true)
+    setError('')
+    try {
+      const query = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''
+      const response = await fetch(`/api/dashboard/commission-summary${query}`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(String(payload.error || 'Unable to load commission data.'))
+      setData(payload as CommissionSummary)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load commission data.')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
-    return () => { cancelled = true }
   }, [])
 
   return (
     <section className="commission-quick-view">
+      {data?.agents?.length > 1 ? (
+        <div className="commission-agent-picker">
+          <span>Agent</span>
+          <select
+            value={data.selected_agent?.id || ''}
+            onChange={(event) => load(event.target.value)}
+            aria-label="Commission agent"
+            disabled={loading}
+          >
+            {data.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}
+          </select>
+        </div>
+      ) : null}
+
       <div className="commission-type-picker" role="tablist" aria-label="Commission type">
         <button
           type="button"
@@ -98,13 +119,13 @@ export default function CommissionQuickView() {
         </button>
       </div>
 
-      {loading ? <div className="commission-quick-state">Loading current dashboard data…</div> : null}
+      {loading ? <div className="commission-quick-state">Loading current commission data…</div> : null}
       {!loading && error ? <div className="commission-quick-state error">{error}</div> : null}
 
       {!loading && !error && data && view === 'life' ? (
         <div className="commission-life-panel" role="tabpanel">
           <div className="commission-panel-head">
-            <div><span>Life Insurance</span><h3>Premium Production</h3></div>
+            <div><span>{data.selected_agent?.full_name || 'Agent'} · Life Insurance</span><h3>Premium Production</h3></div>
             <b>{data.life.year}</b>
           </div>
           <div className="commission-life-grid">
@@ -117,14 +138,14 @@ export default function CommissionQuickView() {
               <strong>{money(data.life.yearly_total)}</strong>
             </article>
           </div>
-          <p className="commission-note">These are the same premium-production totals shown on the Dashboard.</p>
+          <p className="commission-note">Live premium-production totals from the CRM.</p>
         </div>
       ) : null}
 
       {!loading && !error && data && view === 'medicare' ? (
         <div className="commission-medicare-panel" role="tabpanel">
           <div className="commission-panel-head">
-            <div><span>Medicare</span><h3>Commission Estimates</h3></div>
+            <div><span>{data.selected_agent?.full_name || 'Agent'} · Medicare</span><h3>Commission Estimates</h3></div>
             <b>{data.medicare.contract_year}</b>
           </div>
 
@@ -146,12 +167,13 @@ export default function CommissionQuickView() {
             <PeriodCard title="SEP" subtitle={String(data.medicare.contract_year)} summary={data.medicare.periods.sep} totalLabel="Prorated Est." />
             <PeriodCard title="T65 / IEP" subtitle={String(data.medicare.contract_year)} summary={data.medicare.periods.t65} totalLabel="Prorated Est." t65 />
           </div>
-          <p className="commission-note">Same CMS-maximum estimate data used by the Medicare Commissions card on the Dashboard. Actual carrier compensation can differ.</p>
+          <p className="commission-note">CMS-maximum commission estimates based on the selected agent's CRM production. Actual carrier compensation can differ.</p>
         </div>
       ) : null}
 
       <style jsx>{`
         .commission-quick-view{display:grid;gap:14px;max-width:880px;margin:0 auto}
+        .commission-agent-picker{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 10px;border:1px solid #d6e0e7;border-radius:12px;background:#fff}.commission-agent-picker span{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7d8c;font-weight:900}.commission-agent-picker select{min-height:38px;min-width:180px;border:1px solid #cbd7e0;border-radius:9px;background:#f8fafc;color:#233d52;padding:6px 10px;font-weight:800}
         .commission-type-picker{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         .commission-type-picker button{min-height:70px;border:1px solid #d6e0e7;border-radius:14px;background:#fff;padding:10px 12px;display:flex;align-items:center;gap:10px;text-align:left;color:#3f5162;font:inherit;cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,.04)}
         .commission-type-picker button.active{border-color:#7696ad;background:#edf4f8;box-shadow:0 4px 14px rgba(24,50,74,.12)}
@@ -165,7 +187,7 @@ export default function CommissionQuickView() {
         .commission-book-row{padding:9px;border-radius:13px;background:#18324a}.commission-book-row article{background:transparent;border:0;padding:5px 7px}.commission-book-row span{color:#d8e6f1}.commission-book-row strong{color:#fff}
         .commission-period-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.commission-note{margin:0;color:#788897;font-size:.65rem;line-height:1.45}
         @media(max-width:620px){
-          .commission-quick-view{gap:10px}.commission-type-picker{gap:7px}.commission-type-picker button{min-height:62px;padding:8px}.commission-type-icon{width:34px;height:34px}
+          .commission-quick-view{gap:10px}.commission-agent-picker{justify-content:stretch}.commission-agent-picker select{min-width:0;flex:1}.commission-type-picker{gap:7px}.commission-type-picker button{min-height:62px;padding:8px}.commission-type-icon{width:34px;height:34px}
           .commission-life-panel,.commission-medicare-panel{padding:11px}.commission-life-grid{gap:7px}.commission-life-grid article{padding:13px 10px}.commission-life-grid strong{font-size:1.2rem}.commission-life-grid span{font-size:.58rem}
           .commission-rate-row,.commission-book-row{grid-template-columns:1fr 1fr 1fr;gap:5px}.commission-rate-row article,.commission-book-row article{padding:8px 6px}.commission-rate-row span,.commission-book-row span{font-size:.56rem}.commission-rate-row strong,.commission-book-row strong{font-size:.78rem}
           .commission-period-grid{gap:6px}
