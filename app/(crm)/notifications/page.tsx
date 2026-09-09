@@ -5,6 +5,7 @@ import { CRM_GMAIL_LABEL, gmailConfigured } from '@/lib/gmail-mail'
 import MailCenterRefresh from '../mail-center/MailCenterRefresh'
 import MessagesCenter from '../messages/MessagesCenter'
 import NotificationsMailList from './NotificationsMailList'
+import PushNotificationManager from '../components/PushNotificationManager'
 import styles from './Notifications.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -94,12 +95,15 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <h1>Notifications</h1>
           <p>Mail, client text messages, and website form submissions in one streamlined workspace.</p>
         </div>
-        {canUseMailAndForms ? (
-          <div className={styles.summaryMeta}>
-            <span>{unreadMailCount} unread mail</span>
-            <span>{unreadFormsCount} new forms</span>
-          </div>
-        ) : null}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+          <PushNotificationManager />
+          {canUseMailAndForms ? (
+            <div className={styles.summaryMeta}>
+              <span>{unreadMailCount} unread mail</span>
+              <span>{unreadFormsCount} new forms</span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <nav className={styles.tabs} aria-label="Notification categories">

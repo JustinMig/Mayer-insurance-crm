@@ -7,7 +7,7 @@ import '../performance-lite.css'
 import { getCrmSession } from '@/lib/crm-session'
 import { canAssignClients } from '@/lib/client-access'
 import NotificationsNavLink from './components/NotificationsNavLink'
-import PushNotificationManager from './components/PushNotificationManager'
+import DashboardQuickTools from './dashboard/DashboardQuickTools'
 import PreviousPageButton from './components/PreviousPageButton'
 import RouteScopedEnhancers from './components/RouteScopedEnhancers'
 import WebVitalsReporter from './components/WebVitalsReporter'
@@ -140,10 +140,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <div className="topbar-brand">
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
             <strong>{portalBrand}</strong>
+            {isJustinAdmin ? <DashboardQuickTools compact /> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
-            {isJustinAdmin ? <Link prefetch={false} href="/clients/duplicates" className="duplicate-compare-nav">COMPARE CLIENTS</Link> : null}
-            <PushNotificationManager />
             <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>
           </div>
         </header>
