@@ -188,13 +188,13 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
 
       <style jsx global>{`
         .dashboard-quick-tools{display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;margin:12px 0 2px;padding:2px 2px 8px}
-        .dashboard-quick-tools.compact{margin:0 0 0 10px;padding:0;gap:5px;flex-wrap:nowrap;align-items:center}
-        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:34px;padding:0;display:grid;justify-items:center;gap:2px}
+        .dashboard-quick-tools.compact{margin:0 0 0 10px;padding:0;gap:5px;flex:1 1 auto;min-width:0;flex-wrap:nowrap;align-items:center;justify-content:flex-end;overflow:visible;position:relative;z-index:5}
+        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:34px;padding:0;display:grid;justify-items:center;gap:2px;position:relative;z-index:6;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:block;font-size:.56rem;line-height:1;font-weight:900;white-space:nowrap;max-width:none;color:#536576}
-        .dashboard-quick-tools.compact .dashboard-quick-icon{width:34px;height:34px;border-radius:10px}
-        .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:18px;height:18px}
+        .dashboard-quick-tools.compact .dashboard-quick-icon{width:34px;height:34px;border-radius:10px;pointer-events:none}
+        .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:18px;height:18px;pointer-events:none}
         .dashboard-quick-tool{appearance:none;border:0;background:transparent;padding:3px 2px;display:grid;justify-items:center;gap:7px;min-width:84px;color:#34485a;cursor:pointer;font:inherit}
-        .dashboard-quick-tool strong{font-size:.74rem;line-height:1.08;text-align:center;max-width:100px}
+        .dashboard-quick-tool strong{font-size:.74rem;line-height:1.08;text-align:center;max-width:100px;pointer-events:none}
         .dashboard-quick-icon{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:#e7edf2;color:#365268;border:1px solid #ccd8e1;transition:transform .12s ease,background .12s ease}
         .dashboard-quick-icon svg{width:29px;height:29px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
         .dashboard-quick-tool:hover .dashboard-quick-icon,.dashboard-quick-tool:focus-visible .dashboard-quick-icon{transform:translateY(-2px);background:#dce6ed}
@@ -213,7 +213,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
         .dashboard-quick-icon.small{width:38px;height:38px;border-radius:12px;flex:none}.dashboard-quick-icon.small svg{width:21px;height:21px}
         .dashboard-quick-close{width:38px;height:38px;border-radius:50%;border:1px solid #d4dde5;background:#fff;color:#475569;font-size:1.65rem;line-height:1;display:grid;place-items:center;cursor:pointer}
         .dashboard-quick-close:hover{background:#eef2f5}
-        .dashboard-quick-modal-body{overflow:auto;padding:16px;min-height:0}
+        .dashboard-quick-modal-body{overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;min-height:0}
         .dashboard-quick-notes-host .dashboard-notes-shell{margin-top:0}
         .dashboard-quick-notes-host .dashboard-notes-tab{display:none!important}
         .dashboard-quick-notes-host .dashboard-notes-panel{display:block!important;border-radius:14px!important;border-top:1px solid #cbd5e1!important}
@@ -226,13 +226,14 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
           .dashboard-quick-tool{min-width:0;width:100%;padding:2px 0;gap:5px}.dashboard-quick-tool strong{font-size:.64rem;max-width:76px}
           .dashboard-quick-icon{width:48px;height:48px;border-radius:15px}.dashboard-quick-icon svg{width:25px;height:25px}
           .dashboard-quick-backdrop{padding:0;align-items:end}
-          .dashboard-quick-modal,.dashboard-quick-modal-fex,.dashboard-quick-modal-appointments{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
+          .dashboard-quick-modal,.dashboard-quick-modal-fex,.dashboard-quick-modal-appointments,.dashboard-quick-modal-build{width:100%;height:94dvh;max-height:none;border-radius:18px 18px 0 0;border-left:0;border-right:0;border-bottom:0}
           .dashboard-quick-modal-head{padding:10px 12px}.dashboard-quick-modal-title p{display:none}.dashboard-quick-modal-body{padding:10px}
           .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}
-          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:8px;margin:0 0 0 5px;padding:0}
-          .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto;min-width:31px}
-          .dashboard-quick-tools.compact .dashboard-quick-icon{width:31px;height:31px;border-radius:9px}
+          .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 4px;padding:0;justify-content:flex-end;overflow:visible!important}
+          .dashboard-quick-tools.compact .dashboard-quick-tool{width:31px;min-width:31px;min-height:42px}
+          .dashboard-quick-tools.compact .dashboard-quick-icon{width:30px;height:30px;border-radius:9px}
           .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:17px;height:17px}
+          .dashboard-quick-tools.compact .dashboard-quick-tool strong{font-size:.52rem}
         }
       `}</style>
     </>
