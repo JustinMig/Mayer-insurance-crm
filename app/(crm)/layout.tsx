@@ -94,7 +94,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         .client-profile-form>.sticky-save-bar{
           order:-1000;
           position:sticky!important;
-          top:10px!important;
+          top:86px!important;
           bottom:auto!important;
           z-index:45;
           margin:0 0 10px!important;
@@ -119,7 +119,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         @media(max-width:720px){
           .add-client-form>.add-client-save-row,
           .client-profile-form>.sticky-save-bar{
-            top:8px!important;
+            top:76px!important;
             padding:8px!important;
             min-height:50px;
           }
