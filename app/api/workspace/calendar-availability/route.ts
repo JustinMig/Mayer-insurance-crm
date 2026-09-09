@@ -19,13 +19,23 @@ function validDate(value: string) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
+function calendarAgentFromReferer(request: NextRequest) {
+  const referer = request.headers.get('referer')
+  if (!referer) return ''
+  try {
+    return cleanText(new URL(referer).searchParams.get('calendar_agent'), 100)
+  } catch {
+    return ''
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { supabase, userId, profile } = await getCrmSession()
     if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
     const date = cleanText(request.nextUrl.searchParams.get('date'), 10)
-    const requestedOwner = cleanText(request.nextUrl.searchParams.get('owner'), 100)
+    const requestedOwner = cleanText(request.nextUrl.searchParams.get('owner'), 100) || calendarAgentFromReferer(request)
     if (!validDate(date)) return NextResponse.json({ error: 'Choose a valid date.' }, { status: 400 })
 
     const ownerId = resolveCalendarOwner(userId, profile, requestedOwner)
