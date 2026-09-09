@@ -1,25 +1,43 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { ringCentralCallHref } from '@/lib/ringcentral-call-target'
+import { useEffect, useState } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
+import { getCallPlatform, ringCentralCallHref } from '@/lib/ringcentral-call-target'
+import type { CallPlatform } from '@/lib/ringcentral-call-target'
 
 export default function RingCentralCallLink({ phone, className, children }: {
   phone: string
   className: string
   children: ReactNode
 }) {
-  const href = ringCentralCallHref(phone)
+  const [platform, setPlatform] = useState<CallPlatform | null>(null)
+
+  useEffect(() => {
+    setPlatform(getCallPlatform(navigator))
+  }, [])
+
+  if (!platform) return null
+  const href = ringCentralCallHref(phone, platform)
   if (!href) return null
 
-  // One ordinary, user-initiated link to the pre-change RingCentral call URL.
-  // No setup gate, local-storage preference, app-protocol probe, or timer.
-  // A real link avoids duplicate launches from window.open returning null.
+  const mac = platform === 'mac'
+  const chromeOnMac = mac && /Chrome|CriOS/i.test(navigator.userAgent || '') && !/Edg|OPR/i.test(navigator.userAgent || '')
+
+  function startCall(event: MouseEvent<HTMLAnchorElement>) {
+    if (!chromeOnMac) return
+    // RingCentral documents a JavaScript location handoff for Chrome when
+    // using rcmobile://. Safari uses the ordinary href directly.
+    event.preventDefault()
+    const targetWindow = window.parent || window
+    targetWindow.location.assign(href)
+  }
+
   return (
     <span className="ringcentral-call-control">
       <a
         href={href}
-        target="_blank"
-        rel="noopener noreferrer"
+        {...(mac ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        onClick={startCall}
         className={className}
         title="Call this client with RingCentral"
       >
