@@ -11,25 +11,25 @@ import {
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const JUSTIN_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
-
-function isJustin(userId: string, fullName?: string | null) {
-  return userId === JUSTIN_USER_ID && String(fullName || '').trim().toLowerCase() === 'justin mayer'
-}
+// The RingCentral line is an agency office resource. Keep one stable internal
+// owner for the existing unique key so every CRM user sees the same call rows
+// without creating duplicates when more than one person presses Sync.
+const OFFICE_RINGCENTRAL_OWNER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
 
 export async function GET() {
-  const { userId, profile } = await getCrmSession()
-  const pilot = Boolean(profile?.agency_id && isJustin(userId, profile.full_name))
+  const { profile } = await getCrmSession()
+  const available = Boolean(profile?.agency_id)
   return NextResponse.json({
-    pilot,
-    configured: pilot && isRingCentralConfigured()
+    pilot: available,
+    office: available,
+    configured: available && isRingCentralConfigured()
   }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 export async function POST() {
-  const { userId, profile } = await getCrmSession()
-  if (!profile?.agency_id || !isJustin(userId, profile.full_name)) {
-    return NextResponse.json({ error: 'RingCentral pilot is currently enabled only for Justin.' }, { status: 403 })
+  const { profile } = await getCrmSession()
+  if (!profile?.agency_id) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
   if (!isRingCentralConfigured()) {
     return NextResponse.json({
@@ -45,23 +45,19 @@ export async function POST() {
 
     const { data: clients, error: clientError } = await admin
       .from('clients')
-      .select('id,phone,assigned_agent_id,created_at')
+      .select('id,phone,created_at')
       .eq('agency_id', profile.agency_id)
       .order('created_at', { ascending: false })
 
     if (clientError) throw new Error(`Unable to load client phone numbers: ${clientError.message}`)
 
-    // Phone numbers can exist on more than one CRM record. For Justin's pilot,
-    // always prefer the client record assigned to Justin. If none is assigned
-    // to Justin, fall back to the newest matching agency client.
+    // Use the newest agency client with the matching phone number. The office
+    // call log itself is shared; the matched client record determines which
+    // agent/client file the call is preserved under.
     const clientByPhone = new Map<string, string>()
     for (const client of clients || []) {
       const phone = normalizePhone(client.phone)
       if (phone && !clientByPhone.has(phone)) clientByPhone.set(phone, client.id)
-    }
-    for (const client of clients || []) {
-      const phone = normalizePhone(client.phone)
-      if (phone && client.assigned_agent_id === userId) clientByPhone.set(phone, client.id)
     }
 
     const rows = records.map((record) => {
@@ -69,7 +65,7 @@ export async function POST() {
       const normalizedExternal = normalizePhone(externalNumber)
       return {
         agency_id: profile.agency_id,
-        user_id: userId,
+        user_id: OFFICE_RINGCENTRAL_OWNER_ID,
         client_id: normalizedExternal ? clientByPhone.get(normalizedExternal) || null : null,
         ringcentral_call_id: record.id,
         ringcentral_session_id: record.sessionId || null,
@@ -101,6 +97,7 @@ export async function POST() {
 
     return NextResponse.json({
       configured: true,
+      office: true,
       synced: rows.length,
       saved,
       matched,
