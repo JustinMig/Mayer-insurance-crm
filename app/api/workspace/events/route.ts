@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
+import { resolveCalendarOwner } from '@/lib/calendar-access'
 import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
@@ -25,10 +26,6 @@ function validTime(value: string) {
   return !value || TIME_PATTERN.test(value)
 }
 
-function normalizedName(value: unknown) {
-  return String(value || '').trim().toLowerCase()
-}
-
 function isLeadsBackgroundRequest(request: NextRequest) {
   const referer = request.headers.get('referer')
   if (!referer) return false
@@ -47,74 +44,6 @@ function calendarAgentFromReferer(request: NextRequest) {
   } catch {
     return ''
   }
-}
-
-async function resolveReadableOwner(
-  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
-  profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
-  userId: string,
-  requestedOwner: string
-) {
-  const viewer = normalizedName(profile.full_name)
-
-  // Justin and Isaiah only read their own calendars. All other non-managers also
-  // remain limited to their own assigned calendar.
-  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
-
-  let target = null as { id: string; full_name: string | null } | null
-
-  if (requestedOwner) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id,full_name')
-      .eq('id', requestedOwner)
-      .eq('agency_id', profile.agency_id)
-      .eq('active', true)
-      .in('role', ['admin', 'agent'])
-      .maybeSingle()
-    target = data as { id: string; full_name: string | null } | null
-  } else {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id,full_name')
-      .eq('agency_id', profile.agency_id)
-      .eq('active', true)
-      .in('role', ['admin', 'agent'])
-      .ilike('full_name', 'Isaiah Hernandez')
-      .maybeSingle()
-    target = data as { id: string; full_name: string | null } | null
-  }
-
-  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') {
-    throw new Error('Calendar access denied.')
-  }
-
-  return target.id
-}
-
-async function resolveOwner(
-  supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
-  profile: NonNullable<Awaited<ReturnType<typeof getCrmSession>>['profile']>,
-  userId: string,
-  requestedOwner: string
-) {
-  const viewer = normalizedName(profile.full_name)
-  if (viewer === 'justin mayer' || viewer === 'isaiah hernandez' || profile.role !== 'manager') return userId
-  if (!requestedOwner) throw new Error('Choose Isaiah for this calendar item.')
-
-  const { data: target } = await supabase
-    .from('profiles')
-    .select('id,full_name')
-    .eq('id', requestedOwner)
-    .eq('agency_id', profile.agency_id)
-    .eq('active', true)
-    .in('role', ['admin', 'agent'])
-    .maybeSingle()
-
-  if (!target || normalizedName(target.full_name) !== 'isaiah hernandez') {
-    throw new Error('Calendar access denied.')
-  }
-  return target.id
 }
 
 async function resolveClient(
@@ -163,6 +92,7 @@ export async function GET(request: NextRequest) {
 
   const from = cleanText(request.nextUrl.searchParams.get('from'), 10)
   const to = cleanText(request.nextUrl.searchParams.get('to'), 10)
+  const requestedOwner = cleanText(request.nextUrl.searchParams.get('owner'), 100) || calendarAgentFromReferer(request)
   if (!validDate(from) || !validDate(to) || from > to) return NextResponse.json({ error: 'Invalid calendar date range.' }, { status: 400 })
 
   const fromDate = new Date(`${from}T00:00:00Z`)
@@ -171,7 +101,7 @@ export async function GET(request: NextRequest) {
 
   let readableOwnerId = ''
   try {
-    readableOwnerId = await resolveReadableOwner(supabase, profile, userId, calendarAgentFromReferer(request))
+    readableOwnerId = resolveCalendarOwner(userId, profile, requestedOwner)
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Calendar access denied.' }, { status: 403 })
   }
@@ -205,6 +135,7 @@ export async function POST(request: NextRequest) {
     const notes = cleanText(body.notes, 5000)
     const requestedClient = cleanText(body.client_id, 100)
     const requestedLead = cleanText(body.lead_id, 100)
+    const requestedOwner = cleanText(body.assigned_agent_id, 100)
 
     if (!title) return NextResponse.json({ error: 'Enter a title.' }, { status: 400 })
     if (!TYPES.has(eventType)) return NextResponse.json({ error: 'Choose Appointment or Activity.' }, { status: 400 })
@@ -213,7 +144,7 @@ export async function POST(request: NextRequest) {
     if (startTime && endTime && endTime < startTime) return NextResponse.json({ error: 'End time cannot be before start time.' }, { status: 400 })
     if (requestedClient && requestedLead) return NextResponse.json({ error: 'Tag either a client or a lead, not both.' }, { status: 400 })
 
-    const ownerId = await resolveOwner(supabase, profile, userId, cleanText(body.assigned_agent_id, 100))
+    const ownerId = resolveCalendarOwner(userId, profile, requestedOwner)
     if (eventType === 'appointment') {
       await assertAppointmentTimeAvailable(supabase, profile.agency_id, ownerId, eventDate, startTime, endTime)
     }
