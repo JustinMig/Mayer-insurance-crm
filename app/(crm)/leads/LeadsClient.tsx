@@ -19,6 +19,7 @@ type Lead = {
   notes: string | null
   status: 'lead' | 'converted'
   client_id: string | null
+  existing_client_id?: string | null
   photo_storage_path: string | null
   photo_file_name: string | null
   photo_mime_type: string | null
@@ -231,6 +232,7 @@ export default function LeadsClient({ viewerId, isManager, agents }: { viewerId:
         <div className="lean-leads-list">
           {!visible.length ? <div className="card card-pad empty">No active leads match this view.</div> : visible.map((lead) => {
             const owner = agents.find((agent) => agent.id === lead.assigned_agent_id)?.full_name || 'Agent'
+            const existingClientId = lead.existing_client_id || lead.client_id || null
             return (
               <article className="card lean-lead-card" key={lead.id}>
                 <div className="lean-lead-main">
@@ -239,10 +241,13 @@ export default function LeadsClient({ viewerId, isManager, agents }: { viewerId:
                 </div>
                 {isManager ? <div className="lean-lead-owner">Assigned: {owner}</div> : null}
                 {lead.notes ? <p>{lead.notes}</p> : null}
-                {lead.photo_file_name ? <a className="btn btn-secondary btn-small" href={`/api/workspace/leads/${lead.id}/photo`} target="_blank" rel="noreferrer">OPEN LEAD FILE</a> : null}
                 <div className="lean-lead-actions">
                   <button type="button" className="btn btn-secondary btn-small" onClick={() => editLead(lead)}>EDIT</button>
-                  <button type="button" className="btn btn-primary btn-small" disabled={busy} onClick={() => void convertLead(lead)}>CONVERT TO CLIENT</button>
+                  {existingClientId ? (
+                    <Link prefetch={false} className="btn btn-primary btn-small" href={`/clients/${existingClientId}`}>OPEN CLIENT FILE</Link>
+                  ) : (
+                    <button type="button" className="btn btn-primary btn-small" disabled={busy} onClick={() => void convertLead(lead)}>CONVERT TO CLIENT</button>
+                  )}
                   <button type="button" className="btn btn-secondary btn-small lean-delete" disabled={busy} onClick={() => void deleteLead(lead)}>DELETE</button>
                 </div>
               </article>
