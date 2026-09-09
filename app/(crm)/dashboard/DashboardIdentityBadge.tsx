@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
-import CommissionTopbarButton from './CommissionTopbarButton'
 
 function displayRole(role: string) {
   const value = String(role || '').trim().toLowerCase()
@@ -14,17 +13,14 @@ function displayRole(role: string) {
 export default function DashboardIdentityBadge({ name, role }: { name: string; role: string }) {
   const pathname = usePathname()
   const [host, setHost] = useState<HTMLElement | null>(null)
-  const [topbarHost, setTopbarHost] = useState<HTMLElement | null>(null)
   const viewerName = String(name || '').trim().toLowerCase()
   const isJustin = viewerName === 'justin mayer'
   const isIsaiah = viewerName === 'isaiah hernandez'
   const isSheena = viewerName === 'sheena hester'
-  const hasCommissions = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)
 
   useEffect(() => {
     if (pathname !== '/dashboard') {
       setHost(null)
-      setTopbarHost(null)
       return
     }
 
@@ -32,23 +28,22 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
     let attempts = 0
     let timer: number | null = null
 
-    const findHosts = () => {
+    const findHeading = () => {
       if (cancelled) return
       const heading = document.querySelector<HTMLElement>('.content .clients-page-heading')
-      const topbar = document.querySelector<HTMLElement>('.topbar .topbar-brand')
-      if (heading) setHost(heading)
-      if (topbar) setTopbarHost(topbar)
-      if (heading && topbar) return
+      if (heading) {
+        setHost(heading)
+        return
+      }
       attempts += 1
-      if (attempts < 20) timer = window.setTimeout(findHosts, 80)
+      if (attempts < 20) timer = window.setTimeout(findHeading, 80)
     }
 
-    findHosts()
+    findHeading()
     return () => {
       cancelled = true
       if (timer !== null) window.clearTimeout(timer)
       setHost(null)
-      setTopbarHost(null)
     }
   }, [pathname])
 
@@ -76,7 +71,6 @@ export default function DashboardIdentityBadge({ name, role }: { name: string; r
         </div>,
         host
       ) : null}
-      {hasCommissions && topbarHost ? createPortal(<CommissionTopbarButton />, topbarHost) : null}
     </>
   )
 }
