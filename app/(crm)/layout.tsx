@@ -39,7 +39,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const isAgentPortal = profile?.role === 'agent'
   const isIsaiahPortal = isAgentPortal && profile?.full_name?.trim().toLowerCase() === 'isaiah hernandez'
-  const isJustinAdmin = profile?.role === 'admin' && profile?.full_name?.trim().toLowerCase() === 'justin mayer'
+  const viewerName = profile?.full_name?.trim().toLowerCase() || ''
+  const hasQuickTools = ['justin mayer', 'isaiah hernandez', 'sheena hester'].includes(viewerName)
   const portalBrand = isIsaiahPortal ? 'PLATINUM - Financial Group -' : isAgentPortal ? (profile?.full_name || 'Agent Portal') : 'Mayer Insurance Group'
   const brandLogo = isIsaiahPortal ? '/platinum-pf.png' : '/mayer-bear.png'
   const brandLogoAlt = isIsaiahPortal ? 'PLATINUM - Financial Group - PF logo' : 'Mayer Insurance Group bear'
@@ -140,7 +141,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <div className="topbar-brand">
             <Link prefetch={false} className="topbar-bear-link" href="/dashboard" aria-label="Go to Dashboard"><img className={`topbar-bear${isIsaiahPortal ? ' topbar-car' : ''}`} src={brandLogo} alt={brandLogoAlt} /></Link>
             <strong>{portalBrand}</strong>
-            {isJustinAdmin ? <DashboardQuickTools compact /> : null}
+            {hasQuickTools ? <DashboardQuickTools compact /> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
             <span className="topbar-user">{isAgentPortal ? 'Agent Portal' : `${profile?.full_name || 'CRM User'}${profile?.role ? ` · ${profile.role}` : ''}`}</span>

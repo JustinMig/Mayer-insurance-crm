@@ -86,7 +86,9 @@ export default function AppointmentQuickSetter() {
   const [blocks, setBlocks] = useState<CalendarBlock[]>([])
   const [checking, setChecking] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState('Choose an existing client or enter a new client, then pick a date and available time.')
+  const [calendarOwnerId, setCalendarOwnerId] = useState('')
+  const [contextLoading, setContextLoading] = useState(true)
+  const [status, setStatus] = useState('Loading your appointment calendar…')
 
   const times = useMemo(() => {
     const output: string[] = []
@@ -97,6 +99,25 @@ export default function AppointmentQuickSetter() {
   const subjectReady = mode === 'existing'
     ? Boolean(selectedClient)
     : Boolean(newName.trim() && newPhone.trim())
+
+  useEffect(() => {
+    let cancelled = false
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+    const today = `${values.year}-${values.month}-${values.day}`
+    setContextLoading(true)
+    void fetch(`/api/workspace/calendar-availability?date=${encodeURIComponent(today)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(result.error || 'Unable to load your appointment calendar.')
+        if (cancelled) return
+        setCalendarOwnerId(String(result.owner_id || ''))
+        setStatus('Choose an existing client or enter a new/non-client, then pick a date and available time.')
+      })
+      .catch((error) => { if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to load your appointment calendar.') })
+      .finally(() => { if (!cancelled) setContextLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (mode !== 'existing') {
@@ -116,7 +137,9 @@ export default function AppointmentQuickSetter() {
     let cancelled = false
     const timer = window.setTimeout(() => {
       setSearching(true)
-      void fetch(`/api/workspace/clients?q=${encodeURIComponent(value)}`, { cache: 'no-store' })
+      const params = new URLSearchParams({ q: value })
+      if (calendarOwnerId) params.set('agent', calendarOwnerId)
+      void fetch(`/api/clients/search?${params.toString()}`, { cache: 'no-store' })
         .then(async (response) => {
           const result = await response.json().catch(() => ({}))
           if (!response.ok) throw new Error(result.error || 'Unable to search clients.')
@@ -135,7 +158,7 @@ export default function AppointmentQuickSetter() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [mode, query, selectedClient])
+  }, [mode, query, selectedClient, calendarOwnerId])
 
   useEffect(() => {
     setBlocks([])
@@ -144,8 +167,9 @@ export default function AppointmentQuickSetter() {
 
     let cancelled = false
     setChecking(true)
-    setStatus('Checking Justin’s main calendar for booked times…')
+    setStatus('Checking the main calendar for booked times…')
     const params = new URLSearchParams({ date: eventDate })
+    if (calendarOwnerId) params.set('owner', calendarOwnerId)
     void fetch(`/api/workspace/calendar-availability?${params.toString()}`, { cache: 'no-store' })
       .then(async (response) => {
         const result = await response.json().catch(() => ({}))
@@ -163,7 +187,7 @@ export default function AppointmentQuickSetter() {
       .finally(() => { if (!cancelled) setChecking(false) })
 
     return () => { cancelled = true }
-  }, [eventDate])
+  }, [eventDate, calendarOwnerId])
 
   function switchMode(nextMode: AppointmentMode) {
     setMode(nextMode)
@@ -207,7 +231,7 @@ export default function AppointmentQuickSetter() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assigned_agent_id: mode === 'existing' ? selectedClient?.assigned_agent_id || '' : '',
+          assigned_agent_id: calendarOwnerId || selectedClient?.assigned_agent_id || '',
           client_id: mode === 'existing' ? selectedClient?.id || '' : '',
           lead_id: '',
           title: `Appointment: ${name}`,
@@ -247,7 +271,7 @@ export default function AppointmentQuickSetter() {
     <div className="quick-appointment-setter">
       <div className="quick-appointment-intro">
         <strong>Set Appointment</strong>
-        <span>Schedule an existing client or a new/non-client directly onto Justin’s main calendar.</span>
+        <span>Schedule an existing client or a new/non-client directly onto the main calendar.</span>
       </div>
 
       <div className="quick-appointment-mode" role="group" aria-label="Appointment person type">
@@ -320,7 +344,7 @@ export default function AppointmentQuickSetter() {
 
       <div className="quick-appointment-status" role="status">{status}</div>
       <div className="quick-appointment-actions">
-        <button type="button" className="btn btn-primary" disabled={saving || checking || !subjectReady || !eventDate || !startTime} onClick={() => void saveAppointment()}>
+        <button type="button" className="btn btn-primary" disabled={saving || checking || contextLoading || !calendarOwnerId || !subjectReady || !eventDate || !startTime} onClick={() => void saveAppointment()}>
           {saving ? 'Saving…' : 'ADD TO CALENDAR'}
         </button>
       </div>
