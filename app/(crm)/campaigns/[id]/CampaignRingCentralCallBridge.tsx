@@ -16,13 +16,44 @@ function toRingCentralNumber(value: string) {
   return digits
 }
 
-function isAppleDevice() {
-  if (typeof navigator === 'undefined') return false
-  const userAgent = navigator.userAgent || ''
-  const platform = navigator.platform || ''
-  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  const isMac = /Macintosh|Mac OS X/i.test(userAgent) || /^Mac/i.test(platform)
-  return isiOS || isMac
+function launchRingCentralCall(phone: string) {
+  const nativeUrl = `rcmobile://call?number=${encodeURIComponent(phone)}`
+  const webUrl = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(phone)}`
+  let handedOff = false
+  let timer = 0
+
+  const cleanup = () => {
+    window.removeEventListener('blur', onBlur)
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+    if (timer) window.clearTimeout(timer)
+  }
+  const onBlur = () => {
+    handedOff = true
+    cleanup()
+  }
+  const onVisibilityChange = () => {
+    if (document.hidden) {
+      handedOff = true
+      cleanup()
+    }
+  }
+
+  window.addEventListener('blur', onBlur, { once: true })
+  document.addEventListener('visibilitychange', onVisibilityChange)
+
+  try {
+    const targetWindow = window.parent || window
+    targetWindow.location.assign(nativeUrl)
+  } catch {
+    window.location.assign(nativeUrl)
+  }
+
+  timer = window.setTimeout(() => {
+    cleanup()
+    if (!handedOff && document.visibilityState === 'visible') {
+      window.location.assign(webUrl)
+    }
+  }, 1400)
 }
 
 export default function CampaignRingCentralCallBridge() {
@@ -62,29 +93,21 @@ export default function CampaignRingCentralCallBridge() {
     return () => observer.disconnect()
   }, [])
 
-  const apple = isAppleDevice()
-
   return (
     <>
-      {targets.map((target) => {
-        const href = apple
-          ? `rcmobile://call?number=${encodeURIComponent(target.phone)}`
-          : `https://app.ringcentral.com/r/call?number=${encodeURIComponent(target.phone)}`
-        return createPortal(
-          <a
-            key={target.key}
-            className="campaign-ringcentral-call"
-            href={href}
-            target={apple ? undefined : '_blank'}
-            rel={apple ? undefined : 'noopener noreferrer'}
-            title={apple ? 'Call this client in the RingCentral app' : 'Call this client with RingCentral'}
-            aria-label="Call client with RingCentral"
-          >
-            ☎ Call
-          </a>,
-          target.host
-        )
-      })}
+      {targets.map((target) => createPortal(
+        <button
+          key={target.key}
+          type="button"
+          className="campaign-ringcentral-call"
+          onClick={() => launchRingCentralCall(target.phone)}
+          title="Call this client with RingCentral"
+          aria-label="Call client with RingCentral"
+        >
+          ☎ Call
+        </button>,
+        target.host
+      ))}
       <style jsx global>{`
         .campaign-ringcentral-call{
           appearance:none;
@@ -100,9 +123,6 @@ export default function CampaignRingCentralCallBridge() {
           line-height:1;
           cursor:pointer;
           white-space:nowrap;
-          text-decoration:none;
-          display:inline-flex;
-          align-items:center;
         }
         .campaign-ringcentral-call:hover{background:#dfeef6;color:#244b64}
         @media(max-width:720px){
