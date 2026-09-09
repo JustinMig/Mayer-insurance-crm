@@ -24,6 +24,7 @@ type ToolKey = 'appointments' | 'notes' | 'fex' | 'directory' | 'build'
 type Tool = {
   key: ToolKey
   label: string
+  shortLabel: string
   hint: string
   icon: React.ReactNode
 }
@@ -32,6 +33,7 @@ const tools: Tool[] = [
   {
     key: 'appointments',
     label: 'Appointments',
+    shortLabel: 'Appt',
     hint: 'Set an appointment',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -43,6 +45,7 @@ const tools: Tool[] = [
   {
     key: 'notes',
     label: 'Notes',
+    shortLabel: 'Notes',
     hint: 'Open dashboard notes',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -54,6 +57,7 @@ const tools: Tool[] = [
   {
     key: 'fex',
     label: 'FEX Quotes',
+    shortLabel: 'FEX',
     hint: 'Open final expense quoter',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -65,6 +69,7 @@ const tools: Tool[] = [
   {
     key: 'directory',
     label: 'Company Directory',
+    shortLabel: 'Dir',
     hint: 'Find carrier contacts',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -77,6 +82,7 @@ const tools: Tool[] = [
   {
     key: 'build',
     label: 'Height & Weight',
+    shortLabel: 'H&W',
     hint: 'Open underwriting chart',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -152,7 +158,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
             aria-label={tool.label}
           >
             <span className="dashboard-quick-icon">{tool.icon}</span>
-            <strong>{tool.label}</strong>
+            <strong>{compact ? tool.shortLabel : tool.label}</strong>
           </button>
         ))}
       </nav>
@@ -183,8 +189,8 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
       <style jsx global>{`
         .dashboard-quick-tools{display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;margin:12px 0 2px;padding:2px 2px 8px}
         .dashboard-quick-tools.compact{margin:0 0 0 10px;padding:0;gap:5px;flex-wrap:nowrap;align-items:center}
-        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:0;padding:0;display:block}
-        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:none}
+        .dashboard-quick-tools.compact .dashboard-quick-tool{min-width:34px;padding:0;display:grid;justify-items:center;gap:2px}
+        .dashboard-quick-tools.compact .dashboard-quick-tool strong{display:block;font-size:.56rem;line-height:1;font-weight:900;white-space:nowrap;max-width:none;color:#536576}
         .dashboard-quick-tools.compact .dashboard-quick-icon{width:34px;height:34px;border-radius:10px}
         .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:18px;height:18px}
         .dashboard-quick-tool{appearance:none;border:0;background:transparent;padding:3px 2px;display:grid;justify-items:center;gap:7px;min-width:84px;color:#34485a;cursor:pointer;font:inherit}
@@ -224,7 +230,7 @@ export default function DashboardQuickTools({ compact = false }: { compact?: boo
           .dashboard-quick-modal-head{padding:10px 12px}.dashboard-quick-modal-title p{display:none}.dashboard-quick-modal-body{padding:10px}
           .dashboard-quick-fex,.dashboard-quick-fex iframe{min-height:calc(94dvh - 78px);height:100%}
           .dashboard-quick-tools.compact{display:flex!important;grid-template-columns:none;gap:4px;margin:0 0 0 5px;padding:0}
-          .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto}
+          .dashboard-quick-tools.compact .dashboard-quick-tool{width:auto;min-width:31px}
           .dashboard-quick-tools.compact .dashboard-quick-icon{width:31px;height:31px;border-radius:9px}
           .dashboard-quick-tools.compact .dashboard-quick-icon svg{width:17px;height:17px}
         }

@@ -30,6 +30,11 @@ test('quick tools stay in every supported user global CRM header and page-specif
   }
   assert.match(quick, /AppointmentQuickSetter/)
   assert.match(quick, /dashboard-quick-tool-appointments/)
+  for (const shortLabel of ['Appt', 'Notes', 'FEX', 'Dir', 'H&W']) {
+    assert.match(quick, new RegExp(`shortLabel: '${shortLabel.replace('&', '\\&')}'`))
+  }
+  assert.match(quick, /compact \? tool\.shortLabel : tool\.label/)
+  assert.match(quick, /dashboard-quick-tools\.compact \.dashboard-quick-tool strong\{display:block/)
   assert.match(quick, /dashboard-quick-backdrop/)
   assert.match(quick, /event\.target === event\.currentTarget/)
   assert.match(quick, /event\.key === 'Escape'/)
