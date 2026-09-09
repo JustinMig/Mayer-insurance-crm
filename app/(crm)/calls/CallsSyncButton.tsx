@@ -9,12 +9,17 @@ export default function CallsSyncButton({ configured }: { configured: boolean })
   const [message, setMessage] = useState('')
 
   async function syncCalls() {
+    if (syncing) return
     setSyncing(true)
     setMessage('')
     try {
       const response = await fetch('/api/ringcentral/sync', { method: 'POST' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'RingCentral sync failed.')
+      if (result.already_syncing) {
+        setMessage(result.message || 'RingCentral sync is already running. Please wait a moment.')
+        return
+      }
       setMessage(`Synced ${result.synced || 0} calls · ${result.matched || 0} matched · ${result.unmatched || 0} unknown · ${result.recordings || 0} recordings`)
       router.refresh()
     } catch (error) {
