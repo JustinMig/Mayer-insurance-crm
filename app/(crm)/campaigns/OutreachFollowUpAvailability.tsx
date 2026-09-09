@@ -90,21 +90,28 @@ function normalizedName(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-function ensureFollowUpAgentSelect(dialog: HTMLElement, context: AppointmentContext, activeOwnerName: string) {
+function ensureSharedAgentSelect(dialog: HTMLElement, context: AppointmentContext, activeOwnerName: string) {
   if (!context.coordinator) return null
-  let select = dialog.querySelector<HTMLSelectElement>('[data-followup-agent-select="1"]')
+
+  // Follow-Up and Appointment deliberately share this exact selector so only
+  // one Agent control can exist inside the Spoke / Update dialog.
+  let select = dialog.querySelector<HTMLSelectElement>('[data-outreach-agent-select="1"]')
   if (select) return select
+
+  // Clean up a legacy Follow-Up selector if an older client bundle left one in
+  // the current dialog during a route transition.
+  dialog.querySelector('[data-followup-agent-select="1"]')?.closest('label')?.remove()
 
   const form = dialog.querySelector<HTMLElement>('.outreach-dialog-form')
   if (!form) return null
 
   const label = document.createElement('label')
-  label.className = 'label outreach-followup-agent-label'
+  label.className = 'label outreach-appointment-agent-label'
   label.append('Agent')
 
   select = document.createElement('select')
-  select.className = 'select outreach-followup-agent-select'
-  select.dataset.followupAgentSelect = '1'
+  select.className = 'select outreach-appointment-agent-select'
+  select.dataset.outreachAgentSelect = '1'
 
   const blank = document.createElement('option')
   blank.value = ''
@@ -155,21 +162,22 @@ export default function OutreachFollowUpAvailability() {
       const followUpTimeInput: HTMLInputElement = timeInput
       followUpDateInput.dataset.followupAvailability = '1'
 
-      const agentSelect = ensureFollowUpAgentSelect(dialog, context, activeOwnerName)
+      const agentSelect = ensureSharedAgentSelect(dialog, context, activeOwnerName)
       const selectedOwner = () => context?.coordinator ? String(agentSelect?.value || '') : String(context?.owner_id || '')
 
+      // Use the exact same visual control classes as Appointment — schedule on calendar.
       const datePicker = document.createElement('input')
       datePicker.type = 'date'
-      datePicker.className = `${followUpDateInput.className} outreach-followup-date-picker`
+      datePicker.className = `${followUpDateInput.className} outreach-appointment-date-picker`
       datePicker.value = manualDateToIso(followUpDateInput.value)
       followUpDateInput.style.display = 'none'
       followUpDateInput.setAttribute('aria-hidden', 'true')
       followUpDateInput.insertAdjacentElement('afterend', datePicker)
 
       const timeSelect = document.createElement('select')
-      timeSelect.className = `${followUpTimeInput.className} outreach-followup-time-select`
+      timeSelect.className = `${followUpTimeInput.className} outreach-appointment-time-select`
       const help = document.createElement('small')
-      help.className = 'outreach-followup-time-help'
+      help.className = 'outreach-appointment-time-help'
       followUpTimeInput.style.display = 'none'
       followUpTimeInput.setAttribute('aria-hidden', 'true')
       followUpTimeInput.insertAdjacentElement('afterend', timeSelect)
@@ -291,14 +299,5 @@ export default function OutreachFollowUpAvailability() {
     }
   }, [])
 
-  return (
-    <style>{`
-      .outreach-followup-agent-label{padding:10px;border:1px solid #d8d0ef;border-radius:10px;background:#f6f3ff}
-      .outreach-followup-agent-select,.outreach-followup-date-picker,.outreach-followup-time-select{width:100%}
-      .outreach-followup-date-picker{cursor:pointer;color-scheme:light}
-      .outreach-followup-time-select:disabled{background:#eef1f3!important;color:#7b8790!important;cursor:not-allowed}
-      .outreach-followup-time-select option:disabled{color:#9b4f4f;background:#f7eded}
-      .outreach-followup-time-help{display:block;margin-top:6px;color:#61717e;font-size:.72rem;font-weight:700;line-height:1.35}
-    `}</style>
-  )
+  return null
 }
