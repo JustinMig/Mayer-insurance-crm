@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import DashboardCalendar from './DashboardCalendar'
 import DeferredDashboardTools from './DeferredDashboardTools'
+import JustinMedicareCommissionCard from './JustinMedicareCommissionCard'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -205,6 +206,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
               </div>
             </div>
           ))}
+        </section>
+      ) : isJustinPortal ? (
+        <section className="grid grid-2 dashboard-justin-financial-stats" style={{ marginTop: 22 }}>
+          <div className="card card-pad stat dashboard-monthly-premium-stat dashboard-premium-combined">
+            <div><span>Monthly Premium · {monthNames[currentMonth]} {currentYear}</span><strong>{money(dashboardStats[0]?.currentMonthPremium || 0)}</strong></div>
+            <div className="dashboard-premium-divider"><span>Yearly Total · {currentYear}</span><strong>{money(dashboardStats[0]?.currentYearPremium || 0)}</strong></div>
+          </div>
+          <JustinMedicareCommissionCard />
         </section>
       ) : (
         <section className="grid grid-5 dashboard-personal-stats" style={{ marginTop: 22 }}>
