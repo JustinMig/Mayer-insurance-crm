@@ -88,11 +88,15 @@ export default function DeferredDashboardTools() {
         font-weight:900!important;
       }
       .isaiah-dashboard-clean .isaiah-premium-inline-results{
-        display:grid!important;
-        grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+        display:flex!important;
+        flex-direction:row!important;
+        align-items:stretch!important;
         gap:10px!important;
+        width:100%!important;
       }
       .isaiah-dashboard-clean .isaiah-premium-inline-results>div{
+        flex:1 1 0!important;
+        width:50%!important;
         min-width:0!important;
         padding:14px 15px!important;
         border:1px solid #dbe4eb!important;
@@ -140,13 +144,19 @@ export default function DeferredDashboardTools() {
         }
         .isaiah-dashboard-clean .premium-period-controls .btn{grid-column:1 / -1!important;width:100%!important}
         .isaiah-dashboard-clean .isaiah-premium-inline-results{
-          grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+          display:flex!important;
+          flex-direction:row!important;
           gap:7px!important;
         }
-        .isaiah-dashboard-clean .isaiah-premium-inline-results>div{padding:10px!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-card-label{font-size:.6rem!important;letter-spacing:.02em!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-total-value{font-size:1.05rem!important}
-        .isaiah-dashboard-clean .isaiah-premium-inline-results .subtle{font-size:.58rem!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results>div{
+          flex:1 1 0!important;
+          width:50%!important;
+          min-width:0!important;
+          padding:10px 8px!important;
+        }
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-card-label{font-size:.58rem!important;letter-spacing:.015em!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .premium-total-value{font-size:1rem!important}
+        .isaiah-dashboard-clean .isaiah-premium-inline-results .subtle{font-size:.56rem!important}
       }
     `}</style>
   )
