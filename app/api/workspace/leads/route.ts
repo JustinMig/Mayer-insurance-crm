@@ -7,6 +7,15 @@ export const dynamic = 'force-dynamic'
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const FIELDS = 'id,assigned_agent_id,first_name,last_name,date_of_birth,phone,product_type,is_medicare,is_life,is_retirement,notes,status,client_id,photo_storage_path,photo_file_name,photo_mime_type,photo_uploaded_at,created_at,updated_at'
 
+type ClientMatch = {
+  id: string
+  assigned_agent_id: string | null
+  first_name: string | null
+  last_name: string | null
+  date_of_birth: string | null
+  phone: string | null
+}
+
 function cleanText(value: unknown, max: number) {
   return String(value || '').trim().slice(0, max)
 }
@@ -21,6 +30,46 @@ function validDate(value: string) {
 
 function bool(value: unknown) {
   return value === true || value === 'true' || value === 1 || value === '1'
+}
+
+function normalizeName(value: unknown) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function phoneDigits(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
+function findExistingClient(lead: {
+  assigned_agent_id: string | null
+  first_name: string | null
+  last_name: string | null
+  date_of_birth: string | null
+  phone: string | null
+}, candidates: ClientMatch[]) {
+  const first = normalizeName(lead.first_name)
+  const last = normalizeName(lead.last_name)
+  const dob = String(lead.date_of_birth || '')
+  const phone = phoneDigits(lead.phone)
+
+  const sameName = candidates.filter((candidate) =>
+    candidate.assigned_agent_id === lead.assigned_agent_id &&
+    normalizeName(candidate.first_name) === first &&
+    normalizeName(candidate.last_name) === last
+  )
+
+  if (dob) {
+    const dobMatch = sameName.find((candidate) => String(candidate.date_of_birth || '') === dob)
+    if (dobMatch) return dobMatch
+  }
+
+  if (phone.length === 10) {
+    const phoneMatch = sameName.find((candidate) => phoneDigits(candidate.phone) === phone)
+    if (phoneMatch) return phoneMatch
+  }
+
+  return null
 }
 
 async function resolveOwner(
@@ -50,15 +99,31 @@ export async function GET() {
   const { supabase, profile } = await getCrmSession()
   if (!profile?.agency_id) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
-  const { data, error } = await supabase
-    .from('workspace_leads')
-    .select(FIELDS)
-    .eq('agency_id', profile.agency_id)
-    .order('created_at', { ascending: false })
-    .limit(500)
+  const [{ data, error }, clientResult] = await Promise.all([
+    supabase
+      .from('workspace_leads')
+      .select(FIELDS)
+      .eq('agency_id', profile.agency_id)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('clients')
+      .select('id,assigned_agent_id,first_name,last_name,date_of_birth,phone')
+      .eq('agency_id', profile.agency_id)
+      .order('created_at', { ascending: true })
+      .limit(5000)
+  ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ leads: data || [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+  if (clientResult.error) return NextResponse.json({ error: clientResult.error.message }, { status: 500 })
+
+  const candidates = (clientResult.data || []) as ClientMatch[]
+  const leads = (data || []).map((lead) => {
+    const existing = lead.client_id ? { id: lead.client_id } : findExistingClient(lead, candidates)
+    return { ...lead, existing_client_id: existing?.id || null }
+  })
+
+  return NextResponse.json({ leads }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 export async function POST(request: NextRequest) {
