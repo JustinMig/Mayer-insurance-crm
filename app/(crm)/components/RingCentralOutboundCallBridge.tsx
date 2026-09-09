@@ -11,6 +11,28 @@ function toRingCentralNumber(value: string) {
   return digits
 }
 
+function isAppleDevice() {
+  const userAgent = navigator.userAgent || ''
+  const platform = navigator.platform || ''
+  const isiOS = /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isMac = /Macintosh|Mac OS X/i.test(userAgent) || /^Mac/i.test(platform)
+  return isiOS || isMac
+}
+
+function launchRingCentralCall(dialNumber: string) {
+  if (isAppleDevice()) {
+    // RingCentral's native URI scheme hands the call directly to the installed
+    // RingCentral app on macOS/iOS instead of opening the RingCentral web app.
+    window.location.assign(`rcmobile://call?number=${encodeURIComponent(dialNumber)}`)
+    return 'native' as const
+  }
+
+  const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
+  const launched = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!launched) window.location.assign(url)
+  return 'web' as const
+}
+
 export default function RingCentralOutboundCallBridge() {
   const pathname = usePathname()
   const isClientRecord = /^\/clients\/[0-9a-f-]{36}$/i.test(pathname)
@@ -82,10 +104,11 @@ export default function RingCentralOutboundCallBridge() {
 
   const startCall = () => {
     setLaunchMessage('Opening RingCentral…')
-    const url = `https://app.ringcentral.com/r/call?number=${encodeURIComponent(dialNumber)}`
-    const launched = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!launched) {
-      window.location.assign(url)
+    const launchType = launchRingCentralCall(dialNumber)
+    if (launchType === 'native') {
+      window.setTimeout(() => {
+        setLaunchMessage('RingCentral app requested. If nothing opened, make sure the RingCentral app is installed on this Apple device.')
+      }, 1800)
       return
     }
     window.setTimeout(() => {
