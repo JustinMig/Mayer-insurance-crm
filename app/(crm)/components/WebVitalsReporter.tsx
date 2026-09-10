@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import RingCentralContactAutoSync from './RingCentralContactAutoSync'
 
 type MetricPayload = {
   route: string
@@ -119,5 +120,5 @@ export default function WebVitalsReporter() {
     }
   }, [])
 
-  return null
+  return <RingCentralContactAutoSync />
 }
