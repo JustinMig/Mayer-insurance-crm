@@ -31,7 +31,7 @@ export async function GET() {
     configured: isRingCentralConfigured(),
     automatic: true,
     scope_required: 'Contacts',
-    user_permission_required: 'EditPersonalContacts'
+    user_permission_required: 'ReadContacts'
   }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
@@ -64,7 +64,7 @@ export async function POST() {
       configured: true,
       permission_required: permissionFailure,
       required_scope: permissionFailure ? 'Contacts' : undefined,
-      required_user_permission: permissionFailure ? 'EditPersonalContacts' : undefined,
+      required_user_permission: permissionFailure ? 'ReadContacts' : undefined,
       error: permissionFailure
         ? `RingCentral Contacts permission is required before CRM clients can be saved to every RingCentral user's address book. ${message}`
         : message
