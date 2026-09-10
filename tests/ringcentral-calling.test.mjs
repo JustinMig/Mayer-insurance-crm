@@ -18,8 +18,8 @@ for (const [expected, device] of devices) {
   })
 }
 
-test('macOS uses the RingCentral-specific native call URI', () => {
-  assert.equal(ringCentralCallHref('(662) 555-0100', 'mac'), 'rcmobile://call?number=16625550100')
+test('macOS uses the standard native telephone handoff instead of a web or unregistered custom URI', () => {
+  assert.equal(ringCentralCallHref('(662) 555-0100', 'mac'), 'tel:+16625550100')
   assert.equal(requiresAppleCallingSetup('mac'), false)
 })
 
@@ -59,7 +59,7 @@ test('macOS call link has no browser-tab target while non-macOS keeps the existi
   assert.match(componentSource, /mac \? \{\} : \{ target: '_blank', rel: 'noopener noreferrer' \}/)
 })
 
-test('Chrome on macOS uses RingCentral documented location handoff', () => {
+test('Chrome on macOS uses a direct location handoff', () => {
   assert.match(componentSource, /chromeOnMac/)
   assert.match(componentSource, /targetWindow\.location\.assign\(href\)/)
 })
