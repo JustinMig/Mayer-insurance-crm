@@ -26,11 +26,12 @@ export function ringCentralCallHref(phone: string, platform?: CallPlatform): str
   const number = toRingCentralNumber(phone)
   if (!number) return ''
 
-  // RingCentral documents rcmobile://call as the RingCentral-specific URI
-  // for dialing from the installed desktop softphone. Use it on macOS so a
-  // CRM click launches RingCentral directly instead of opening Safari.
+  // macOS Safari always understands the standard tel: scheme. RingCentral's
+  // desktop app can register itself as the click-to-dial handler for tel links,
+  // so the OS can hand the number directly to the installed RingCentral app.
+  // This avoids Safari trying to parse an unregistered custom URI scheme.
   if (platform === 'mac') {
-    return `rcmobile://call?number=${encodeURIComponent(number)}`
+    return `tel:+${number}`
   }
 
   // Preserve the existing behavior on every non-macOS platform.
