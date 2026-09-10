@@ -26,7 +26,7 @@ export default function RingCentralCallLink({ phone, className, children }: {
   function startCall(event: MouseEvent<HTMLAnchorElement>) {
     if (!chromeOnMac) return
     // RingCentral documents a JavaScript location handoff for Chrome when
-    // using rcmobile://. Safari uses the ordinary href directly.
+    // launching supported call URI schemes. Safari uses the ordinary href.
     event.preventDefault()
     const targetWindow = window.parent || window
     targetWindow.location.assign(href)
