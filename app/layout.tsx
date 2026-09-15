@@ -13,10 +13,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }
+      { url: '/mm-logo.jpg?v=2', sizes: '512x512', type: 'image/jpeg' }
     ],
-    apple: [{ url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }],
-    shortcut: [{ url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }]
+    apple: [{ url: '/mm-logo.jpg?v=2', sizes: '512x512', type: 'image/jpeg' }],
+    shortcut: [{ url: '/mm-logo.jpg?v=2', sizes: '512x512', type: 'image/jpeg' }]
   }
 }
 
