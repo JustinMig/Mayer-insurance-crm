@@ -132,6 +132,24 @@ export default function RouteScopedEnhancers() {
   const needsClientHelpers = isNewClient || sections.client
   const needsMedicareHelpers = isNewClient || sections.medicare
 
+  useEffect(() => {
+    const applyBrand = () => {
+      const sidebarLogo = document.querySelector<HTMLImageElement>('.brand-bear:not(.brand-car)')
+      const topLogo = document.querySelector<HTMLImageElement>('.topbar-bear:not(.topbar-car)')
+      if (sidebarLogo) { sidebarLogo.src = '/mm-logo.jpg'; sidebarLogo.alt = 'M&M CRM shield' }
+      if (topLogo) { topLogo.src = '/mm-logo.jpg'; topLogo.alt = 'M&M CRM shield' }
+      const sidebarText = document.querySelector<HTMLElement>('.brand-text strong')
+      const topText = document.querySelector<HTMLElement>('.topbar-brand > strong')
+      if (sidebarText && !document.querySelector('.brand-car')) sidebarText.textContent = 'M&M CRM'
+      if (topText && !document.querySelector('.topbar-car')) topText.textContent = 'M&M CRM'
+      document.title = 'M&M CRM'
+    }
+    applyBrand()
+    const observer = new MutationObserver(applyBrand)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [pathname])
+
   return (
     <>
       {isClientForm ? <ClientDraftGuard key={`draft-${pathname}`} /> : null}
