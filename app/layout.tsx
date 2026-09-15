@@ -3,21 +3,20 @@ import './public-base.css'
 import { ServiceWorkerRegister } from './service-worker-register'
 
 export const metadata: Metadata = {
-  title: 'Mayer Insurance Group CRM',
-  description: 'Mayer Insurance Group client relationship management system',
-  applicationName: 'Mayer Insurance Group CRM',
+  title: 'M&M CRM',
+  description: 'M&M CRM coordinator and client relationship management system',
+  applicationName: 'M&M CRM',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Mayer CRM'
+    title: 'M&M CRM'
   },
   icons: {
     icon: [
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon.png', sizes: '512x512', type: 'image/png' }
+      { url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }
     ],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
-    shortcut: [{ url: '/mayer-favicon-64.png', sizes: '64x64', type: 'image/png' }]
+    apple: [{ url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }],
+    shortcut: [{ url: '/mm-logo.jpg', sizes: '512x512', type: 'image/jpeg' }]
   }
 }
 
