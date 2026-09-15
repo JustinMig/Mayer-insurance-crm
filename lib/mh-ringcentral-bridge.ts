@@ -54,11 +54,19 @@ export async function getAuthorizedMhClients(request: Request) {
     if (page.length < 1000) break
   }
 
-  const clientByPhone = new Map<string, string>()
+  // Only match a RingCentral call when exactly one saved M&H client owns the
+  // phone number. Duplicate client phone numbers are intentionally skipped so
+  // call recordings can never be attached to the wrong client record.
+  const matches = new Map<string, string[]>()
   for (const client of clients) {
     const phone = normalizeMhPhone(client.phone)
-    if (phone && !clientByPhone.has(phone)) clientByPhone.set(phone, client.id)
+    if (!phone) continue
+    const ids = matches.get(phone) || []
+    ids.push(client.id)
+    matches.set(phone, ids)
   }
+  const clientByPhone = new Map<string, string>()
+  for (const [phone, ids] of matches) if (ids.length === 1) clientByPhone.set(phone, ids[0])
 
   return { userId: user.id, clientByPhone }
 }
