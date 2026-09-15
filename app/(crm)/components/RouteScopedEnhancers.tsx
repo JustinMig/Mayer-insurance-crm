@@ -136,18 +136,18 @@ export default function RouteScopedEnhancers() {
     const applyBrand = () => {
       const sidebarLogo = document.querySelector<HTMLImageElement>('.brand-bear:not(.brand-car)')
       const topLogo = document.querySelector<HTMLImageElement>('.topbar-bear:not(.topbar-car)')
-      if (sidebarLogo) { sidebarLogo.src = '/mm-logo.jpg'; sidebarLogo.alt = 'M&M CRM shield' }
-      if (topLogo) { topLogo.src = '/mm-logo.jpg'; topLogo.alt = 'M&M CRM shield' }
+      if (sidebarLogo && !sidebarLogo.src.endsWith('/mm-logo.jpg')) { sidebarLogo.src = '/mm-logo.jpg'; sidebarLogo.alt = 'M&M CRM shield' }
+      if (topLogo && !topLogo.src.endsWith('/mm-logo.jpg')) { topLogo.src = '/mm-logo.jpg'; topLogo.alt = 'M&M CRM shield' }
       const sidebarText = document.querySelector<HTMLElement>('.brand-text strong')
       const topText = document.querySelector<HTMLElement>('.topbar-brand > strong')
-      if (sidebarText && !document.querySelector('.brand-car')) sidebarText.textContent = 'M&M CRM'
-      if (topText && !document.querySelector('.topbar-car')) topText.textContent = 'M&M CRM'
-      document.title = 'M&M CRM'
+      if (sidebarText && !document.querySelector('.brand-car') && sidebarText.textContent !== 'M&M CRM') sidebarText.textContent = 'M&M CRM'
+      if (topText && !document.querySelector('.topbar-car') && topText.textContent !== 'M&M CRM') topText.textContent = 'M&M CRM'
+      if (document.title !== 'M&M CRM') document.title = 'M&M CRM'
     }
     applyBrand()
-    const observer = new MutationObserver(applyBrand)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
+    const frame = window.requestAnimationFrame(applyBrand)
+    const timer = window.setTimeout(applyBrand, 80)
+    return () => { window.cancelAnimationFrame(frame); window.clearTimeout(timer) }
   }, [pathname])
 
   return (
