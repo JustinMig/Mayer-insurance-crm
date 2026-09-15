@@ -37,9 +37,9 @@ export default function LoginPage() {
   return (
     <main className="login-shell">
       <section className="login-card">
-        <img className="login-bear" src="/mayer-bear.png" alt="Mayer Insurance Group bear" />
-        <h1>Mayer Insurance Group</h1>
-        <p className="subtle">Secure CRM access</p>
+        <img className="login-bear" src="/mm-logo.jpg" alt="M&M CRM shield" />
+        <h1>M&amp;M CRM</h1>
+        <p className="subtle">Secure coordinator CRM access</p>
         <form onSubmit={submit}>
           {error ? <div className="notice notice-error">{error}</div> : null}
           <label className="label">Email<input className="input" type="email" name="email" required autoComplete="username" /></label>
