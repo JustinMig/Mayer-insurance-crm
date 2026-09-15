@@ -37,7 +37,7 @@ export default function LoginPage() {
   return (
     <main className="login-shell">
       <section className="login-card">
-        <img className="login-bear" src="/mm-logo.jpg" alt="M&M CRM shield" />
+        <img className="login-bear" src="/mm-logo.jpg?v=2" alt="M&M CRM shield" />
         <h1>M&amp;M CRM</h1>
         <p className="subtle">Secure coordinator CRM access</p>
         <form onSubmit={submit}>
