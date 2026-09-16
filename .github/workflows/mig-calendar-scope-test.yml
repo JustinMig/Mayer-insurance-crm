@@ -1,0 +1,43 @@
+name: MIG shared calendar scope test
+on:
+  push:
+    branches: [fix/mig-calendar-scope-20260915]
+permissions:
+  contents: read
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify authenticated bridge role and client boundaries
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {stripTypeScriptTypes} from 'node:module';
+          import assert from 'node:assert/strict';
+          const source=readFileSync('lib/mh-ringcentral-bridge.ts','utf8').replace("import 'server-only'",'');
+          const {getAuthorizedMhClients}=await import('data:text/javascript;base64,'+Buffer.from(stripTypeScriptTypes(source)).toString('base64'));
+          let role='agent',active=true,reads=0;
+          globalThis.fetch=async(url,options)=>{
+            assert.equal(options.headers.Authorization,'Bearer SYNTHETIC');
+            const p=new URL(url).pathname;
+            if(p==='/auth/v1/user')return Response.json({id:'synthetic-user'});
+            if(p==='/rest/v1/profiles')return Response.json([{id:'synthetic-user',active,role}]);
+            if(p==='/rest/v1/clients'){reads++;return Response.json([{id:'synthetic-client',phone:'6625550100'}]);}
+            throw new Error('Unexpected network operation');
+          };
+          const request=path=>new Request('https://coordinator.example.invalid'+path,{headers:{Authorization:'Bearer SYNTHETIC'}});
+          await assert.rejects(getAuthorizedMhClients(new Request('https://coordinator.example.invalid/api/mh-calendar/events')),e=>e.status===401);
+          await assert.rejects(getAuthorizedMhClients(request('/api/mh-calendar/events')),e=>e.status===403);
+          assert.equal(reads,0);
+          for(role of ['owner','admin']){const x=await getAuthorizedMhClients(request('/api/mh-calendar/events'));assert.equal(x.clientByPhone.get('6625550100'),'synthetic-client');}
+          role='agent';const x=await getAuthorizedMhClients(request('/api/mh-ringcentral/calls'));assert.equal(x.clientByPhone.get('6625550100'),'synthetic-client');
+          active=false;await assert.rejects(getAuthorizedMhClients(request('/api/mh-ringcentral/calls')),e=>e.status===403);
+          console.log('PASS: missing login rejected; agent calendar rejected before client reads; owner/admin calendar preserved; agent RingCentral uses caller JWT; inactive account rejected. No live network requests.');
+          JS
