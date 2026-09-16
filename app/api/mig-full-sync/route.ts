@@ -84,9 +84,15 @@ export async function POST(request: NextRequest) {
       routing_number: routing,
       account_number: account,
       account_name: '',
-      payment_notes: card ? `M&M debit card ${card} exp ${clean(bank.debit_card_expiration)}` : ''
+      payment_notes: '',
+      card_number: card,
+      card_expiration: clean(bank.debit_card_expiration),
+      card_notes: ''
     } : card ? {
       payment_method: 'card',
+      bank_name: clean(bank.bank_name),
+      routing_number: routing,
+      account_number: account,
       card_number: card,
       card_expiration: clean(bank.debit_card_expiration),
       card_notes: ''
