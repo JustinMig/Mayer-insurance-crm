@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
         is_deceased: client.is_deceased,
         is_veteran: client.is_veteran,
         is_smoker: client.is_smoker,
-        height_inches: client.height_inches,
-        weight_lbs: client.weight_lbs,
+        height_inches: client.height_inches ?? undefined,
+        weight_lbs: client.weight_lbs ?? undefined,
         notes: client.notes
       },
       medicare: medicare ? {
