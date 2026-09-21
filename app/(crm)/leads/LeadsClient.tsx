@@ -51,6 +51,22 @@ function normalizePhone(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
 }
 
+function normalizeDobInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+function dobToIso(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length !== 8) return trimmed
+  return `${digits.slice(4, 8)}-${digits.slice(0, 2)}-${digits.slice(2, 4)}`
+}
+
 function formatDate(value: string | null) {
   if (!value) return ''
   const [year, month, day] = value.split('-')
@@ -127,7 +143,7 @@ export default function LeadsClient({ viewerId, isManager, agents }: { viewerId:
       assigned_agent_id: lead.assigned_agent_id,
       first_name: lead.first_name,
       last_name: lead.last_name,
-      date_of_birth: lead.date_of_birth || '',
+      date_of_birth: formatDate(lead.date_of_birth),
       phone: lead.phone || '',
       is_medicare: Boolean(lead.is_medicare),
       is_life: Boolean(lead.is_life),
@@ -162,7 +178,7 @@ export default function LeadsClient({ viewerId, isManager, agents }: { viewerId:
       const response = await fetch(draft.id ? `/api/workspace/leads/${draft.id}` : '/api/workspace/leads', {
         method: draft.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft)
+        body: JSON.stringify({ ...draft, date_of_birth: dobToIso(draft.date_of_birth) })
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to save lead.')
@@ -264,7 +280,7 @@ export default function LeadsClient({ viewerId, isManager, agents }: { viewerId:
             <div className="form-grid">
               <label className="label">First name<input className="input" value={draft.first_name} onChange={(event) => setDraft((current) => ({ ...current, first_name: event.target.value }))} autoFocus /></label>
               <label className="label">Last name<input className="input" value={draft.last_name} onChange={(event) => setDraft((current) => ({ ...current, last_name: event.target.value }))} /></label>
-              <label className="label">Date of birth<input className="input" type="date" value={draft.date_of_birth} onChange={(event) => setDraft((current) => ({ ...current, date_of_birth: event.target.value }))} /></label>
+              <label className="label">Date of birth<input className="input" type="text" inputMode="numeric" autoComplete="bday" maxLength={10} placeholder="MM/DD/YYYY" value={draft.date_of_birth} onChange={(event) => setDraft((current) => ({ ...current, date_of_birth: normalizeDobInput(event.target.value) }))} /></label>
               <label className="label">Phone<input className="input" inputMode="tel" value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: normalizePhone(event.target.value) }))} placeholder="662-555-1234" /></label>
               {isManager ? <label className="label">Assigned agent<select className="select" value={draft.assigned_agent_id} onChange={(event) => setDraft((current) => ({ ...current, assigned_agent_id: event.target.value }))}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
             </div>
