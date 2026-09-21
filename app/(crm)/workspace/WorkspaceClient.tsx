@@ -96,6 +96,28 @@ function formatDob(value: string | null) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parseIsoDate(value))
 }
 
+function formatDobForInput(value: string | null) {
+  if (!value) return ''
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : normalizeDobInput(value)
+}
+
+function normalizeDobInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+function dobToIso(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return trimmed
+  return `${match[3]}-${match[1]}-${match[2]}`
+}
+
 function formatCreated(value: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
@@ -327,7 +349,7 @@ export default function WorkspaceClient({ viewerId, viewerName, isManager, agent
       assigned_agent_id: lead.assigned_agent_id,
       first_name: lead.first_name,
       last_name: lead.last_name,
-      date_of_birth: lead.date_of_birth || '',
+      date_of_birth: formatDobForInput(lead.date_of_birth),
       phone: lead.phone || '',
       is_medicare: Boolean(lead.is_medicare || lead.product_type === 'medicare'),
       is_life: Boolean(lead.is_life || lead.product_type === 'life'),
@@ -380,7 +402,7 @@ export default function WorkspaceClient({ viewerId, viewerName, isManager, agent
       const response = await fetch(leadDraft.id ? `/api/workspace/leads/${leadDraft.id}` : '/api/workspace/leads', {
         method: leadDraft.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(leadDraft)
+        body: JSON.stringify({ ...leadDraft, date_of_birth: dobToIso(leadDraft.date_of_birth) })
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || 'Unable to save lead.')
@@ -774,7 +796,7 @@ export default function WorkspaceClient({ viewerId, viewerName, isManager, agent
 
               <label className="label">First name<input className="input" value={leadDraft.first_name} onChange={(e) => setLeadDraft((current) => ({ ...current, first_name: e.target.value }))} /></label>
               <label className="label">Last name<input className="input" value={leadDraft.last_name} onChange={(e) => setLeadDraft((current) => ({ ...current, last_name: e.target.value }))} /></label>
-              <label className="label">Date of birth<input className="input" type="date" value={leadDraft.date_of_birth} onChange={(e) => setLeadDraft((current) => ({ ...current, date_of_birth: e.target.value }))} /></label>
+              <label className="label">Date of birth<input className="input" type="text" inputMode="numeric" autoComplete="bday" maxLength={10} placeholder="MM/DD/YYYY" value={leadDraft.date_of_birth} onChange={(e) => setLeadDraft((current) => ({ ...current, date_of_birth: normalizeDobInput(e.target.value) }))} /></label>
               <label className="label">Phone number<input className="input" type="tel" inputMode="tel" autoComplete="tel" value={leadDraft.phone} onChange={(e) => setLeadDraft((current) => ({ ...current, phone: e.target.value }))} placeholder="(662) 555-1234" /></label>
 
               <fieldset className="workspace-product-fieldset span-2">
