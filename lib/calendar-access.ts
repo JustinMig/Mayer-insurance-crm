@@ -2,7 +2,7 @@ export const JUSTIN_CALENDAR_USER_ID = '9c9b6c8a-add4-475d-bda5-c27169f117a1'
 export const ISAIAH_CALENDAR_USER_ID = 'b34219da-711a-4f6d-a3c6-087ae96e31c4'
 export const SHEENA_CALENDAR_USER_ID = '6c0698be-d030-44db-94ec-c771013ec1a9'
 
-export const APPOINTMENT_AGENT_IDS = [JUSTIN_CALENDAR_USER_ID, ISAIAH_CALENDAR_USER_ID] as const
+export const APPOINTMENT_AGENT_IDS = [SHEENA_CALENDAR_USER_ID, JUSTIN_CALENDAR_USER_ID, ISAIAH_CALENDAR_USER_ID] as const
 
 export type CalendarProfile = {
   role?: string | null
@@ -28,7 +28,7 @@ export function resolveCalendarOwner(userId: string, profile: CalendarProfile | 
   if (!isSheenaCalendarCoordinator(userId, profile)) return userId
 
   const requested = String(requestedOwner || '').trim()
-  if (!requested) throw new Error('Choose Justin or Isaiah for this appointment.')
+  if (!requested) throw new Error('Choose Sheena, Justin, or Isaiah for this appointment.')
   if (!isAppointmentAgent(requested)) throw new Error('Calendar access denied.')
   return requested
 }

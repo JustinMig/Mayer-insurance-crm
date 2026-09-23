@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isSheenaCalendarCoordinator } from '@/lib/calendar-access'
 import CampaignDetailClient from './CampaignDetailClient'
 import CampaignRingCentralCallBridge from './CampaignRingCentralCallBridge'
 import spacing from '../OutreachSpacing.module.css'
@@ -96,6 +97,13 @@ export default async function CampaignDetailPage({ params }: { params: Params })
     if (!error && data) agents = data as Agent[]
   }
 
+  const appointmentAgents: Agent[] = isSheenaCalendarCoordinator(userId, profile)
+    ? [
+        { id: userId, full_name: profile.full_name || 'Sheena Hester' },
+        ...agents.filter((agent) => agent.id !== userId)
+      ]
+    : agents
+
   const clientById = new Map(clients.map((client) => [client.id, client]))
   const agentById = new Map(agents.map((agent) => [agent.id, agent.full_name]))
   const rows = members
@@ -110,6 +118,7 @@ export default async function CampaignDetailPage({ params }: { params: Params })
         campaign={{ id: campaign.id, name: campaign.name, topic: campaign.topic, status: campaign.status }}
         initialRows={rows}
         agents={agents}
+        appointmentAgents={appointmentAgents}
         viewerId={userId}
         canViewAll={manager}
       />
