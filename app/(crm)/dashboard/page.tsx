@@ -101,8 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
     }]
   }
 
+  const sheenaCalendarAgent: AgentProfile = {
+    id: userId,
+    full_name: currentProfile.full_name || 'Sheena Hester',
+    role: currentProfile.role
+  }
+
   const calendarAvailableAgents = isCalendarCoordinator
-    ? targetAgents
+    ? [sheenaCalendarAgent, ...targetAgents]
     : isJustinPortal
       ? targetAgents.filter((agent) => agent.full_name.trim().toLowerCase() === 'justin mayer')
       : targetAgents.filter((agent) => agent.id === userId)
@@ -189,7 +195,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
       ) : null}
 
       <div className={isCalendarCoordinator ? 'dashboard-calendar-coordinator-view' : undefined}>
-        <DashboardCalendar agents={calendarAgents} viewerName={currentProfile.full_name || ''} />
+        <DashboardCalendar
+          agents={calendarAgents}
+          appointmentAgents={isCalendarCoordinator ? calendarAvailableAgents : calendarAgents}
+          viewerName={currentProfile.full_name || ''}
+        />
       </div>
 
       {isManager ? (
