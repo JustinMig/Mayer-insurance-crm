@@ -258,7 +258,8 @@ export default function DashboardCalendar({ agents, appointmentAgents = agents, 
 
   const dayItems = selectedDay ? eventsByDate.get(selectedDay) || [] : []
   const monthTitle = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month)
-  const ownerClients = useMemo(() => pickerClients.filter((client) => client.assigned_agent_id === draft.assigned_agent_id), [pickerClients, draft.assigned_agent_id])
+  const canCrossBookAppointments = viewerName.trim().toLowerCase() === 'sheena hester' && appointmentAgents.length > 1
+  const ownerClients = useMemo(() => canCrossBookAppointments ? pickerClients : pickerClients.filter((client) => client.assigned_agent_id === draft.assigned_agent_id), [pickerClients, draft.assigned_agent_id, canCrossBookAppointments])
   const clientChoices = useMemo(() => {
     const search = clientSearch.trim().toLowerCase()
     const filtered = search
@@ -267,7 +268,7 @@ export default function DashboardCalendar({ agents, appointmentAgents = agents, 
     const selected = draft.client_id ? clientById.get(draft.client_id) : undefined
     return selected && !filtered.some((client) => client.id === selected.id) ? [selected, ...filtered] : filtered
   }, [ownerClients, clientSearch, clientById, draft.client_id])
-  const ownerLeads = useMemo(() => pickerLeads.filter((lead) => lead.assigned_agent_id === draft.assigned_agent_id), [pickerLeads, draft.assigned_agent_id])
+  const ownerLeads = useMemo(() => canCrossBookAppointments ? pickerLeads : pickerLeads.filter((lead) => lead.assigned_agent_id === draft.assigned_agent_id), [pickerLeads, draft.assigned_agent_id, canCrossBookAppointments])
   const leadChoices = useMemo(() => {
     const search = leadSearch.trim().toLowerCase()
     const filtered = search
@@ -575,7 +576,7 @@ export default function DashboardCalendar({ agents, appointmentAgents = agents, 
             {pickerLoading ? <div className="dash-cal-picker-status">Loading client and lead choices…</div> : null}
             {pickerError ? <div className="notice notice-error dash-cal-picker-error"><span>{pickerError}</span><button type="button" className="btn btn-secondary btn-small" onClick={() => void loadPickerOptions()}>Retry</button></div> : null}
             <div className="dash-cal-form-grid">
-              {appointmentAgents.length > 1 ? <label><span>Appointment For</span><select value={draft.assigned_agent_id} onChange={(e) => { setDraft((current) => ({ ...current, assigned_agent_id: e.target.value, client_id: '', lead_id: '' })); setClientSearch(''); setLeadSearch('') }}>{appointmentAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
+              {appointmentAgents.length > 1 ? <label><span>Appointment For</span><select value={draft.assigned_agent_id} onChange={(e) => { setDraft((current) => ({ ...current, assigned_agent_id: e.target.value, client_id: canCrossBookAppointments ? current.client_id : '', lead_id: canCrossBookAppointments ? current.lead_id : '' })); if (!canCrossBookAppointments) { setClientSearch(''); setLeadSearch('') } }}>{appointmentAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
               <label><span>Type</span><select value={draft.event_type} onChange={(e) => setDraft((current) => ({ ...current, event_type: e.target.value as 'appointment' | 'activity' }))}><option value="appointment">Appointment</option><option value="activity">Activity</option></select></label>
               <label className="span-2"><span>Title</span><input value={draft.title} onChange={(e) => setDraft((current) => ({ ...current, title: e.target.value }))} placeholder="Appointment or activity title" /></label>
               <label><span>Date</span><input type="date" value={draft.event_date} onChange={(e) => setDraft((current) => ({ ...current, event_date: e.target.value }))} /></label>
