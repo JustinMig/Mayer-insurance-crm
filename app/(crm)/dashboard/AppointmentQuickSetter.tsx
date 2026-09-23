@@ -121,7 +121,7 @@ export default function AppointmentQuickSetter() {
         setCoordinator(isCoordinator)
         setCalendarOwnerId(isCoordinator ? '' : String(result.owner_id || agents[0]?.id || ''))
         setStatus(isCoordinator
-          ? 'Choose Justin or Isaiah first. Their booked times will be blocked automatically.'
+          ? 'Choose Sheena, Justin, or Isaiah first. Their booked times will be blocked automatically.'
           : 'Choose an existing client or enter a new/non-client, then pick a date and available time.')
       })
       .catch((error) => { if (!cancelled) setStatus(error instanceof Error ? error.message : 'Unable to load appointment calendar.') })
@@ -131,8 +131,10 @@ export default function AppointmentQuickSetter() {
 
   useEffect(() => {
     setClients([])
-    setSelectedClient(null)
-    setQuery('')
+    if (!coordinator) {
+      setSelectedClient(null)
+      setQuery('')
+    }
     setBlocks([])
     setStartTime('')
     if (coordinator && calendarOwnerId) {
@@ -163,7 +165,9 @@ export default function AppointmentQuickSetter() {
     let cancelled = false
     const timer = window.setTimeout(() => {
       setSearching(true)
-      const params = new URLSearchParams({ q: value, agent: calendarOwnerId })
+      const params = coordinator
+        ? new URLSearchParams({ q: value })
+        : new URLSearchParams({ q: value, agent: calendarOwnerId })
       void fetch(`/api/clients/search?${params.toString()}`, { cache: 'no-store' })
         .then(async (response) => {
           const result = await response.json().catch(() => ({}))
@@ -183,7 +187,7 @@ export default function AppointmentQuickSetter() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [mode, query, selectedClient, calendarOwnerId])
+  }, [mode, query, selectedClient, calendarOwnerId, coordinator])
 
   useEffect(() => {
     setBlocks([])
@@ -222,7 +226,7 @@ export default function AppointmentQuickSetter() {
     setNewPhone('')
     setStartTime('')
     if (!calendarOwnerId) {
-      setStatus('Choose Justin or Isaiah first.')
+      setStatus('Choose Sheena, Justin, or Isaiah first.')
       return
     }
     setStatus(nextMode === 'existing'
@@ -241,7 +245,7 @@ export default function AppointmentQuickSetter() {
     const name = mode === 'existing' ? clientName(selectedClient) : newName.trim()
     const phone = mode === 'existing' ? String(selectedClient?.phone || '').trim() : newPhone.trim()
 
-    if (!calendarOwnerId) return setStatus('Choose Justin or Isaiah for this appointment.')
+    if (!calendarOwnerId) return setStatus('Choose Sheena, Justin, or Isaiah for this appointment.')
     if (mode === 'existing' && !selectedClient) return setStatus('Choose an existing client first.')
     if (mode === 'new' && !name) return setStatus('Enter the new client’s name.')
     if (mode === 'new' && !phone) return setStatus('Enter the new client’s phone number.')
@@ -307,7 +311,7 @@ export default function AppointmentQuickSetter() {
         <label className="label quick-appointment-agent">
           <span>Agent</span>
           <select className="select" value={calendarOwnerId} onChange={(event) => setCalendarOwnerId(event.target.value)} disabled={contextLoading}>
-            <option value="">Select Justin or Isaiah</option>
+            <option value="">Select Sheena, Justin, or Isaiah</option>
             {appointmentAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}
           </select>
         </label>
