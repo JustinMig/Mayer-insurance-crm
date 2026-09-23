@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
-import { resolveCalendarOwner } from '@/lib/calendar-access'
+import { isAppointmentAgent, isSheenaCalendarCoordinator, resolveCalendarOwner } from '@/lib/calendar-access'
 import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
@@ -50,17 +50,20 @@ async function resolveClient(
   supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
   agencyId: string,
   ownerId: string,
-  requestedClient: string
+  requestedClient: string,
+  userId: string,
+  profile: Awaited<ReturnType<typeof getCrmSession>>['profile']
 ) {
   if (!requestedClient) return null
   const { data: client } = await supabase
     .from('clients')
-    .select('id')
+    .select('id,assigned_agent_id')
     .eq('id', requestedClient)
     .eq('agency_id', agencyId)
-    .eq('assigned_agent_id', ownerId)
     .maybeSingle()
-  if (!client) throw new Error('That client is not in the selected agent client book.')
+  if (!client) throw new Error('That client could not be found.')
+  const crossBookAllowed = isSheenaCalendarCoordinator(userId, profile) && isAppointmentAgent(client.assigned_agent_id)
+  if (client.assigned_agent_id !== ownerId && !crossBookAllowed) throw new Error('That client is not in the selected agent client book.')
   return client.id
 }
 
@@ -68,17 +71,20 @@ async function resolveLead(
   supabase: Awaited<ReturnType<typeof getCrmSession>>['supabase'],
   agencyId: string,
   ownerId: string,
-  requestedLead: string
+  requestedLead: string,
+  userId: string,
+  profile: Awaited<ReturnType<typeof getCrmSession>>['profile']
 ) {
   if (!requestedLead) return null
   const { data: lead } = await supabase
     .from('workspace_leads')
-    .select('id,status')
+    .select('id,status,assigned_agent_id')
     .eq('id', requestedLead)
     .eq('agency_id', agencyId)
-    .eq('assigned_agent_id', ownerId)
     .maybeSingle()
-  if (!lead || lead.status !== 'lead') throw new Error('That lead is not an active lead for the selected agent.')
+  if (!lead || lead.status !== 'lead') throw new Error('That lead is not active.')
+  const crossBookAllowed = isSheenaCalendarCoordinator(userId, profile) && isAppointmentAgent(lead.assigned_agent_id)
+  if (lead.assigned_agent_id !== ownerId && !crossBookAllowed) throw new Error('That lead is not active for the selected agent.')
   return lead.id
 }
 
@@ -149,8 +155,8 @@ export async function POST(request: NextRequest) {
       await assertAppointmentTimeAvailable(supabase, profile.agency_id, ownerId, eventDate, startTime, endTime)
     }
 
-    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, requestedClient)
-    const leadId = await resolveLead(supabase, profile.agency_id, ownerId, requestedLead)
+    const clientId = await resolveClient(supabase, profile.agency_id, ownerId, requestedClient, userId, profile)
+    const leadId = await resolveLead(supabase, profile.agency_id, ownerId, requestedLead, userId, profile)
     const { data, error } = await supabase
       .from('workspace_calendar_events')
       .insert({
