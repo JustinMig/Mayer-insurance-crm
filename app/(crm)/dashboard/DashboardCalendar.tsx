@@ -141,7 +141,7 @@ async function fetchPickerOptions(cacheKey: string): Promise<PickerOptions> {
   }
 }
 
-export default function DashboardCalendar({ agents, viewerName }: { agents: Agent[]; viewerName: string }) {
+export default function DashboardCalendar({ agents, appointmentAgents = agents, viewerName }: { agents: Agent[]; appointmentAgents?: Agent[]; viewerName: string }) {
   const today = useMemo(() => new Date(), [])
   const todayKey = useMemo(() => isoDate(today), [today])
   const defaultOwner = agents[0]?.id || ''
@@ -178,7 +178,7 @@ export default function DashboardCalendar({ agents, viewerName }: { agents: Agen
   })
 
   const range = useMemo(() => monthRange(month), [month])
-  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
+  const agentById = useMemo(() => new Map([...agents, ...appointmentAgents].map((agent) => [agent.id, agent])), [agents, appointmentAgents])
   const clientById = useMemo(() => {
     const map = new Map<string, ClientOption>()
     for (const client of linkedClients) map.set(client.id, client)
@@ -574,7 +574,7 @@ export default function DashboardCalendar({ agents, viewerName }: { agents: Agen
             {pickerLoading ? <div className="dash-cal-picker-status">Loading client and lead choices…</div> : null}
             {pickerError ? <div className="notice notice-error dash-cal-picker-error"><span>{pickerError}</span><button type="button" className="btn btn-secondary btn-small" onClick={() => void loadPickerOptions()}>Retry</button></div> : null}
             <div className="dash-cal-form-grid">
-              {agents.length > 1 ? <label><span>Agent</span><select value={draft.assigned_agent_id} onChange={(e) => { setDraft((current) => ({ ...current, assigned_agent_id: e.target.value, client_id: '', lead_id: '' })); setClientSearch(''); setLeadSearch('') }}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
+              {appointmentAgents.length > 1 ? <label><span>Appointment For</span><select value={draft.assigned_agent_id} onChange={(e) => { setDraft((current) => ({ ...current, assigned_agent_id: e.target.value, client_id: '', lead_id: '' })); setClientSearch(''); setLeadSearch('') }}>{appointmentAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
               <label><span>Type</span><select value={draft.event_type} onChange={(e) => setDraft((current) => ({ ...current, event_type: e.target.value as 'appointment' | 'activity' }))}><option value="appointment">Appointment</option><option value="activity">Activity</option></select></label>
               <label className="span-2"><span>Title</span><input value={draft.title} onChange={(e) => setDraft((current) => ({ ...current, title: e.target.value }))} placeholder="Appointment or activity title" /></label>
               <label><span>Date</span><input type="date" value={draft.event_date} onChange={(e) => setDraft((current) => ({ ...current, event_date: e.target.value }))} /></label>
