@@ -234,10 +234,11 @@ const ClientCard = memo(function ClientCard({
   )
 })
 
-export default function CampaignDetailClient({ campaign, initialRows, agents, viewerId, canViewAll }: {
+export default function CampaignDetailClient({ campaign, initialRows, agents, appointmentAgents = agents, viewerId, canViewAll }: {
   campaign: Campaign
   initialRows: CampaignRow[]
   agents: Agent[]
+  appointmentAgents?: Agent[]
   viewerId: string
   canViewAll: boolean
 }) {
@@ -256,6 +257,7 @@ export default function CampaignDetailClient({ campaign, initialRows, agents, vi
   const [appointmentDate, setAppointmentDate] = useState('')
   const [appointmentTime, setAppointmentTime] = useState('')
   const [appointmentNotes, setAppointmentNotes] = useState('')
+  const [appointmentOwnerId, setAppointmentOwnerId] = useState('')
   const [busyId, setBusyId] = useState('')
   const [message, setMessage] = useState('')
   const busyRef = useRef('')
@@ -435,8 +437,9 @@ export default function CampaignDetailClient({ campaign, initialRows, agents, vi
     setAppointmentDate(centralTodayManual())
     setAppointmentTime('')
     setAppointmentNotes('')
+    setAppointmentOwnerId(appointmentAgents.some((agent) => agent.id === row.assigned_agent_id) ? row.assigned_agent_id : (appointmentAgents[0]?.id || row.assigned_agent_id))
     setMessage('')
-  }, [])
+  }, [appointmentAgents])
 
   const removeRow = useCallback(async (row: CampaignRow) => {
     if (!window.confirm(`Remove ${clientName(row.client)} from this campaign? Existing outreach history will remain in the client history.`)) return
@@ -476,9 +479,10 @@ export default function CampaignDetailClient({ campaign, initialRows, agents, vi
         member_id: appointment.row.id,
         event_date: isoDate,
         start_time: appointmentTime,
-        notes: appointmentNotes
+        notes: appointmentNotes,
+        assigned_agent_id: appointmentOwnerId
       })
-      const owner = appointment.row.owner_name || 'assigned agent'
+      const owner = appointmentAgents.find((agent) => agent.id === appointmentOwnerId)?.full_name || appointment.row.owner_name || 'assigned agent'
       setAppointment(null)
       setMessage(`Appointment added directly to ${owner}'s calendar.`)
     } catch (error) {
@@ -614,8 +618,9 @@ export default function CampaignDetailClient({ campaign, initialRows, agents, vi
       {appointment ? (
         <div className="outreach-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busyId) setAppointment(null) }}>
           <div className="outreach-dialog" role="dialog" aria-modal="true" aria-label="Create client appointment">
-            <div className="outreach-dialog-head"><div><span>Create appointment</span><strong>{clientName(appointment.row.client)}</strong><p>Adds directly to {appointment.row.owner_name || 'the assigned agent'}&apos;s CRM calendar.</p></div><button type="button" disabled={Boolean(busyId)} onClick={() => setAppointment(null)} aria-label="Close">×</button></div>
+            <div className="outreach-dialog-head"><div><span>Create appointment</span><strong>{clientName(appointment.row.client)}</strong><p>Choose whose CRM calendar should receive this appointment.</p></div><button type="button" disabled={Boolean(busyId)} onClick={() => setAppointment(null)} aria-label="Close">×</button></div>
             <div className="outreach-dialog-form">
+              {appointmentAgents.length > 1 ? <label className="label">Appointment For<select className="select" value={appointmentOwnerId} onChange={(event) => setAppointmentOwnerId(event.target.value)}>{appointmentAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.full_name}</option>)}</select></label> : null}
               <div className="outreach-followup-row">
                 <label className="label">Appointment date<input className="input" inputMode="numeric" value={appointmentDate} onChange={(event) => setAppointmentDate(event.target.value)} placeholder="MM/DD/YYYY" /></label>
                 <label className="label">Time (optional)<input className="input" type="time" value={appointmentTime} onChange={(event) => setAppointmentTime(event.target.value)} /></label>
