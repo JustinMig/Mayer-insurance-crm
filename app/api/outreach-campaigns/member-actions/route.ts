@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCrmSession } from '@/lib/crm-session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resolveCalendarOwner } from '@/lib/calendar-access'
 import { assertAppointmentTimeAvailable } from '@/lib/workspace-calendar-conflicts'
 
 export const runtime = 'nodejs'
@@ -146,6 +147,8 @@ export async function POST(request: NextRequest) {
       const eventDate = clean(body.event_date, 10)
       const startTime = clean(body.start_time, 5)
       const notes = clean(body.notes, 5000)
+      const requestedOwner = clean(body.assigned_agent_id, 100)
+      const appointmentOwnerId = resolveCalendarOwner(userId, profile, requestedOwner || member.assigned_agent_id)
       if (!validDate(eventDate)) return json({ error: 'Enter a valid appointment date.' }, 400)
       if (startTime && !TIME_PATTERN.test(startTime)) return json({ error: 'Enter a valid appointment time.' }, 400)
 
@@ -153,7 +156,7 @@ export async function POST(request: NextRequest) {
         await assertAppointmentTimeAvailable(
           admin,
           profile.agency_id,
-          member.assigned_agent_id,
+          appointmentOwnerId,
           eventDate,
           startTime,
           ''
@@ -165,7 +168,7 @@ export async function POST(request: NextRequest) {
         .from('workspace_calendar_events')
         .insert({
           agency_id: profile.agency_id,
-          assigned_agent_id: member.assigned_agent_id,
+          assigned_agent_id: appointmentOwnerId,
           created_by: userId,
           client_id: member.client_id,
           lead_id: null,
@@ -189,7 +192,7 @@ export async function POST(request: NextRequest) {
         details: {
           campaign_id: member.campaign_id,
           event_id: event.id,
-          assigned_agent_id: member.assigned_agent_id,
+          assigned_agent_id: appointmentOwnerId,
           event_date: eventDate,
           start_time: startTime || null
         }
